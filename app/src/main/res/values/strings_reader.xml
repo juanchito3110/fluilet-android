@@ -1,0 +1,28 @@
+<resources>
+    <string name="reader_empty_title">No hay una lectura lista</string>
+    <string name="reader_empty_body">Pide a tu tutor que prepare una lectura para ti.</string>
+    <string name="reader_back">Volver</string>
+    <string name="reader_block_of">Bloque %1$d de %2$d</string>
+    <string name="reader_focus_on">Modo Enfoque</string>
+    <string name="reader_settings">Ajustes de lectura</string>
+    <string name="reader_exit">Salir (requiere PIN del tutor)</string>
+    <string name="reader_previous">Bloque anterior</string>
+    <string name="reader_next">Bloque siguiente</string>
+    <string name="reader_play">Leer en voz alta</string>
+    <string name="reader_pause">Pausar</string>
+    <string name="reader_resume">Reanudar</string>
+    <string name="reader_stop">Detener</string>
+    <string name="reader_speed_slow">Lento</string>
+    <string name="reader_speed_normal">Normal</string>
+    <string name="reader_speed_fast">Rápido</string>
+    <string name="reader_finish">¡Terminé de leer!</string>
+    <string name="reader_install_voice">Instalar voz en español</string>
+    <string name="reader_done_title">¡Muy bien!</string>
+    <string name="reader_done_body">Terminaste la lectura. Pide a tu tutor que te ayude a salir.</string>
+    <string name="reader_again">Leer de nuevo</string>
+    <string name="reader_font_size">Tamaño de letra</string>
+    <string name="reader_line_spacing">Interlineado</string>
+    <string name="reader_letter_spacing">Espacio entre letras</string>
+    <string name="reader_speech_rate">Velocidad de la voz</string>
+    <string name="reader_palette">Colores</string>
+</resources>

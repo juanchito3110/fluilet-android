@@ -4,64 +4,117 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.fluilet.app.domain.model.AccessiblePalette
+import androidx.navigation.navArgument
+import com.fluilet.app.domain.model.SessionState
 import com.fluilet.app.domain.model.UserRole
 import com.fluilet.app.presentation.auth.LoginScreen
+import com.fluilet.app.presentation.auth.RegisterScreen
+import com.fluilet.app.presentation.child.ChildFormScreen
+import com.fluilet.app.presentation.common.FullScreenLoading
+import com.fluilet.app.presentation.home.HomeScreen
+import com.fluilet.app.presentation.newreading.NewReadingScreen
 import com.fluilet.app.presentation.reader.ReaderScreen
-import com.fluilet.app.presentation.theme.FluiletTheme
-import com.fluilet.app.presentation.tutor.TutorDashboardScreen
 
-sealed class FluiletDestination(val route: String) {
-    data object Login : FluiletDestination("login")
-    data object TutorDashboard : FluiletDestination("tutor_dashboard")
-    data object Reader : FluiletDestination("reader")
+object Routes {
+    const val SPLASH = "splash"
+    const val LOGIN = "login"
+    const val REGISTER = "register"
+    const val HOME = "home"
+    const val READER = "reader"
+    const val CHILD_FORM = "child_form?childId={childId}"
+    const val NEW_READING = "new_reading?childId={childId}"
+
+    fun childForm(childId: String? = null) = if (childId == null) "child_form" else "child_form?childId=$childId"
+    fun newReading(childId: String? = null) = if (childId == null) "new_reading" else "new_reading?childId=$childId"
+
+    /** Tutor y adulto independiente entran al panel; la vista de niño (NINO) va directo a la lectura. */
+    fun homeFor(role: UserRole) = if (role.isChildView) READER else HOME
 }
 
-private const val TRANSITION_DURATION_MS = 350
+private const val TRANSITION_MS = 250
+private val optionalChildArg = navArgument("childId") {
+    type = NavType.StringType
+    nullable = true
+    defaultValue = null
+}
 
 @Composable
 fun AppNavigation(
     navController: NavHostController = rememberNavController(),
-    onToggleFocusModeHardware: (Boolean) -> Unit = {}
+    viewModel: AppViewModel = hiltViewModel()
 ) {
-    // Tema base para Login/Tutor. ReaderScreen aplica su propio FluiletTheme anidado
-    // con la paleta dinámica del usuario — Compose respeta el tema más interno.
-    FluiletTheme(palette = AccessiblePalette.ESTANDAR) {
-        NavHost(
-            navController = navController,
-            startDestination = FluiletDestination.Login.route,
-            enterTransition = { fadeIn(animationSpec = tween(TRANSITION_DURATION_MS)) },
-            exitTransition = { fadeOut(animationSpec = tween(TRANSITION_DURATION_MS)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(TRANSITION_DURATION_MS)) },
-            popExitTransition = { fadeOut(animationSpec = tween(TRANSITION_DURATION_MS)) }
-        ) {
-            composable(FluiletDestination.Login.route) {
-                LoginScreen(
-                    onLoginSuccess = { role ->
-                        val destination = if (role == UserRole.TUTOR) {
-                            FluiletDestination.TutorDashboard.route
-                        } else {
-                            FluiletDestination.Reader.route
-                        }
-                        navController.navigate(destination) {
-                            popUpTo(FluiletDestination.Login.route) { inclusive = true }
-                        }
+    val session by viewModel.session.collectAsStateWithLifecycle()
+
+    // La sesión manda: login/logout/expiración del token redirigen sin importar dónde esté el usuario.
+    LaunchedEffect(session) {
+        val current = navController.currentDestination?.route
+        when (val s = session) {
+            SessionState.Loading -> Unit
+            SessionState.LoggedOut -> if (current != Routes.LOGIN && current != Routes.REGISTER) {
+                navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+            }
+            is SessionState.LoggedIn -> if (current == null || current == Routes.SPLASH || current == Routes.LOGIN || current == Routes.REGISTER) {
+                navController.navigate(Routes.homeFor(s.role)) { popUpTo(0) { inclusive = true } }
+            }
+        }
+    }
+
+    NavHost(
+        navController = navController,
+        startDestination = Routes.SPLASH,
+        enterTransition = { fadeIn(tween(TRANSITION_MS)) },
+        exitTransition = { fadeOut(tween(TRANSITION_MS)) },
+        popEnterTransition = { fadeIn(tween(TRANSITION_MS)) },
+        popExitTransition = { fadeOut(tween(TRANSITION_MS)) }
+    ) {
+        composable(Routes.SPLASH) { FullScreenLoading() }
+
+        composable(Routes.LOGIN) {
+            LoginScreen(onRegister = { navController.navigate(Routes.REGISTER) })
+        }
+        composable(Routes.REGISTER) {
+            RegisterScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.HOME) {
+            HomeScreen(
+                onNewChild = { navController.navigate(Routes.childForm()) },
+                onEditChild = { navController.navigate(Routes.childForm(it)) },
+                onNewReading = { navController.navigate(Routes.newReading(it)) },
+                onStartReading = { navController.navigate(Routes.READER) }
+            )
+        }
+        composable(Routes.CHILD_FORM, arguments = listOf(optionalChildArg)) {
+            ChildFormScreen(onDone = { navController.popBackStack() })
+        }
+        composable(Routes.NEW_READING, arguments = listOf(optionalChildArg)) {
+            NewReadingScreen(
+                onDone = { navController.popBackStack() },
+                onCancel = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.READER) {
+            ReaderScreen(
+                onExit = {
+                    val role = (session as? SessionState.LoggedIn)?.role
+                    if (role == UserRole.NINO) {
+                        // La vista de niño no tiene panel al que volver: tras el Muro Parental se cierra la sesión.
+                        viewModel.logout()
+                    } else if (!navController.popBackStack(Routes.HOME, inclusive = false)) {
+                        navController.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
                     }
-                )
-            }
-
-            composable(FluiletDestination.TutorDashboard.route) {
-                // TODO: reemplazar por el childId real cuando exista selector de perfil / backend.
-                TutorDashboardScreen(childId = "demo-child-id")
-            }
-
-            composable(FluiletDestination.Reader.route) {
-                ReaderScreen(onToggleFocusModeHardware = onToggleFocusModeHardware)
-            }
+                }
+            )
         }
     }
 }

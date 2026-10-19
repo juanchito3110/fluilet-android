@@ -4,33 +4,45 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.fluilet.app.R
 
-// Requiere colocar los .ttf en res/font/: opendyslexic_regular.ttf, opendyslexic_bold.ttf
+/** OpenDyslexic completa (regular, negrita, cursiva y negrita cursiva) desde los .otf de res/font. */
 val OpenDyslexicFontFamily = FontFamily(
-    Font(R.font.opendyslexic_regular, FontWeight.Normal),
-    Font(R.font.opendyslexic_bold, FontWeight.Bold)
+    Font(R.font.opendyslexic_regular, FontWeight.Normal, FontStyle.Normal),
+    Font(R.font.opendyslexic_bold, FontWeight.Bold, FontStyle.Normal),
+    Font(R.font.opendyslexic_italic, FontWeight.Normal, FontStyle.Italic),
+    Font(R.font.opendyslexic_bolditalic, FontWeight.Bold, FontStyle.Italic)
 )
 
-val FluiletTypography = Typography(
-    bodyLarge = TextStyle(
+private fun style(size: Int, line: Int, weight: FontWeight = FontWeight.Normal, spacing: TextUnit = 0.02.em) =
+    TextStyle(
         fontFamily = OpenDyslexicFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp
-    ),
-    titleLarge = TextStyle(
-        fontFamily = OpenDyslexicFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp
-    ),
-    titleMedium = TextStyle(
-        fontFamily = OpenDyslexicFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 18.sp,
-        lineHeight = 24.sp
+        fontWeight = weight,
+        fontSize = size.sp,
+        lineHeight = line.sp,
+        letterSpacing = spacing
     )
+
+/** Toda la escala M3 usa OpenDyslexic con interlineado holgado y ligero espaciado entre letras. */
+fun fluiletTypography(): Typography = Typography(
+    displayLarge = style(44, 56, FontWeight.Bold),
+    displayMedium = style(36, 46, FontWeight.Bold),
+    displaySmall = style(30, 40, FontWeight.Bold),
+    headlineLarge = style(28, 38, FontWeight.Bold),
+    headlineMedium = style(24, 34, FontWeight.Bold),
+    headlineSmall = style(21, 30, FontWeight.Bold),
+    titleLarge = style(20, 30, FontWeight.Bold),
+    titleMedium = style(17, 26, FontWeight.Bold),
+    titleSmall = style(15, 24, FontWeight.Bold),
+    bodyLarge = style(17, 28),
+    bodyMedium = style(15, 25),
+    bodySmall = style(13, 21),
+    labelLarge = style(15, 22, FontWeight.Bold),
+    labelMedium = style(13, 20, FontWeight.Bold),
+    labelSmall = style(12, 18, FontWeight.Bold)
 )

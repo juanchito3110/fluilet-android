@@ -1,0 +1,8 @@
+<resources>
+    <string name="child_new_title">Nuevo perfil de niño</string>
+    <string name="child_edit_title">Editar perfil</string>
+    <string name="child_name">Nombre</string>
+    <string name="child_birth_pick">Elegir fecha de nacimiento</string>
+    <string name="child_difficulty">Dificultad principal</string>
+    <string name="child_preview_text">Así se verá el texto de lectura con estos ajustes.</string>
+</resources>

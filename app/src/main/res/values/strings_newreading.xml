@@ -1,0 +1,22 @@
+<resources>
+    <string name="newreading_title">Nueva lectura</string>
+    <string name="newreading_for">Para %1$s</string>
+    <string name="newreading_privacy">El texto se adapta y se mantiene solo en la memoria de la app mientras se lee. No se guarda en el dispositivo.</string>
+    <string name="newreading_mode_paste">Pegar texto</string>
+    <string name="newreading_mode_file">Subir archivo</string>
+    <string name="newreading_text_label">Texto a adaptar</string>
+    <string name="newreading_pick_file">Elegir archivo (.txt o .pdf)</string>
+    <string name="newreading_file_hint">Tamaño máximo 5 MB. El PDF debe tener texto (no se admiten escaneos).</string>
+    <string name="newreading_adapt">Adaptar texto</string>
+    <string name="newreading_use">Usar esta lectura</string>
+    <string name="newreading_edit">Volver a editar</string>
+    <string name="newreading_result_title">Legibilidad (Szigriszt-Pazos)</string>
+    <string name="newreading_m_original">Original</string>
+    <string name="newreading_m_adapted">Adaptado</string>
+    <string name="newreading_m_delta">Mejora</string>
+    <string name="newreading_m_words">Palabras</string>
+    <string name="newreading_m_sentences">Oraciones</string>
+    <string name="newreading_m_syllables">Sílabas</string>
+    <string name="newreading_m_blocks">Bloques de lectura</string>
+    <string name="newreading_preview_title">Vista previa</string>
+</resources>

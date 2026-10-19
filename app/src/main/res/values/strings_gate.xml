@@ -1,0 +1,20 @@
+<resources>
+    <string name="action_cancel">Cancelar</string>
+    <string name="gate_verify_title">Muro Parental</string>
+    <string name="gate_verify_body">Ingresa el PIN del tutor para salir de la lectura.</string>
+    <string name="gate_setup_title">Crea tu PIN de tutor</string>
+    <string name="gate_setup_body">Este PIN protege la salida del Modo Enfoque. Elige de 4 a 6 dígitos que tu hijo o hija no conozca.</string>
+    <string name="gate_change_title">Cambiar PIN</string>
+    <string name="gate_change_body">Ingresa tu PIN actual y elige uno nuevo.</string>
+    <string name="gate_reset_title">Restablecer PIN</string>
+    <string name="gate_reset_body">Confirma tu contraseña de tutor para elegir un PIN nuevo.</string>
+    <string name="gate_password">Contraseña de tutor</string>
+    <string name="gate_current_pin">PIN actual</string>
+    <string name="gate_new_pin">PIN nuevo</string>
+    <string name="gate_confirm_pin">Confirma el PIN</string>
+    <string name="gate_unlock">Desbloquear</string>
+    <string name="gate_save">Guardar</string>
+    <string name="gate_forgot_pin">Olvidé mi PIN</string>
+    <string name="gate_back">Volver</string>
+    <string name="gate_locked_seconds">Intenta de nuevo en %1$d s</string>
+</resources>

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- RELEASE: cero tráfico en claro y solo CAs del sistema. El pinning por dominio se aplica
+     en OkHttp (CertificatePinner, ver di/NetworkModule.kt). La variante debug sobreescribe
+     este archivo en src/debug/res/xml/ para permitir el emulador. -->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">10.0.2.2</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
 </network-security-config>

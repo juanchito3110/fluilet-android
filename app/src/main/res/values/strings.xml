@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Fluilet</string>
+
+    <!-- Servicio de sesión de lectura -->
+    <string name="focus_channel_name">Sesión de lectura</string>
+    <string name="focus_channel_description">Mantiene activa la sesión de lectura y el Modo Enfoque.</string>
+    <string name="focus_notification_title">Sesión de lectura en curso</string>
+    <string name="focus_notification_text">Tiempo de lectura: %1$02d:%2$02d</string>
 </resources>

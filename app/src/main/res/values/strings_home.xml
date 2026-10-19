@@ -1,0 +1,35 @@
+<resources>
+    <string name="action_edit">Editar</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_save">Guardar</string>
+
+    <string name="home_hello">Hola, %1$s</string>
+    <string name="home_hello_plain">Hola</string>
+    <string name="home_role_tutor">Panel del tutor</string>
+    <string name="home_role_adult">Lector independiente</string>
+    <string name="home_logout">Cerrar sesión</string>
+    <string name="home_children_title">Perfiles de niños</string>
+    <string name="home_children_empty">Crea un perfil para adaptar lecturas a su nivel.</string>
+    <string name="home_new_child">Nuevo perfil</string>
+    <string name="home_child_summary">%1$s · Paleta %2$s · Letra de %3$d pt</string>
+    <string name="home_reading_title">Lectura</string>
+    <string name="home_reading_none">Aún no hay una lectura lista. Pega un texto o sube un archivo para adaptarlo.</string>
+    <string name="home_reading_ready">%1$d bloques · legibilidad %2$.0f</string>
+    <string name="home_start_focus">Iniciar lectura con Modo Enfoque</string>
+    <string name="home_start">Iniciar lectura</string>
+    <string name="home_new_reading">Nueva lectura</string>
+    <string name="home_progress_title">Progreso clínico</string>
+    <string name="home_progress_empty">Cuando termine una sesión de lectura verás aquí la legibilidad (Szigriszt-Pazos), el tiempo y el avance.</string>
+    <string name="home_score_original">Original</string>
+    <string name="home_score_adapted">Adaptado</string>
+    <string name="home_session_detail">Mejora %1$+.1f · %2$s · %3$d min · %4$d%% completado</string>
+    <string name="home_pin_title">Muro Parental</string>
+    <string name="home_pin_set">PIN de tutor configurado. Protege la salida del Modo Enfoque.</string>
+    <string name="home_pin_missing">Crea un PIN para poder iniciar lecturas con Modo Enfoque.</string>
+    <string name="home_pin_create">Crear PIN</string>
+    <string name="home_pin_change">Cambiar PIN</string>
+    <string name="home_delete_title">¿Eliminar a %1$s?</string>
+    <string name="home_delete_body">Se eliminará el perfil. Esta acción no se puede deshacer.</string>
+    <string name="home_delete_confirm">Eliminar</string>
+    <string name="nlp_level_title">Simplificación: %1$s</string>
+</resources>

@@ -1,78 +1,89 @@
 package com.fluilet.app
 
 import android.os.Bundle
-import android.util.Log
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.navigation.compose.rememberNavController
+import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.fluilet.app.core.focusmode.FocusModeManager
 import com.fluilet.app.core.focusmode.FocusModeResult
+import com.fluilet.app.core.focusmode.FocusSessionController
+import com.fluilet.app.domain.model.AccessiblePalette
 import com.fluilet.app.presentation.navigation.AppNavigation
+import com.fluilet.app.presentation.theme.FluiletTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Traduce el estado de [FocusSessionController] a `startLockTask()` / `stopLockTask()`.
+ * La salida del anclaje solo ocurre cuando el controlador cierra la sesión, y éste exige la
+ * prueba de PIN del tutor (Muro Parental): aquí no hay ninguna ruta de salida sin validar.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    @Inject
-    lateinit var focusModeManager: FocusModeManager
+    @Inject lateinit var focusModeManager: FocusModeManager
+    @Inject lateinit var focusController: FocusSessionController
 
-    private val notificationPolicyAccessLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if (focusModeManager.isNotificationPolicyAccessGranted()) {
-                runActivateFocusMode()
-            } else {
-                Log.w(TAG, "El permiso de Acceso a No Molestar no fue otorgado.")
-            }
-        }
+    /** Anclaje que pidió la app (no tocamos un anclaje que el usuario activó por su cuenta). */
+    private var lockRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+
+        // Release: el contenido (textos de menores) no aparece en capturas ni en la vista de recientes.
+        if (!BuildConfig.DEBUG) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                focusController.state
+                    .map { it.isActive && it.lockRequested }
+                    .distinctUntilChanged()
+                    .collect(::applyLock)
+            }
+        }
+
         setContent {
-            val navController = rememberNavController()
-            AppNavigation(
-                navController = navController,
-                onToggleFocusModeHardware = { activating ->
-                    if (activating) requestFocusMode() else releaseFocusMode()
-                }
-            )
+            FluiletTheme(palette = AccessiblePalette.DEFAULT) {
+                AppNavigation()
+            }
         }
     }
 
-    private fun requestFocusMode() {
-        if (!focusModeManager.isNotificationPolicyAccessGranted()) {
-            notificationPolicyAccessLauncher.launch(focusModeManager.buildNotificationPolicyAccessIntent())
-            return
-        }
-        runActivateFocusMode()
-    }
-
-    private fun runActivateFocusMode() {
-        when (val result = focusModeManager.activateFocusMode(this)) {
-            is FocusModeResult.Success -> Log.i(TAG, "Modo Enfoque activado: DND + Screen Pinning.")
-            is FocusModeResult.PermissionRequired ->
-                notificationPolicyAccessLauncher.launch(focusModeManager.buildNotificationPolicyAccessIntent())
-            is FocusModeResult.Error -> Log.w(TAG, "Modo Enfoque: ${result.message}")
+    override fun onResume() {
+        super.onResume()
+        // Si el niño salió del anclaje con el gesto del sistema, se vuelve a anclar al regresar.
+        if (lockRequested && !focusModeManager.isScreenPinningActive(this)) {
+            focusModeManager.startScreenPinning(this)
         }
     }
 
-    private fun releaseFocusMode() {
-        when (val result = focusModeManager.deactivateFocusMode(this, tutorCredentialsValidated = true)) {
-            is FocusModeResult.Success -> Log.i(TAG, "Modo Enfoque desactivado correctamente.")
-            is FocusModeResult.PermissionRequired -> Log.w(TAG, "Falta permiso para restaurar notificaciones.")
-            is FocusModeResult.Error -> Log.w(TAG, "Modo Enfoque: ${result.message}")
+    private fun applyLock(shouldLock: Boolean) {
+        if (shouldLock) {
+            lockRequested = true
+            handleResult(focusModeManager.startScreenPinning(this))
+        } else if (lockRequested) {
+            lockRequested = false
+            handleResult(focusModeManager.stopScreenPinning(this))
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (focusModeManager.isScreenPinningActive(this)) {
-            focusModeManager.stopScreenPinning(this, tutorCredentialsValidated = true)
+    private fun handleResult(result: FocusModeResult) {
+        if (result is FocusModeResult.Error) {
+            android.util.Log.w(TAG, "Modo Enfoque: ${result.message}")
         }
     }
 
-    companion object {
-        private const val TAG = "MainActivity"
+    private companion object {
+        const val TAG = "MainActivity"
     }
 }
