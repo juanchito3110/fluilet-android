@@ -16,7 +16,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoFixHigh
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.filled.PlayArrow
+import com.fluilet.app.presentation.common.SelectableChip
+import com.fluilet.app.presentation.common.CheckMark
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -24,7 +26,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -39,12 +46,28 @@ import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.SectionCard
 import com.fluilet.app.presentation.home.NlpLevelSlider
+import com.fluilet.app.presentation.parentalgate.GateMode
+import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
 
 @Composable
-fun NewReadingScreen(onDone: () -> Unit, onCancel: () -> Unit, viewModel: NewReadingViewModel = hiltViewModel()) {
+fun NewReadingScreen(
+    onSaved: () -> Unit,
+    onStartNow: () -> Unit,
+    onCancel: () -> Unit,
+    viewModel: NewReadingViewModel = hiltViewModel()
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { viewModel.done.collect { onDone() } }
+    var showPinSetup by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.done.collect { outcome ->
+            when (outcome) {
+                NewReadingOutcome.SAVED -> onSaved()
+                NewReadingOutcome.START_NOW -> onStartNow()
+            }
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { viewModel.onFilePicked(it) }
 
@@ -73,23 +96,49 @@ fun NewReadingScreen(onDone: () -> Unit, onCancel: () -> Unit, viewModel: NewRea
                 SecondaryButton(stringResource(R.string.action_cancel), onCancel)
             } else {
                 ResultSection(result)
-                PrimaryButton(stringResource(R.string.newreading_use), viewModel::useReading)
+                // Traspaso directo Tutor -> Niño: un toque y el niño empieza a leer en Modo Enfoque.
+                PrimaryButton(
+                    text = stringResource(if (state.forChild) R.string.newreading_start_focus else R.string.newreading_start),
+                    onClick = {
+                        // Con perfil de niño el PIN del tutor debe existir antes de bloquear la pantalla.
+                        if (state.forChild && !state.pinConfigured) showPinSetup = true else viewModel.startNow()
+                    },
+                    icon = Icons.Filled.PlayArrow
+                )
+                SecondaryButton(stringResource(R.string.newreading_save_later), viewModel::saveForLater)
                 SecondaryButton(stringResource(R.string.newreading_edit), viewModel::backToEdit)
             }
         }
+    }
+
+    PinSetupHost(
+        show = showPinSetup,
+        onDone = {
+            showPinSetup = false
+            viewModel.refreshPin()
+            viewModel.startNow()
+        },
+        onDismiss = { showPinSetup = false }
+    )
+}
+
+@Composable
+private fun PinSetupHost(show: Boolean, onDone: () -> Unit, onDismiss: () -> Unit) {
+    if (show) {
+        ParentalGateDialog(mode = GateMode.SETUP, onSuccess = { onDone() }, onDismiss = onDismiss)
     }
 }
 
 @Composable
 private fun InputSection(state: NewReadingUiState, vm: NewReadingViewModel, onPick: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(
+        SelectableChip(
             selected = state.mode == InputMode.PASTE,
             onClick = { vm.onMode(InputMode.PASTE) },
             label = { Text(stringResource(R.string.newreading_mode_paste), style = MaterialTheme.typography.labelLarge) },
             modifier = Modifier.heightIn(min = 48.dp)
         )
-        FilterChip(
+        SelectableChip(
             selected = state.mode == InputMode.FILE,
             onClick = { vm.onMode(InputMode.FILE) },
             label = { Text(stringResource(R.string.newreading_mode_file), style = MaterialTheme.typography.labelLarge) },
@@ -149,8 +198,9 @@ private fun ResultSection(result: AdaptationResult) {
 
 @Composable
 private fun MetricRow(label: Int, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.titleSmall)
+    // La etiqueta y el valor se reparten el ancho: con tipografía grande el valor baja de línea en vez de pegarse a la etiqueta.
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Text(stringResource(label), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.4f))
+        Text(value, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.End, modifier = Modifier.weight(0.6f))
     }
 }

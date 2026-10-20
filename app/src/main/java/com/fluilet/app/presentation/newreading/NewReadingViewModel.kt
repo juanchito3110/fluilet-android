@@ -18,6 +18,7 @@ import com.fluilet.app.domain.model.SourceType
 import com.fluilet.app.domain.session.ActiveReadingHolder
 import com.fluilet.app.domain.usecase.AdaptTextUseCase
 import com.fluilet.app.domain.usecase.GetChildrenUseCase
+import com.fluilet.app.domain.usecase.IsTutorPinConfiguredUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,9 @@ import javax.inject.Inject
 
 enum class InputMode { PASTE, FILE }
 
+/** Qué hacer al terminar: guardar la lectura para después o empezar a leer ahora. */
+enum class NewReadingOutcome { SAVED, START_NOW }
+
 data class NewReadingUiState(
     val mode: InputMode = InputMode.PASTE,
     val text: String = "",
@@ -41,6 +45,9 @@ data class NewReadingUiState(
     val readerName: String = "",
     val isReadingFile: Boolean = false,
     val isAdapting: Boolean = false,
+    /** Lectura para un perfil de niño: iniciar exige PIN de tutor (Muro Parental). */
+    val forChild: Boolean = false,
+    val pinConfigured: Boolean = true,
     val result: AdaptationResult? = null,
     val errorMessage: String? = null
 ) {
@@ -58,17 +65,18 @@ class NewReadingViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val getChildren: GetChildrenUseCase,
     private val adaptText: AdaptTextUseCase,
-    private val holder: ActiveReadingHolder
+    private val holder: ActiveReadingHolder,
+    private val isPinConfigured: IsTutorPinConfiguredUseCase
 ) : ViewModel() {
 
     private val childId: String? = savedStateHandle.get<String>("childId")?.takeIf { it.isNotBlank() }
     private var child: ChildProfile? = null
     private var pendingFile: AdaptationSource? = null
 
-    private val _state = MutableStateFlow(NewReadingUiState())
+    private val _state = MutableStateFlow(NewReadingUiState(forChild = childId != null, pinConfigured = isPinConfigured()))
     val state: StateFlow<NewReadingUiState> = _state.asStateFlow()
 
-    private val _done = Channel<Unit>(Channel.BUFFERED)
+    private val _done = Channel<NewReadingOutcome>(Channel.BUFFERED)
     val done = _done.receiveAsFlow()
 
     init {
@@ -146,13 +154,21 @@ class NewReadingViewModel @Inject constructor(
         }
     }
 
-    /** Deja la lectura adaptada lista en RAM, con las preferencias visuales del perfil. */
-    fun useReading() {
+    fun refreshPin() = _state.update { it.copy(pinConfigured = isPinConfigured()) }
+
+    /** Deja la lectura lista en RAM para más tarde (vuelve al panel). */
+    fun saveForLater() = useReading(NewReadingOutcome.SAVED)
+
+    /** Deja la lectura lista y entra directo al lector (Modo Enfoque si es para un niño). */
+    fun startNow() = useReading(NewReadingOutcome.START_NOW)
+
+    /** Deja la lectura adaptada en RAM, con las preferencias visuales del perfil. */
+    private fun useReading(outcome: NewReadingOutcome) {
         val result = _state.value.result ?: return
         val settings = child?.toReadingSettings() ?: ReadingSettings()
         holder.set(ActiveReading(childId, _state.value.readerName.ifBlank { "Lector" }, settings, result))
         pendingFile = null
         _state.update { it.copy(text = "", fileName = null) }
-        _done.trySend(Unit)
+        _done.trySend(outcome)
     }
 }

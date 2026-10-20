@@ -98,7 +98,13 @@ fun AppNavigation(
         }
         composable(Routes.NEW_READING, arguments = listOf(optionalChildArg)) {
             NewReadingScreen(
-                onDone = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() },
+                // Directo al lector; al salir (tras el Muro Parental) se vuelve al panel del tutor.
+                onStartNow = {
+                    navController.navigate(Routes.READER) {
+                        popUpTo(Routes.NEW_READING) { inclusive = true }
+                    }
+                },
                 onCancel = { navController.popBackStack() }
             )
         }

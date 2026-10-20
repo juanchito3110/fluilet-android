@@ -44,7 +44,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FilterChip
+import com.fluilet.app.presentation.common.SelectableChip
+import com.fluilet.app.presentation.common.CheckMark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -315,7 +316,7 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
 @Composable
 private fun SpeedChip(label: Int, rate: Float, state: ReaderUiState, vm: ReaderViewModel) {
     val selected = kotlin.math.abs(state.settings.speechRate - rate) < 0.03f
-    FilterChip(
+    SelectableChip(
         selected = selected,
         onClick = { vm.onSpeechRate(rate) },
         label = { Text(stringResource(label), style = MaterialTheme.typography.labelLarge) },

@@ -75,11 +75,40 @@ private fun mapHttp(e: HttpException): AppError {
     }
 }
 
+private val FIELD_MESSAGES = mapOf(
+    "email" to "El correo no es válido o su dominio no está permitido.",
+    "password" to "La contraseña no cumple los requisitos de seguridad.",
+    "full_name" to "El nombre no es válido.",
+    "name" to "El nombre no es válido.",
+    "role" to "Ese tipo de cuenta no está permitido.",
+    "birth_date" to "La fecha de nacimiento debe corresponder a un niño de 6 a 11 años.",
+    "nivel_simplificacion_nlp" to "El nivel de simplificación no es válido.",
+    "text" to "El texto no es válido.",
+    "pin" to "El PIN no es válido."
+)
+
+/**
+ * Con 422 el backend responde `{"detail":"Solicitud inválida.","errors":[{"type","loc"}]}` (sin eco de
+ * valores). Se traduce el primer campo señalado en `loc` a un mensaje útil para el usuario.
+ */
+internal fun fieldMessageFromErrors(errors: com.google.gson.JsonElement?): String? {
+    if (errors == null || !errors.isJsonArray) return null
+    for (item in errors.asJsonArray) {
+        val loc = item.takeIf { it.isJsonObject }?.asJsonObject?.get("loc")?.takeIf { it.isJsonArray } ?: continue
+        val field = loc.asJsonArray.mapNotNull { it.takeIf { e -> e.isJsonPrimitive && e.asJsonPrimitive.isString }?.asString }
+            .lastOrNull { it !in setOf("body", "query", "path", "header") }
+        FIELD_MESSAGES[field]?.let { return it }
+    }
+    return null
+}
+
 /** Extrae `detail` de FastAPI: texto plano o lista de errores de validación (`msg`). */
 private fun HttpException.parseDetail(): String? = try {
     val raw = response()?.errorBody()?.string().orEmpty()
-    val detail = errorGson.fromJson(raw, ErrorBodyDto::class.java)?.detail
+    val body = errorGson.fromJson(raw, ErrorBodyDto::class.java)
+    val detail = body?.detail
     when {
+        fieldMessageFromErrors(body?.errors) != null -> fieldMessageFromErrors(body?.errors)
         detail == null || detail.isJsonNull -> null
         detail.isJsonPrimitive -> detail.asString
         detail is JsonArray -> detail.mapNotNull { item ->

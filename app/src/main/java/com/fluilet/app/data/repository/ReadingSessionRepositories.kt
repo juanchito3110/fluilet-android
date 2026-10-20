@@ -15,10 +15,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Telemetría contra el backend. Una sesión se abre con `POST /children/{id}/readings` (documento
- * ya asignado al adaptar con `child_id`) y se actualiza con `PATCH /readings/{id}`. El servidor
- * valida que el tiempo no supere el real transcurrido (+5 s) y que el avance no retroceda.
- * Los adultos independientes no tienen perfil de niño: no hay seguimiento remoto.
+ * Telemetría contra el backend. El servidor valida que el tiempo no supere el real transcurrido
+ * (+5 s) y que el avance no retroceda; las métricas Szigriszt-Pazos las fija él.
+ * - Niño (perfil del tutor): `POST /children/{id}/readings` (documento ya asignado al adaptar con
+ *   `child_id`) y `GET /children/{id}/readings`.
+ * - Adulto independiente: `POST /readings` y `GET /readings`, sin perfil de niño.
+ * En ambos casos el avance se actualiza con `PATCH /readings/{id}`.
  */
 @Singleton
 class RemoteReadingSessionRepository @Inject constructor(
@@ -26,9 +28,11 @@ class RemoteReadingSessionRepository @Inject constructor(
 ) : ReadingSessionRepository {
 
     override suspend fun start(childId: String?, adaptation: AdaptationResult): Result<String?> {
-        val documentId = adaptation.documentId
-        if (childId == null || documentId == null) return Result.success(null)
-        return apiCall { api.startReading(childId, ReadingCreateDto(documentId)) }.map { it.id }
+        val documentId = adaptation.documentId ?: return Result.success(null) // adaptación local: sin seguimiento
+        val body = ReadingCreateDto(documentId)
+        return apiCall {
+            if (childId != null) api.startReading(childId, body) else api.startIndependentReading(body)
+        }.map { it.id }
     }
 
     override suspend fun progress(readingId: String, progress: ReadingProgress): Result<Unit> =
@@ -43,15 +47,9 @@ class RemoteReadingSessionRepository @Inject constructor(
             )
         }.map { }
 
-    override suspend fun history(childId: String?): Result<List<SessionSummary>> {
-        if (childId == null) return Result.success(emptyList())
-        return apiCall {
-            val readings = api.readings(childId)
-            // Las métricas viven en el documento; si no se pueden leer, el historial sigue mostrando tiempo y avance.
-            val documents = runCatching { api.documents() }.getOrDefault(emptyList()).associateBy { it.id }
-            readings.mapIndexed { index, reading -> reading.toSummary(index, documents[reading.documentId]) }
-        }
-    }
+    override suspend fun history(childId: String?): Result<List<SessionSummary>> =
+        apiCall { if (childId != null) api.readings(childId) else api.independentReadings() }
+            .map { readings -> readings.mapIndexed { index, reading -> reading.toSummary(index) } }
 }
 
 /** Respaldo local solo numérico (builds con `USE_REMOTE_ADAPTATION=false`). */

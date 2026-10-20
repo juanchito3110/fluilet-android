@@ -13,11 +13,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -127,4 +130,44 @@ fun formatDuration(totalSeconds: Long): String {
     val m = totalSeconds / 60
     val s = totalSeconds % 60
     return "%02d:%02d".format(m, s)
+}
+
+/**
+ * Chip de selección con estado muy visible (relleno de color + check): el estado seleccionado nunca
+ * depende solo de un tono sutil, requisito de accesibilidad para TDAH/dislexia (WCAG 1.4.1).
+ */
+@Composable
+fun SelectableChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = label,
+        modifier = modifier.heightIn(min = 48.dp),
+        leadingIcon = leadingIcon ?: if (selected) ({ CheckMark() }) else null,
+        shape = RoundedCornerShape(14.dp),
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = MaterialTheme.colorScheme.outline,
+            selectedBorderColor = MaterialTheme.colorScheme.primary,
+            borderWidth = 1.dp,
+            selectedBorderWidth = 2.dp
+        )
+    )
+}
+
+@Composable
+fun CheckMark() {
+    Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
 }

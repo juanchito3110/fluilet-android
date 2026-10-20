@@ -37,5 +37,7 @@ data class UserDto(
 
 /** Cuerpo de error estándar de FastAPI: `detail` es texto o una lista de errores de validación. */
 data class ErrorBodyDto(
-    @SerializedName("detail") val detail: com.google.gson.JsonElement? = null
+    @SerializedName("detail") val detail: com.google.gson.JsonElement? = null,
+    /** El backend (PrivacyMiddleware) devuelve solo `type` y `loc`, sin el valor rechazado. */
+    @SerializedName("errors") val errors: com.google.gson.JsonElement? = null
 )

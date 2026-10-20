@@ -19,7 +19,8 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import com.fluilet.app.presentation.common.SelectableChip
+import com.fluilet.app.presentation.common.CheckMark
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -105,7 +106,7 @@ fun ChildFormScreen(onDone: () -> Unit, viewModel: ChildFormViewModel = hiltView
             Text(stringResource(R.string.child_difficulty), style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DifficultyType.entries.forEach { type ->
-                    FilterChip(
+                    SelectableChip(
                         selected = type == state.difficulty,
                         onClick = { viewModel.onDifficulty(type) },
                         label = { Text(type.label, style = MaterialTheme.typography.labelLarge) },

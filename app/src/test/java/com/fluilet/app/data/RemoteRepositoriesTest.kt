@@ -145,9 +145,19 @@ class RemoteRepositoriesTest {
         assertEquals("r-1", id)
     }
 
-    @Test fun adultsAndLocalDocumentsHaveNoRemoteTracking() = runBlocking {
-        assertNull(sessions.start(null, adapted).getOrThrow())
+    @Test fun independentAdultStartsOwnReadingWithoutChild() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"id":"r-9","child_id":null,"reader_user_id":"u-1","document_id":"doc-1","started_at":"2026-01-01T10:00:00Z","reading_time_seconds":0,"completion_percent":0,"completed":false}""").addHeader("Content-Type", "application/json"))
+        val id = sessions.start(null, adapted).getOrThrow()
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/readings", request.path)
+        assertEquals("""{"document_id":"doc-1"}""", request.body.readUtf8())
+        assertEquals("r-9", id)
+    }
+
+    @Test fun localDocumentsHaveNoRemoteTracking() = runBlocking {
         assertNull(sessions.start("c-1", adapted.copy(documentId = null)).getOrThrow())
+        assertNull(sessions.start(null, adapted.copy(documentId = null)).getOrThrow())
         assertEquals(0, server.requestCount)
     }
 
@@ -166,24 +176,30 @@ class RemoteRepositoriesTest {
         assertTrue(server.takeRequest().body.readUtf8().contains("\"completed\":false"))
     }
 
-    @Test fun historyJoinsReadingsWithDocumentMetrics() = runBlocking {
-        server.enqueue(MockResponse().setBody("""[{"id":"r-1","child_id":"c-1","document_id":"doc-1","started_at":"2026-01-01T10:00:00Z","reading_time_seconds":300,"completion_percent":100.0,"completed":true},{"id":"r-2","child_id":"c-1","document_id":null,"started_at":"2026-01-02T10:00:00Z","reading_time_seconds":60,"completion_percent":20.0,"completed":false}]""").addHeader("Content-Type", "application/json"))
-        server.enqueue(MockResponse().setBody("""[{"id":"doc-1","original_szigriszt_score":31.2,"adapted_szigriszt_score":78.9,"score_delta":47.7}]""").addHeader("Content-Type", "application/json"))
+    private val readingsJson = """[
+        {"id":"r-1","child_id":"c-1","reader_user_id":null,"document_id":"doc-1","original_szigriszt_score":31.2,"adapted_szigriszt_score":78.9,"score_delta":47.7,"started_at":"2026-01-01T10:00:00Z","reading_time_seconds":300,"completion_percent":100.0,"completed":true},
+        {"id":"r-2","child_id":"c-1","document_id":null,"started_at":"2026-01-02T10:00:00Z","reading_time_seconds":60,"completion_percent":20.0,"completed":false}]"""
+
+    @Test fun childHistoryUsesTheScoreSnapshotInsideEachReading() = runBlocking {
+        server.enqueue(MockResponse().setBody(readingsJson).addHeader("Content-Type", "application/json"))
 
         val history = sessions.history("c-1").getOrThrow()
 
         assertEquals(2, history.size)
         assertEquals("Sesión 1", history[0].label)
         assertEquals(78.9, history[0].adaptedScore, 0.001)
+        assertEquals(47.7, history[0].scoreDelta, 0.001)
         assertEquals(100, history[0].completionPercent)
         assertTrue(history[0].completed)
-        assertEquals(0.0, history[1].adaptedScore, 0.0) // documento ya no existe: solo tiempo y avance
+        assertEquals(0.0, history[1].adaptedScore, 0.0) // sesión legada sin métricas: solo tiempo y avance
         assertEquals("/api/v1/children/c-1/readings", server.takeRequest().path)
-        assertEquals("/api/v1/documents?offset=0", server.takeRequest().path)
+        assertEquals(1, server.requestCount) // ya no hace falta consultar /documents
     }
 
-    @Test fun adultHistoryIsEmptyWithoutNetwork() = runBlocking {
-        assertTrue(sessions.history(null).getOrThrow().isEmpty())
-        assertEquals(0, server.requestCount)
+    @Test fun adultHistoryComesFromIndependentReadings() = runBlocking {
+        server.enqueue(MockResponse().setBody(readingsJson).addHeader("Content-Type", "application/json"))
+        val history = sessions.history(null).getOrThrow()
+        assertEquals(2, history.size)
+        assertEquals("/api/v1/readings?offset=0&limit=100", server.takeRequest().path)
     }
 }

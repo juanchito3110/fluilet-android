@@ -8,7 +8,9 @@
     <string name="newreading_pick_file">Elegir archivo (.txt o .pdf)</string>
     <string name="newreading_file_hint">Tamaño máximo 5 MB. El PDF debe tener texto (no se admiten escaneos).</string>
     <string name="newreading_adapt">Adaptar texto</string>
-    <string name="newreading_use">Usar esta lectura</string>
+    <string name="newreading_start_focus">Iniciar lectura con Modo Enfoque</string>
+    <string name="newreading_start">Empezar a leer</string>
+    <string name="newreading_save_later">Guardar para después</string>
     <string name="newreading_edit">Volver a editar</string>
     <string name="newreading_result_title">Legibilidad (Szigriszt-Pazos)</string>
     <string name="newreading_m_original">Original</string>

@@ -65,10 +65,19 @@ data class ReadingUpdateDto(
     @SerializedName("completed") val completed: Boolean
 )
 
+/**
+ * Sesión de lectura. Desde el commit dbd5901 del backend incluye una instantánea numérica de las
+ * métricas del documento (sobrevive a re-adaptaciones y borrados) y `child_id` es nulo para
+ * adultos independientes (`reader_user_id` identifica al lector).
+ */
 data class ReadingDto(
     @SerializedName("id") val id: String,
     @SerializedName("child_id") val childId: String? = null,
+    @SerializedName("reader_user_id") val readerUserId: String? = null,
     @SerializedName("document_id") val documentId: String? = null,
+    @SerializedName("original_szigriszt_score") val originalSzigrisztScore: Double? = null,
+    @SerializedName("adapted_szigriszt_score") val adaptedSzigrisztScore: Double? = null,
+    @SerializedName("score_delta") val scoreDelta: Double? = null,
     @SerializedName("started_at") val startedAt: String? = null,
     @SerializedName("ended_at") val endedAt: String? = null,
     @SerializedName("reading_time_seconds") val readingTimeSeconds: Long = 0,

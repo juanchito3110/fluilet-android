@@ -25,7 +25,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
+import com.fluilet.app.presentation.common.SelectableChip
+import com.fluilet.app.presentation.common.CheckMark
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -215,14 +216,14 @@ private fun ChildrenSection(
     SectionCard(stringResource(R.string.home_children_title)) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.children.forEach { child ->
-                FilterChip(
+                SelectableChip(
                     selected = child.id == state.selectedChildId,
                     onClick = { onSelect(child.id) },
                     label = { Text(child.name, style = MaterialTheme.typography.labelLarge) },
                     modifier = Modifier.height(48.dp)
                 )
             }
-            FilterChip(
+            SelectableChip(
                 selected = false,
                 onClick = onNew,
                 label = { Text(stringResource(R.string.home_new_child), style = MaterialTheme.typography.labelLarge) },
@@ -240,9 +241,10 @@ private fun ChildrenSection(
                 style = MaterialTheme.typography.bodyMedium
             )
             NlpLevelSlider(child.nlpLevel, onNlpLevel)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                SecondaryButton(stringResource(R.string.action_edit), { onEdit(child.id) }, Modifier.weight(1f), icon = Icons.Filled.Edit)
-                SecondaryButton(stringResource(R.string.action_delete), { onDelete(child) }, Modifier.weight(1f), icon = Icons.Filled.Delete)
+            // Apilados: con la tipografía OpenDyslexic y su espaciado, dos botones con icono no caben en una fila.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                SecondaryButton(stringResource(R.string.action_edit), { onEdit(child.id) }, icon = Icons.Filled.Edit)
+                SecondaryButton(stringResource(R.string.action_delete), { onDelete(child) }, icon = Icons.Filled.Delete)
             }
         }
     }

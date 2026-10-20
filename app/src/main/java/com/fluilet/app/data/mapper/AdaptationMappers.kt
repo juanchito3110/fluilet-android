@@ -38,9 +38,10 @@ fun AdaptationReadDto.toDomain(title: String, level: NlpLevel): AdaptationResult
     return AdaptationResult(title = title, chunks = chunks, metrics = document.toMetrics(), documentId = document.id)
 }
 
-/** Une cada lectura con las métricas de su documento (si aún existe). */
-fun ReadingDto.toSummary(index: Int, document: DocumentDto?): SessionSummary {
-    val metrics = document?.toMetrics()
+/** La instantánea de métricas viene en la propia sesión: no hace falta consultar el documento. */
+fun ReadingDto.toSummary(index: Int): SessionSummary {
+    val original = originalSzigrisztScore ?: 0.0
+    val adapted = adaptedSzigrisztScore ?: 0.0
     return SessionSummary(
         id = id,
         label = "Sesión ${index + 1}",
@@ -48,8 +49,8 @@ fun ReadingDto.toSummary(index: Int, document: DocumentDto?): SessionSummary {
         readingTimeSeconds = readingTimeSeconds,
         completionPercent = completionPercent.roundToInt().coerceIn(0, 100),
         completed = completed,
-        originalScore = metrics?.originalSzigrisztScore ?: 0.0,
-        adaptedScore = metrics?.adaptedSzigrisztScore ?: 0.0,
-        scoreDelta = metrics?.scoreDelta ?: 0.0
+        originalScore = original,
+        adaptedScore = adapted,
+        scoreDelta = scoreDelta ?: Szigriszt.round2(adapted - original)
     )
 }

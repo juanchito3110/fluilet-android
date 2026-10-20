@@ -76,6 +76,17 @@ interface FluiletApi {
     @GET("api/v1/children/{id}/readings")
     suspend fun readings(@Path("id") childId: String): List<ReadingDto>
 
+    // Adulto independiente: sesiones propias, sin perfil de niño (backend >= dbd5901).
+
+    @POST("api/v1/readings")
+    suspend fun startIndependentReading(@Body body: ReadingCreateDto): ReadingDto
+
+    @GET("api/v1/readings")
+    suspend fun independentReadings(
+        @Query("offset") offset: Int = 0,
+        @Query("limit") limit: Int = 100
+    ): List<ReadingDto>
+
     // --- Sesión ---------------------------------------------------------------------------------
 
     /** Revoca todas las sesiones del usuario en el servidor. */

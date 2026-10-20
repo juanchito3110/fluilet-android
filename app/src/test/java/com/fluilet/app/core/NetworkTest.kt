@@ -135,6 +135,23 @@ class NetworkTest {
         assertEquals("La contraseña debe incluir al menos un dígito.", (validation as AppError).userMessage)
     }
 
+    @Test fun backendSanitizedValidationErrorsBecomeFieldMessages() = runBlocking {
+        suspend fun mapped(body: String) = apiCall<Unit> { throw http(422, body) }.exceptionOrNull() as AppError
+        assertEquals(
+            "El correo no es válido o su dominio no está permitido.",
+            mapped("""{"detail":"Solicitud inválida.","errors":[{"type":"value_error","loc":["body","email"]}]}""").userMessage
+        )
+        assertEquals(
+            "La contraseña no cumple los requisitos de seguridad.",
+            mapped("""{"detail":"Solicitud inválida.","errors":[{"type":"value_error","loc":["body","password"]}]}""").userMessage
+        )
+        // Campo desconocido: cae al detalle genérico del servidor.
+        assertEquals(
+            "Solicitud inválida.",
+            mapped("""{"detail":"Solicitud inválida.","errors":[{"type":"x","loc":["body","otro"]}]}""").userMessage
+        )
+    }
+
     @Test fun networkFailuresAreFriendly() = runBlocking {
         assertTrue(apiCall<Unit> { throw IOException("boom") }.exceptionOrNull() is AppError.NoConnection)
         assertTrue(apiCall<Unit> { throw java.net.SocketTimeoutException() }.exceptionOrNull() is AppError.Timeout)

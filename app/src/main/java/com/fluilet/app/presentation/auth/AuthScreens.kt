@@ -13,7 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.FilterChip
+import com.fluilet.app.presentation.common.SelectableChip
+import com.fluilet.app.presentation.common.CheckMark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -159,7 +160,7 @@ fun RegisterScreen(onBack: () -> Unit, viewModel: RegisterViewModel = hiltViewMo
 
 @Composable
 private fun RoleChip(role: UserRole, label: Int, selected: UserRole, onSelect: (UserRole) -> Unit) {
-    FilterChip(
+    SelectableChip(
         selected = role == selected,
         onClick = { onSelect(role) },
         label = { Text(stringResource(label), style = MaterialTheme.typography.bodyMedium) },
