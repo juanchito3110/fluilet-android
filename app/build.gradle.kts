@@ -62,6 +62,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    // Solo recursos en español (más los de idioma por defecto): descarta traducciones de librerías que la app nunca muestra.
+    androidResources {
+        localeFilters += listOf("es")
+    }
     buildFeatures {
         compose = true
         buildConfig = true

@@ -34,3 +34,60 @@ class FakeSpeechEngine(private val init: SpeechEngineInit = SpeechEngineInit.Rea
     fun done(id: String = last.id) = listener!!.onDone(id)
     fun error(id: String = last.id) = listener!!.onError(id)
 }
+
+// --- Repositorios falsos para pruebas de ViewModel -------------------------------------------------
+
+class FakeReadingSessionRepository : com.fluilet.app.domain.repository.ReadingSessionRepository {
+    val starts = mutableListOf<Pair<String?, com.fluilet.app.domain.model.AdaptationResult>>()
+    val progress = mutableListOf<Pair<String, com.fluilet.app.domain.model.ReadingProgress>>()
+    val historyRequests = mutableListOf<String?>()
+    var history: List<com.fluilet.app.domain.model.SessionSummary> = emptyList()
+
+    override suspend fun start(childId: String?, adaptation: com.fluilet.app.domain.model.AdaptationResult): Result<String?> {
+        starts += childId to adaptation
+        return Result.success("reading-${starts.size}")
+    }
+
+    override suspend fun progress(readingId: String, progress: com.fluilet.app.domain.model.ReadingProgress): Result<Unit> {
+        this.progress += readingId to progress
+        return Result.success(Unit)
+    }
+
+    override suspend fun history(childId: String?): Result<List<com.fluilet.app.domain.model.SessionSummary>> {
+        historyRequests += childId
+        return Result.success(history)
+    }
+}
+
+class FakeChildRepository(var children: List<com.fluilet.app.domain.model.ChildProfile> = emptyList()) :
+    com.fluilet.app.domain.repository.ChildRepository {
+    var listCalls = 0
+    override suspend fun list(): Result<List<com.fluilet.app.domain.model.ChildProfile>> { listCalls++; return Result.success(children) }
+    override suspend fun create(draft: com.fluilet.app.domain.model.ChildDraft) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
+    override suspend fun update(id: String, draft: com.fluilet.app.domain.model.ChildDraft) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
+    override suspend fun updateNlpLevel(id: String, level: com.fluilet.app.domain.model.NlpLevel) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
+    override suspend fun delete(id: String) = Result.success(Unit)
+}
+
+class FakeTutorPin(private var configured: Boolean = false) : com.fluilet.app.domain.repository.TutorPinRepository {
+    override fun isConfigured() = configured
+    override fun verify(pin: String) = com.fluilet.app.domain.model.PinResult.NotConfigured
+    override fun setInitialPin(pin: String): Result<Unit> { configured = true; return Result.success(Unit) }
+    override fun changePin(currentPin: String, newPin: String) = com.fluilet.app.domain.model.PinResult.NotConfigured
+    override fun resetAfterReauthentication(newPin: String): Result<Unit> = Result.success(Unit)
+}
+
+fun sampleAdaptation(chunks: Int = 3, documentId: String? = "doc-1") = com.fluilet.app.domain.model.AdaptationResult(
+    title = "Cuento",
+    chunks = List(chunks) { com.fluilet.app.domain.model.TextChunk(it, "Bloque número $it del cuento.") },
+    metrics = com.fluilet.app.domain.model.ReadabilityMetrics(37.1, 77.1, 40.0, 42, 42, 78, 3, 105, 3),
+    documentId = documentId
+)
+
+fun sampleChild(id: String = "child-1", name: String = "Mateo") = com.fluilet.app.domain.model.ChildProfile(
+    id = id, name = name, birthDate = java.time.LocalDate.of(2018, 3, 15),
+    difficulty = com.fluilet.app.domain.model.DifficultyType.DISLEXIA,
+    nlpLevel = com.fluilet.app.domain.model.NlpLevel.NIVEL_3,
+    palette = com.fluilet.app.domain.model.AccessiblePalette.SEPIA,
+    fontSizeSp = 20f, lineSpacing = 1.8f, isActive = true
+)

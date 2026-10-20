@@ -1,0 +1,168 @@
+package com.fluilet.app.presentation
+
+import com.fluilet.app.core.auth.SessionManager
+import com.fluilet.app.domain.model.ActiveReading
+import com.fluilet.app.domain.model.AuthSession
+import com.fluilet.app.domain.model.ReadingSettings
+import com.fluilet.app.domain.model.SessionSummary
+import com.fluilet.app.domain.model.User
+import com.fluilet.app.domain.model.UserRole
+import com.fluilet.app.domain.repository.AuthRepository
+import com.fluilet.app.domain.session.ActiveReadingHolder
+import com.fluilet.app.domain.usecase.DeleteChildUseCase
+import com.fluilet.app.domain.usecase.GetChildrenUseCase
+import com.fluilet.app.domain.usecase.GetSessionHistoryUseCase
+import com.fluilet.app.domain.usecase.IsTutorPinConfiguredUseCase
+import com.fluilet.app.domain.usecase.LogoutUseCase
+import com.fluilet.app.domain.usecase.SetNlpLevelUseCase
+import com.fluilet.app.presentation.home.HomeUiState
+import com.fluilet.app.presentation.home.HomeViewModel
+import com.fluilet.app.testutil.FakeChildRepository
+import com.fluilet.app.testutil.FakeReadingSessionRepository
+import com.fluilet.app.testutil.FakeSecureStore
+import com.fluilet.app.testutil.FakeTutorPin
+import com.fluilet.app.testutil.sampleAdaptation
+import com.fluilet.app.testutil.sampleChild
+import io.mockk.coEvery
+import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import java.time.Instant
+
+/**
+ * Estado de pantalla del panel para los dos roles que lo usan: el tutor (perfiles de niño) y el
+ * adulto independiente (sin perfiles; historial propio con `GET /readings`).
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class HomeViewModelTest {
+
+    private val dispatcher = UnconfinedTestDispatcher()
+    private val sessions = FakeReadingSessionRepository()
+    private val children = FakeChildRepository()
+    private val holder = ActiveReadingHolder()
+    private val auth = mockk<AuthRepository>()
+
+    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
+    @After fun tearDown() { Dispatchers.resetMain() }
+
+    private fun summary(id: String, startedAt: String, delta: Double = 40.0) = SessionSummary(
+        id, "Sesión $id", Instant.parse(startedAt), 120, 100, true, 37.0, 77.0, delta
+    )
+
+    private fun viewModel(role: UserRole, pinConfigured: Boolean = false): HomeViewModel {
+        val session = SessionManager(FakeSecureStore()).apply {
+            restore()
+            save(AuthSession("access", "refresh", role, "x@example.com"))
+        }
+        coEvery { auth.currentUser() } returns Result.success(User("1", "x@example.com", "Ana Pérez", role, true, false))
+        coEvery { auth.logout() } returns Unit
+        return HomeViewModel(
+            session, holder, auth,
+            GetChildrenUseCase(children), SetNlpLevelUseCase(children), DeleteChildUseCase(children),
+            GetSessionHistoryUseCase(sessions), IsTutorPinConfiguredUseCase(FakeTutorPin(pinConfigured)),
+            LogoutUseCase(auth), holder
+        )
+    }
+
+    /** Suscribe a `uiState` como lo hace la pantalla (el estado se calcula solo con un colector activo). */
+    private fun TestScope.observe(vm: HomeViewModel): () -> HomeUiState {
+        backgroundScope.launch(dispatcher) { vm.uiState.collect { } }
+        return { vm.uiState.value }
+    }
+
+    // --- Adulto independiente --------------------------------------------------------------
+
+    @Test fun adult_loadsOwnHistoryWithoutTouchingChildProfiles() = runTest(dispatcher) {
+        sessions.history = listOf(summary("1", "2026-10-01T10:00:00Z"), summary("2", "2026-10-05T10:00:00Z"))
+        val vm = viewModel(UserRole.ADULTO_INDEPENDIENTE)
+        val state = observe(vm)
+
+        vm.refresh()
+
+        assertEquals(UserRole.ADULTO_INDEPENDIENTE, state().role)
+        assertFalse(state().isTutor)
+        assertFalse(state().isLoading)
+        assertEquals("Ana", state().userName)
+        assertEquals("sin llamadas a /children", 0, children.listCalls)
+        assertEquals(listOf<String?>(null), sessions.historyRequests) // GET /readings (sin child_id)
+        assertEquals(listOf("2", "1"), state().history.map { it.id }) // más reciente primero
+        assertNull(state().selectedChildId)
+    }
+
+    @Test fun adult_readingReadyIsShownWithoutAChildSelection() = runTest(dispatcher) {
+        val vm = viewModel(UserRole.ADULTO_INDEPENDIENTE)
+        val state = observe(vm)
+        vm.refresh()
+        assertNull(state().readingForSelection)
+
+        holder.set(ActiveReading(null, "Ana", ReadingSettings(), sampleAdaptation()))
+
+        assertNotNull(state().readingForSelection)
+        assertEquals("Cuento", state().readingForSelection!!.adaptation.title)
+    }
+
+    @Test fun adult_hasNoPinWallRequirementInTheState() = runTest(dispatcher) {
+        val vm = viewModel(UserRole.ADULTO_INDEPENDIENTE, pinConfigured = false)
+        val state = observe(vm)
+        vm.refresh()
+        // El PIN de tutor solo aplica a sesiones con perfil de niño; el adulto lee sin Modo Enfoque.
+        assertFalse(state().pinConfigured)
+        assertFalse(state().isTutor)
+    }
+
+    @Test fun adult_logoutClearsTheReadingInRam() = runTest(dispatcher) {
+        val vm = viewModel(UserRole.ADULTO_INDEPENDIENTE)
+        observe(vm)
+        holder.set(ActiveReading(null, "Ana", ReadingSettings(), sampleAdaptation()))
+
+        vm.logout()
+
+        assertNull(holder.current.value)
+    }
+
+    // --- Tutor (paralelo, mismos escenarios) -------------------------------------------------
+
+    @Test fun tutor_loadsChildrenSelectsTheFirstAndLoadsItsHistory() = runTest(dispatcher) {
+        children.children = listOf(sampleChild("c1", "Mateo"), sampleChild("c2", "Lucía"))
+        sessions.history = listOf(summary("1", "2026-10-01T10:00:00Z"))
+        val vm = viewModel(UserRole.TUTOR, pinConfigured = true)
+        val state = observe(vm)
+
+        vm.refresh()
+
+        assertTrue(state().isTutor)
+        assertEquals(listOf("Mateo", "Lucía"), state().children.map { it.name })
+        assertEquals("c1", state().selectedChildId)
+        assertEquals(listOf<String?>("c1"), sessions.historyRequests) // GET /children/c1/readings
+        assertTrue(state().pinConfigured)
+    }
+
+    @Test fun tutor_readingOnlyAppearsForTheSelectedChild() = runTest(dispatcher) {
+        children.children = listOf(sampleChild("c1", "Mateo"), sampleChild("c2", "Lucía"))
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        holder.set(ActiveReading("c1", "Mateo", ReadingSettings(), sampleAdaptation()))
+        assertNotNull(state().readingForSelection)
+
+        vm.select("c2")
+
+        assertNull(state().readingForSelection)
+        assertEquals(listOf<String?>("c1", "c2"), sessions.historyRequests)
+    }
+}

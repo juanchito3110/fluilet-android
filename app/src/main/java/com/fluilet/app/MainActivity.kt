@@ -1,5 +1,6 @@
 package com.fluilet.app
 
+import android.content.Context
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -9,6 +10,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.fluilet.app.core.focusmode.FocusModeManager
+import com.fluilet.app.core.locale.AppLocale
 import com.fluilet.app.core.focusmode.FocusModeResult
 import com.fluilet.app.core.focusmode.FocusSessionController
 import com.fluilet.app.domain.model.AccessiblePalette
@@ -33,6 +35,11 @@ class MainActivity : ComponentActivity() {
 
     /** Anclaje que pidió la app (no tocamos un anclaje que el usuario activó por su cuenta). */
     private var lockRequested = false
+
+    // Español siempre, incluso con el sistema en inglés: afecta a Material 3 (selector de fecha, etc.).
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

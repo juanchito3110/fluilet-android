@@ -3,6 +3,7 @@ package com.fluilet.app
 import android.app.Application
 import android.content.Context
 import com.fluilet.app.core.auth.SessionManager
+import com.fluilet.app.core.locale.AppLocale
 import com.fluilet.app.core.network.TlsConfig
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -19,7 +20,7 @@ class FluiletApplication : Application() {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun attachBaseContext(base: Context) {
-        super.attachBaseContext(base)
+        super.attachBaseContext(AppLocale.wrap(base))
         // Debe ocurrir antes del primer uso de OkHttp: habilita TLS 1.3 en Android 8-9.
         TlsConfig.installConscryptIfNeeded()
     }
