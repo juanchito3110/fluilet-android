@@ -12,6 +12,7 @@ import com.fluilet.app.di.ApplicationScope
 import com.fluilet.app.domain.model.AccessiblePalette
 import com.fluilet.app.domain.model.ActiveReading
 import com.fluilet.app.domain.model.PinVerification
+import com.fluilet.app.domain.quiz.ComprehensionQuiz
 import com.fluilet.app.domain.model.ReadingProgress
 import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.session.ActiveReadingHolder
@@ -44,8 +45,13 @@ data class ReaderUiState(
     val lockActive: Boolean = false,
     val completed: Boolean = false,
     val showSettings: Boolean = false,
-    val showGate: Boolean = false
+    val showGate: Boolean = false,
+    /** Mini-Reto de Comprensión (2 preguntas) si la lección lo trae. */
+    val quiz: ComprehensionQuiz? = null,
+    val quizDone: Boolean = false
 ) {
+    /** El reto aparece al terminar la lectura y antes de cerrar o pedir el PIN. */
+    val showQuiz: Boolean get() = completed && quiz != null && !quizDone
     val chunkCount: Int get() = reading?.adaptation?.chunks?.size ?: 0
     val chunkIndex: Int get() = tts.chunkIndex.coerceIn(0, (chunkCount - 1).coerceAtLeast(0))
     val currentText: String get() = reading?.adaptation?.chunks?.getOrNull(chunkIndex)?.text.orEmpty()
@@ -64,7 +70,9 @@ private data class Local(
     val showGate: Boolean = false,
     val maxChunk: Int = 0,
     /** El avance reportado es monótono: terminar una vez cuenta aunque luego se relea ("Leer de nuevo"). */
-    val everCompleted: Boolean = false
+    val everCompleted: Boolean = false,
+    val quiz: ComprehensionQuiz? = null,
+    val quizDone: Boolean = false
 )
 
 @HiltViewModel
@@ -97,7 +105,9 @@ class ReaderViewModel @Inject constructor(
             lockActive = focusState.isActive && focusState.lockRequested,
             completed = l.completed,
             showSettings = l.showSettings,
-            showGate = l.showGate
+            showGate = l.showGate,
+            quiz = l.quiz,
+            quizDone = l.quizDone
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderUiState())
 
@@ -124,6 +134,7 @@ class ReaderViewModel @Inject constructor(
         tts.initialize()
         tts.load(reading.adaptation.chunks.map { it.text })
         tts.setSpeechRate(local.value.settings.speechRate)
+        local.update { l -> l.copy(quiz = reading.adaptation.questions.takeIf { it.isNotEmpty() }?.let(::ComprehensionQuiz)) }
         // Con perfil de niño: Screen Pinning + PIN del tutor para salir. Adulto independiente: sin bloqueo.
         focus.begin(childId = reading.childId, lockTask = reading.childId != null)
 
@@ -155,6 +166,17 @@ class ReaderViewModel @Inject constructor(
 
     private fun seek(index: Int) {
         if (index in 0 until uiState.value.chunkCount) tts.seekToChunk(index)
+    }
+
+    // --- Mini-Reto de Comprensión -------------------------------------------------------------
+
+    fun answerQuiz(optionIndex: Int) = local.update { l -> l.copy(quiz = l.quiz?.answer(optionIndex)) }
+    fun nextQuestion() = local.update { l -> l.copy(quiz = l.quiz?.next()) }
+
+    /** Cierra el reto. Con perfil de niño abre de inmediato el Muro Parental (PIN del tutor) para salir. */
+    fun finishQuiz() {
+        local.update { it.copy(quizDone = true) }
+        if (uiState.value.lockActive) local.update { it.copy(showGate = true) }
     }
 
     fun finishReading() {
@@ -220,9 +242,24 @@ class ReaderViewModel @Inject constructor(
     private fun reportProgress(elapsedSeconds: Long, final: Boolean) {
         val percent = currentPercent()
         val id = readingId ?: return
+        val adaptation = holder.current.value?.adaptation
+        val quiz = local.value.quiz?.result?.takeIf { it.answered > 0 }
+        // Velocidad de voz usada (1.0 = normal), redondeada a 2 decimales.
+        val speed = Math.round(local.value.settings.speechRate * 100) / 100.0
         appScope.launch {
             val readingId = id.await() ?: return@launch
-            updateProgress(readingId, ReadingProgress(elapsedSeconds, percent, completed = final && percent == 100))
+            updateProgress(
+                readingId,
+                ReadingProgress(
+                    readingTimeSeconds = elapsedSeconds,
+                    completionPercent = percent,
+                    completed = final && percent == 100,
+                    category = adaptation?.category,
+                    simplificationLevel = adaptation?.simplificationLevel,
+                    comprehension = quiz,
+                    ttsSpeed = speed
+                )
+            )
         }
     }
 

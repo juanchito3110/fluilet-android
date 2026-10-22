@@ -97,7 +97,7 @@ class RemoteRepositoriesTest {
         adaptation.adapt(source(SourceType.PDF, pdf), NlpLevel.NIVEL_2, "child-9").getOrThrow()
 
         val request = server.takeRequest()
-        assertEquals("/api/v1/adaptations/file?nivel_simplificacion_nlp=2&child_id=child-9", request.path)
+        assertEquals("/api/v1/adaptations/document?nivel_simplificacion_nlp=2&child_id=child-9", request.path)
         assertEquals("application/pdf", request.getHeader("Content-Type"))
         assertTrue(request.getHeader("Content-Type")!!.startsWith("application/pdf"))
         assertEquals(pdf.toList(), request.body.readByteArray().toList())
@@ -107,7 +107,7 @@ class RemoteRepositoriesTest {
         server.enqueue(MockResponse().setBody(adaptationJson).addHeader("Content-Type", "application/json"))
         adaptation.adapt(source(SourceType.TXT, "contenido".toByteArray()), NlpLevel.NIVEL_3, null).getOrThrow()
         val request = server.takeRequest()
-        assertEquals("/api/v1/adaptations/file?nivel_simplificacion_nlp=3", request.path)
+        assertEquals("/api/v1/adaptations/document?nivel_simplificacion_nlp=3", request.path)
         assertTrue(request.getHeader("Content-Type")!!.startsWith("text/plain"))
     }
 
@@ -174,32 +174,5 @@ class RemoteRepositoriesTest {
         server.enqueue(MockResponse().setBody("""{"id":"r-1"}""").addHeader("Content-Type", "application/json"))
         sessions.progress("r-1", ReadingProgress(10, 90, completed = true)).getOrThrow()
         assertTrue(server.takeRequest().body.readUtf8().contains("\"completed\":false"))
-    }
-
-    private val readingsJson = """[
-        {"id":"r-1","child_id":"c-1","reader_user_id":null,"document_id":"doc-1","original_szigriszt_score":31.2,"adapted_szigriszt_score":78.9,"score_delta":47.7,"started_at":"2026-01-01T10:00:00Z","reading_time_seconds":300,"completion_percent":100.0,"completed":true},
-        {"id":"r-2","child_id":"c-1","document_id":null,"started_at":"2026-01-02T10:00:00Z","reading_time_seconds":60,"completion_percent":20.0,"completed":false}]"""
-
-    @Test fun childHistoryUsesTheScoreSnapshotInsideEachReading() = runBlocking {
-        server.enqueue(MockResponse().setBody(readingsJson).addHeader("Content-Type", "application/json"))
-
-        val history = sessions.history("c-1").getOrThrow()
-
-        assertEquals(2, history.size)
-        assertEquals("Sesión 1", history[0].label)
-        assertEquals(78.9, history[0].adaptedScore, 0.001)
-        assertEquals(47.7, history[0].scoreDelta, 0.001)
-        assertEquals(100, history[0].completionPercent)
-        assertTrue(history[0].completed)
-        assertEquals(0.0, history[1].adaptedScore, 0.0) // sesión legada sin métricas: solo tiempo y avance
-        assertEquals("/api/v1/children/c-1/readings", server.takeRequest().path)
-        assertEquals(1, server.requestCount) // ya no hace falta consultar /documents
-    }
-
-    @Test fun adultHistoryComesFromIndependentReadings() = runBlocking {
-        server.enqueue(MockResponse().setBody(readingsJson).addHeader("Content-Type", "application/json"))
-        val history = sessions.history(null).getOrThrow()
-        assertEquals(2, history.size)
-        assertEquals("/api/v1/readings?offset=0&limit=100", server.takeRequest().path)
     }
 }

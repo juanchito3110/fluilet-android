@@ -5,8 +5,10 @@ import com.fluilet.app.core.network.apiCall
 import com.fluilet.app.data.mapper.toDomain
 import com.fluilet.app.data.remote.FluiletApi
 import com.fluilet.app.data.remote.dto.AdaptTextRequestDto
+import com.fluilet.app.data.remote.dto.LessonGenerateDto
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.AdaptationSource
+import com.fluilet.app.domain.model.LessonRequest
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.SourceType
 import com.fluilet.app.domain.repository.AdaptationRepository
@@ -47,6 +49,19 @@ class RemoteAdaptationRepository @Inject constructor(
             }
         }.mapCatching { it.toDomain(title, nlpLevel) }
     }
+
+    /** `POST /adaptations/generate`: el servidor elige un texto del banco y lo adapta al nivel pedido. */
+    override suspend fun generate(request: LessonRequest, childId: String?): Result<AdaptationResult> =
+        apiCall {
+            api.generateLesson(
+                LessonGenerateDto(
+                    category = request.category.code,
+                    topic = request.cleanTopic,
+                    simplificationLevel = request.level.value,
+                    childId = childId
+                )
+            )
+        }.mapCatching { it.toDomain(title = request.category.displayName, level = request.level) }
 }
 
 /**
@@ -74,4 +89,7 @@ class LocalAdaptationRepository @Inject constructor() : AdaptationRepository {
                 )
             )
         }
+
+    override suspend fun generate(request: LessonRequest, childId: String?): Result<AdaptationResult> =
+        Result.failure(AppError.Unsupported("Las lecciones se generan en el servidor."))
 }

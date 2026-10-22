@@ -6,6 +6,8 @@ import com.fluilet.app.data.remote.dto.ChildUpdateDto
 import com.fluilet.app.data.remote.dto.AdaptTextRequestDto
 import com.fluilet.app.data.remote.dto.AdaptationReadDto
 import com.fluilet.app.data.remote.dto.DocumentDto
+import com.fluilet.app.data.remote.dto.EducationalProgressDto
+import com.fluilet.app.data.remote.dto.LessonGenerateDto
 import com.fluilet.app.data.remote.dto.ReadingCreateDto
 import com.fluilet.app.data.remote.dto.ReadingDto
 import com.fluilet.app.data.remote.dto.ReadingUpdateDto
@@ -55,12 +57,17 @@ interface FluiletApi {
      * El backend rechaza multipart a propósito (evita spool a disco).
      */
     @Headers("$READ_TIMEOUT_HEADER: $ADAPTATION_READ_TIMEOUT_SECONDS")
-    @POST("api/v1/adaptations/file")
+    @POST("api/v1/adaptations/document")
     suspend fun adaptFile(
         @Body body: RequestBody,
         @Query("nivel_simplificacion_nlp") nlpLevel: Int,
         @Query("child_id") childId: String?
     ): AdaptationReadDto
+
+    /** Lección del banco del servidor por categoría/tema, adaptada al nivel pedido. */
+    @Headers("$READ_TIMEOUT_HEADER: $ADAPTATION_READ_TIMEOUT_SECONDS")
+    @POST("api/v1/adaptations/generate")
+    suspend fun generateLesson(@Body body: LessonGenerateDto): AdaptationReadDto
 
     @GET("api/v1/documents")
     suspend fun documents(@Query("offset") offset: Int = 0): List<DocumentDto>
@@ -75,6 +82,14 @@ interface FluiletApi {
 
     @GET("api/v1/children/{id}/readings")
     suspend fun readings(@Path("id") childId: String): List<ReadingDto>
+
+    /** Resumen educativo del perfil (tutor). Un servidor anterior devuelve una lista: el cliente cae al cálculo local. */
+    @GET("api/v1/children/{id}/progress")
+    suspend fun childEducationalProgress(@Path("id") childId: String): EducationalProgressDto
+
+    /** Resumen educativo del adulto independiente. */
+    @GET("api/v1/readings/progress")
+    suspend fun independentEducationalProgress(): EducationalProgressDto
 
     // Adulto independiente: sesiones propias, sin perfil de niño (backend >= dbd5901).
 

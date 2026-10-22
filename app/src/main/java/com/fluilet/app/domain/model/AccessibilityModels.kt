@@ -1,7 +1,7 @@
 package com.fluilet.app.domain.model
 
 /**
- * Paletas clínicas de alto confort (WCAG 2.1 AA, contraste >= 4.5:1; validado en pruebas).
+ * Paletas de alto confort visual (WCAG 2.1 AA, contraste >= 4.5:1; validado en pruebas).
  * Nunca se usa blanco puro (#FFFFFF) sobre negro puro (#000000): provocan fatiga visual y el
  * efecto de "vibración" del texto en usuarios con dislexia.
  *
@@ -121,8 +121,8 @@ data class ReadingSettings(
         const val DEFAULT_LETTER_SPACING = 0.05f
         const val MIN_SPEECH_RATE = 0.5f
         const val MAX_SPEECH_RATE = 1.5f
-        /** Un poco más lento que lo normal: ritmo adecuado para lectores en formación. */
-        const val DEFAULT_SPEECH_RATE = 0.85f
+        /** Ritmo "Normal" (1.0x); coincide con `tts_speed_used` por defecto del backend. */
+        const val DEFAULT_SPEECH_RATE = 1.0f
 
         /** Construye ajustando cada valor a su rango: nunca confiamos en el valor crudo de la UI. */
         fun coerced(

@@ -8,13 +8,13 @@ import com.fluilet.app.domain.model.ActiveReading
 import com.fluilet.app.domain.model.ChildProfile
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.SessionState
-import com.fluilet.app.domain.model.SessionSummary
+import com.fluilet.app.domain.model.EducationalProgress
 import com.fluilet.app.domain.model.UserRole
 import com.fluilet.app.domain.repository.AuthRepository
 import com.fluilet.app.domain.session.ActiveReadingHolder
 import com.fluilet.app.domain.usecase.DeleteChildUseCase
 import com.fluilet.app.domain.usecase.GetChildrenUseCase
-import com.fluilet.app.domain.usecase.GetSessionHistoryUseCase
+import com.fluilet.app.domain.usecase.GetEducationalProgressUseCase
 import com.fluilet.app.domain.usecase.IsTutorPinConfiguredUseCase
 import com.fluilet.app.domain.usecase.LogoutUseCase
 import com.fluilet.app.domain.usecase.SetNlpLevelUseCase
@@ -34,7 +34,9 @@ data class HomeUiState(
     val isLoading: Boolean = true,
     val children: List<ChildProfile> = emptyList(),
     val selectedChildId: String? = null,
-    val history: List<SessionSummary> = emptyList(),
+    /** Avance educativo del perfil seleccionado (o del adulto): siempre presente, vacío si no hay datos. */
+    val progress: EducationalProgress = EducationalProgress.empty(),
+    val progressNote: String? = null,
     val activeReading: ActiveReading? = null,
     val pinConfigured: Boolean = false,
     val errorMessage: String? = null
@@ -52,7 +54,8 @@ private data class HomeLocal(
     val isLoading: Boolean = true,
     val children: List<ChildProfile> = emptyList(),
     val selectedChildId: String? = null,
-    val history: List<SessionSummary> = emptyList(),
+    val progress: EducationalProgress = EducationalProgress.empty(),
+    val progressNote: String? = null,
     val pinConfigured: Boolean = false,
     val errorMessage: String? = null
 )
@@ -65,7 +68,7 @@ class HomeViewModel @Inject constructor(
     private val getChildren: GetChildrenUseCase,
     private val setNlpLevel: SetNlpLevelUseCase,
     private val deleteChild: DeleteChildUseCase,
-    private val getHistory: GetSessionHistoryUseCase,
+    private val getProgress: GetEducationalProgressUseCase,
     private val isPinConfigured: IsTutorPinConfiguredUseCase,
     private val logoutUseCase: LogoutUseCase,
     private val readingHolder: ActiveReadingHolder
@@ -80,7 +83,8 @@ class HomeViewModel @Inject constructor(
             isLoading = l.isLoading,
             children = l.children,
             selectedChildId = l.selectedChildId,
-            history = l.history,
+            progress = l.progress,
+            progressNote = l.progressNote,
             activeReading = reading,
             pinConfigured = l.pinConfigured,
             errorMessage = l.errorMessage
@@ -107,23 +111,42 @@ class HomeViewModel @Inject constructor(
             } else {
                 local.update { it.copy(isLoading = false) }
             }
-            loadHistory()
+            loadProgress()
         }
     }
 
     fun refreshPin() = local.update { it.copy(pinConfigured = isPinConfigured()) }
 
     fun select(childId: String) {
-        local.update { it.copy(selectedChildId = childId, history = emptyList()) }
-        viewModelScope.launch { loadHistory() }
+        local.update { it.copy(selectedChildId = childId, progress = EducationalProgress.empty(it.children.firstOrNull { c -> c.id == childId }?.nlpLevel?.value ?: 2), progressNote = null) }
+        viewModelScope.launch { loadProgress() }
     }
 
-    private suspend fun loadHistory() {
-        val childId = if (uiState.value.isTutor) local.value.selectedChildId else null
-        if (uiState.value.isTutor && childId == null) return
-        getHistory(childId).onSuccess { history ->
-            local.update { it.copy(history = history.sortedByDescending(SessionSummary::startedAt)) }
+    /**
+     * Carga el avance del perfil seleccionado (tutor) o del propio adulto. Nunca deja la pantalla sin
+     * estado: si el servidor y el cálculo de respaldo fallan se muestra el resumen vacío con un aviso.
+     */
+    private suspend fun loadProgress() {
+        val isTutor = uiState.value.isTutor
+        // Se lee de `local` (no del estado combinado) para no depender de que el combine ya haya emitido.
+        val child = if (isTutor) local.value.children.firstOrNull { it.id == local.value.selectedChildId } else null
+        if (isTutor && child == null) {
+            local.update { it.copy(progress = EducationalProgress.empty(), progressNote = null) }
+            return
         }
+        val baseline = child?.nlpLevel?.value ?: 2
+        getProgress(child?.id, baseline)
+            .onSuccess { progress ->
+                local.update { it.copy(progress = progress, progressNote = null) }
+            }
+            .onFailure {
+                local.update {
+                    it.copy(
+                        progress = EducationalProgress.empty(baseline),
+                        progressNote = "No pudimos cargar el avance ahora. Se actualizará cuando haya conexión."
+                    )
+                }
+            }
     }
 
     fun onNlpLevel(level: NlpLevel) {
@@ -152,9 +175,9 @@ class HomeViewModel @Inject constructor(
                     if (readingHolder.current.value?.childId == childId) readingHolder.clear()
                     local.update { l ->
                         val remaining = l.children.filterNot { it.id == childId }
-                        l.copy(children = remaining, selectedChildId = remaining.firstOrNull()?.id, history = emptyList())
+                        l.copy(children = remaining, selectedChildId = remaining.firstOrNull()?.id, progress = EducationalProgress.empty(), progressNote = null)
                     }
-                    loadHistory()
+                    loadProgress()
                 }
                 .onFailure { e -> local.update { it.copy(errorMessage = e.toAppError().userMessage) } }
         }

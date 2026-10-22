@@ -40,8 +40,9 @@ class FakeSpeechEngine(private val init: SpeechEngineInit = SpeechEngineInit.Rea
 class FakeReadingSessionRepository : com.fluilet.app.domain.repository.ReadingSessionRepository {
     val starts = mutableListOf<Pair<String?, com.fluilet.app.domain.model.AdaptationResult>>()
     val progress = mutableListOf<Pair<String, com.fluilet.app.domain.model.ReadingProgress>>()
-    val historyRequests = mutableListOf<String?>()
-    var history: List<com.fluilet.app.domain.model.SessionSummary> = emptyList()
+    val progressRequests = mutableListOf<Pair<String?, Int>>()
+    var educational: com.fluilet.app.domain.model.EducationalProgress = com.fluilet.app.domain.model.EducationalProgress.empty()
+    var progressFails = false
 
     override suspend fun start(childId: String?, adaptation: com.fluilet.app.domain.model.AdaptationResult): Result<String?> {
         starts += childId to adaptation
@@ -53,9 +54,9 @@ class FakeReadingSessionRepository : com.fluilet.app.domain.repository.ReadingSe
         return Result.success(Unit)
     }
 
-    override suspend fun history(childId: String?): Result<List<com.fluilet.app.domain.model.SessionSummary>> {
-        historyRequests += childId
-        return Result.success(history)
+    override suspend fun educationalProgress(childId: String?, baselineLevel: Int): Result<com.fluilet.app.domain.model.EducationalProgress> {
+        progressRequests += childId to baselineLevel
+        return if (progressFails) Result.failure(com.fluilet.app.core.network.AppError.NoConnection()) else Result.success(educational)
     }
 }
 
@@ -77,11 +78,25 @@ class FakeTutorPin(private var configured: Boolean = false) : com.fluilet.app.do
     override fun resetAfterReauthentication(newPin: String): Result<Unit> = Result.success(Unit)
 }
 
-fun sampleAdaptation(chunks: Int = 3, documentId: String? = "doc-1") = com.fluilet.app.domain.model.AdaptationResult(
+fun sampleQuestions() = listOf(
+    com.fluilet.app.domain.model.ComprehensionQuestion("q1", "¿Qué usan los alumnos?", listOf("libros", "carros", "nubes"), 0),
+    com.fluilet.app.domain.model.ComprehensionQuestion("q2", "¿Dónde están sus amigos?", listOf("en el mar", "en la escuela", "en la luna"), 1)
+)
+
+fun sampleAdaptation(
+    chunks: Int = 3,
+    documentId: String? = "doc-1",
+    withQuiz: Boolean = false,
+    category: String? = "ciencia_espacio",
+    level: Int? = 2
+) = com.fluilet.app.domain.model.AdaptationResult(
     title = "Cuento",
     chunks = List(chunks) { com.fluilet.app.domain.model.TextChunk(it, "Bloque número $it del cuento.") },
     metrics = com.fluilet.app.domain.model.ReadabilityMetrics(37.1, 77.1, 40.0, 42, 42, 78, 3, 105, 3),
-    documentId = documentId
+    documentId = documentId,
+    category = category,
+    simplificationLevel = level,
+    questions = if (withQuiz) sampleQuestions() else emptyList()
 )
 
 fun sampleChild(id: String = "child-1", name: String = "Mateo") = com.fluilet.app.domain.model.ChildProfile(
@@ -91,3 +106,14 @@ fun sampleChild(id: String = "child-1", name: String = "Mateo") = com.fluilet.ap
     palette = com.fluilet.app.domain.model.AccessiblePalette.SEPIA,
     fontSizeSp = 20f, lineSpacing = 1.8f, isActive = true
 )
+
+class FakeAdaptationRepository : com.fluilet.app.domain.repository.AdaptationRepository {
+    val generateRequests = mutableListOf<Pair<com.fluilet.app.domain.model.LessonRequest, String?>>()
+    var generateResult: Result<com.fluilet.app.domain.model.AdaptationResult> = Result.success(sampleAdaptation(withQuiz = true))
+    override suspend fun adapt(source: com.fluilet.app.domain.model.AdaptationSource, nlpLevel: com.fluilet.app.domain.model.NlpLevel, childId: String?) =
+        Result.success(sampleAdaptation())
+    override suspend fun generate(request: com.fluilet.app.domain.model.LessonRequest, childId: String?): Result<com.fluilet.app.domain.model.AdaptationResult> {
+        generateRequests += request to childId
+        return generateResult
+    }
+}

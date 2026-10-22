@@ -34,6 +34,8 @@ data class DocumentDto(
     @SerializedName("chunk_count") val chunkCount: Int? = null,
     @SerializedName("status") val status: String? = null,
     @SerializedName("adaptation_method") val adaptationMethod: String? = null,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("simplification_level") val simplificationLevel: Int? = null,
     @SerializedName("uploaded_at") val uploadedAt: String? = null
 )
 
@@ -48,11 +50,35 @@ data class ChunkMetricsDto(
 data class AdaptationReadDto(
     @SerializedName("document") val document: DocumentDto,
     @SerializedName("adapted_text") val adaptedText: String,
-    @SerializedName("chunks") val chunks: List<ChunkMetricsDto> = emptyList()
+    @SerializedName("chunks") val chunks: List<ChunkMetricsDto> = emptyList(),
+    // Lecciones (backend >= f56b71b). Todos opcionales: un servidor anterior simplemente no los envía.
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("simplification_level") val simplificationLevel: Int? = null,
+    @SerializedName("comprehension_questions") val comprehensionQuestions: List<ComprehensionQuestionDto>? = null,
+    @SerializedName("quality_status") val qualityStatus: String? = null,
+    @SerializedName("warnings") val warnings: List<String>? = null
+)
+
+data class ComprehensionQuestionDto(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("question") val question: String? = null,
+    @SerializedName("options") val options: List<String>? = null,
+    @SerializedName("correct_option_index") val correctOptionIndex: Int? = null
+)
+
+/** `POST /api/v1/adaptations/generate`. `topic` y `child_id` nulos se omiten al serializar. */
+data class LessonGenerateDto(
+    @SerializedName("category") val category: String,
+    @SerializedName("topic") val topic: String? = null,
+    @SerializedName("simplification_level") val simplificationLevel: Int,
+    @SerializedName("child_id") val childId: String? = null
 )
 
 data class ReadingCreateDto(
-    @SerializedName("document_id") val documentId: String
+    @SerializedName("document_id") val documentId: String,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("simplification_level") val simplificationLevel: Int? = null
 )
 
 /**
@@ -62,7 +88,14 @@ data class ReadingCreateDto(
 data class ReadingUpdateDto(
     @SerializedName("reading_time_seconds") val readingTimeSeconds: Long,
     @SerializedName("completion_percent") val completionPercent: Double,
-    @SerializedName("completed") val completed: Boolean
+    @SerializedName("completed") val completed: Boolean,
+    // Práctica educativa (opcional): el servidor valida que el puntaje coincida con los contadores.
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("simplification_level") val simplificationLevel: Int? = null,
+    @SerializedName("comprehension_score") val comprehensionScore: Int? = null,
+    @SerializedName("questions_answered") val questionsAnswered: Int? = null,
+    @SerializedName("questions_correct") val questionsCorrect: Int? = null,
+    @SerializedName("tts_speed_used") val ttsSpeedUsed: Double? = null
 )
 
 /**
@@ -82,5 +115,11 @@ data class ReadingDto(
     @SerializedName("ended_at") val endedAt: String? = null,
     @SerializedName("reading_time_seconds") val readingTimeSeconds: Long = 0,
     @SerializedName("completion_percent") val completionPercent: Double = 0.0,
-    @SerializedName("completed") val completed: Boolean = false
+    @SerializedName("completed") val completed: Boolean = false,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("simplification_level") val simplificationLevel: Int? = null,
+    @SerializedName("comprehension_score") val comprehensionScore: Int? = null,
+    @SerializedName("questions_answered") val questionsAnswered: Int? = null,
+    @SerializedName("questions_correct") val questionsCorrect: Int? = null,
+    @SerializedName("tts_speed_used") val ttsSpeedUsed: Double? = null
 )

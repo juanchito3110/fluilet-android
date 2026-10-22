@@ -2,16 +2,14 @@ package com.fluilet.app.data.mapper
 
 import com.fluilet.app.core.network.AppError
 import com.fluilet.app.data.remote.dto.AdaptationReadDto
+import com.fluilet.app.data.remote.dto.ComprehensionQuestionDto
 import com.fluilet.app.data.remote.dto.DocumentDto
-import com.fluilet.app.data.remote.dto.ReadingDto
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.ReadabilityMetrics
-import com.fluilet.app.domain.model.SessionSummary
+import com.fluilet.app.domain.model.ComprehensionQuestion
 import com.fluilet.app.domain.text.Szigriszt
 import com.fluilet.app.domain.text.TextChunker
-import java.time.Instant
-import kotlin.math.roundToInt
 
 fun DocumentDto.toMetrics(): ReadabilityMetrics {
     val original = originalSzigrisztScore ?: 0.0
@@ -30,27 +28,32 @@ fun DocumentDto.toMetrics(): ReadabilityMetrics {
     )
 }
 
-/** El texto adaptado se parte en tarjetas en el cliente; el servidor solo entrega métricas por bloque. */
+/**
+ * El texto adaptado se parte en tarjetas en el cliente; el servidor solo entrega métricas por bloque.
+ * Los campos de lección son opcionales: sin ellos se usan el título/nivel locales y no hay mini-reto.
+ */
 fun AdaptationReadDto.toDomain(title: String, level: NlpLevel): AdaptationResult {
     if (adaptedText.isBlank()) throw AppError.Server()
-    val chunks = TextChunker.chunkAdaptedText(adaptedText, level)
+    val effectiveLevel = simplificationLevel?.let { NlpLevel.fromValue(it) } ?: level
+    val chunks = TextChunker.chunkAdaptedText(adaptedText, effectiveLevel)
     if (chunks.isEmpty()) throw AppError.Server()
-    return AdaptationResult(title = title, chunks = chunks, metrics = document.toMetrics(), documentId = document.id)
+    return AdaptationResult(
+        title = this.title?.takeIf { it.isNotBlank() } ?: title,
+        chunks = chunks,
+        metrics = document.toMetrics(),
+        documentId = document.id,
+        category = category ?: document.category,
+        simplificationLevel = simplificationLevel ?: document.simplificationLevel ?: level.value,
+        questions = comprehensionQuestions.orEmpty().mapNotNull { it.toDomain() },
+        bestEffort = qualityStatus == "best_effort"
+    )
 }
 
-/** La instantánea de métricas viene en la propia sesión: no hace falta consultar el documento. */
-fun ReadingDto.toSummary(index: Int): SessionSummary {
-    val original = originalSzigrisztScore ?: 0.0
-    val adapted = adaptedSzigrisztScore ?: 0.0
-    return SessionSummary(
-        id = id,
-        label = "Sesión ${index + 1}",
-        startedAt = startedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: Instant.EPOCH,
-        readingTimeSeconds = readingTimeSeconds,
-        completionPercent = completionPercent.roundToInt().coerceIn(0, 100),
-        completed = completed,
-        originalScore = original,
-        adaptedScore = adapted,
-        scoreDelta = scoreDelta ?: Szigriszt.round2(adapted - original)
-    )
+/** Descarta preguntas mal formadas en lugar de fallar: el mini-reto es un complemento de la lectura. */
+fun ComprehensionQuestionDto.toDomain(): ComprehensionQuestion? {
+    val text = question?.trim().orEmpty()
+    val opts = options.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
+    val correct = correctOptionIndex ?: return null
+    if (text.isEmpty() || opts.size < 2 || correct !in opts.indices) return null
+    return ComprehensionQuestion(id ?: "q", text, opts, correct)
 }

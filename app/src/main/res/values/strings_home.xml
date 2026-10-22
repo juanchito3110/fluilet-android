@@ -18,11 +18,6 @@
     <string name="home_start_focus">Iniciar lectura con Modo Enfoque</string>
     <string name="home_start">Iniciar lectura</string>
     <string name="home_new_reading">Nueva lectura</string>
-    <string name="home_progress_title">Progreso clínico</string>
-    <string name="home_progress_empty">Cuando termine una sesión de lectura verás aquí la legibilidad (Szigriszt-Pazos), el tiempo y el avance.</string>
-    <string name="home_score_original">Original</string>
-    <string name="home_score_adapted">Adaptado</string>
-    <string name="home_session_detail">Mejora %1$+.1f · %2$s · %3$d min · %4$d%% completado</string>
     <string name="home_pin_title">Muro Parental</string>
     <string name="home_pin_set">PIN de tutor configurado. Protege la salida del Modo Enfoque.</string>
     <string name="home_pin_missing">Crea un PIN para poder iniciar lecturas con Modo Enfoque.</string>
@@ -31,5 +26,5 @@
     <string name="home_delete_title">¿Eliminar a %1$s?</string>
     <string name="home_delete_body">Se eliminará el perfil. Esta acción no se puede deshacer.</string>
     <string name="home_delete_confirm">Eliminar</string>
-    <string name="nlp_level_title">Simplificación: %1$s</string>
+    <string name="nlp_level_title">Simplificación (1 a 5): %1$s</string>
 </resources>

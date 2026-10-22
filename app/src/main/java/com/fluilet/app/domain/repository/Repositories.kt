@@ -9,7 +9,8 @@ import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.ReadingProgress
 import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.model.RegistrationData
-import com.fluilet.app.domain.model.SessionSummary
+import com.fluilet.app.domain.model.EducationalProgress
+import com.fluilet.app.domain.model.LessonRequest
 import com.fluilet.app.domain.model.User
 
 interface AuthRepository {
@@ -39,6 +40,9 @@ interface AdaptationRepository {
         nlpLevel: NlpLevel,
         childId: String?
     ): Result<AdaptationResult>
+
+    /** Genera una lección por categoría/tema (banco del servidor) ya adaptada al nivel pedido. */
+    suspend fun generate(request: LessonRequest, childId: String?): Result<AdaptationResult>
 }
 
 /**
@@ -50,7 +54,13 @@ interface ReadingSessionRepository {
     /** Devuelve el id de la sesión, o `null` si no hay seguimiento (p. ej. adulto sin perfil de niño). */
     suspend fun start(childId: String?, adaptation: AdaptationResult): Result<String?>
     suspend fun progress(readingId: String, progress: ReadingProgress): Result<Unit>
-    suspend fun history(childId: String?): Result<List<SessionSummary>>
+
+    /**
+     * Resumen educativo (cumplimiento, tiempo, comprensión, nivel recomendado, evolución e insignias).
+     * Si el endpoint de progreso falla se calcula a partir de las lecturas; [baselineLevel] es el nivel
+     * del perfil (o 2 para un adulto) cuando aún no hay lecciones completadas.
+     */
+    suspend fun educationalProgress(childId: String?, baselineLevel: Int): Result<EducationalProgress>
 }
 
 interface ReaderSettingsRepository {

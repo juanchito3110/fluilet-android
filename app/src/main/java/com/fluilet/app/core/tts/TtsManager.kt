@@ -19,7 +19,7 @@ data class TtsState(
     val highlight: IntRange? = null,
     /** Se leyeron todos los bloques con voz. */
     val finished: Boolean = false,
-    val speechRate: Float = 0.85f,
+    val speechRate: Float = 1.0f,
     val errorMessage: String? = null,
     val missingVoiceData: Boolean = false
 )

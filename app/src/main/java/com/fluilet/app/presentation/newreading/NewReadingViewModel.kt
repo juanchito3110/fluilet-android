@@ -12,11 +12,14 @@ import com.fluilet.app.domain.model.ActiveReading
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.AdaptationSource
 import com.fluilet.app.domain.model.ChildProfile
+import com.fluilet.app.domain.model.LessonCategory
+import com.fluilet.app.domain.model.LessonRequest
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.model.SourceType
 import com.fluilet.app.domain.session.ActiveReadingHolder
 import com.fluilet.app.domain.usecase.AdaptTextUseCase
+import com.fluilet.app.domain.usecase.GenerateLessonUseCase
 import com.fluilet.app.domain.usecase.GetChildrenUseCase
 import com.fluilet.app.domain.usecase.IsTutorPinConfiguredUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,7 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-enum class InputMode { PASTE, FILE }
+enum class InputMode { PASTE, FILE, GENERATE }
 
 /** Qué hacer al terminar: guardar la lectura para después o empezar a leer ahora. */
 enum class NewReadingOutcome { SAVED, START_NOW }
@@ -41,6 +44,9 @@ data class NewReadingUiState(
     val mode: InputMode = InputMode.PASTE,
     val text: String = "",
     val fileName: String? = null,
+    /** Generar lección: categoría elegida y tema libre opcional (hasta 120 caracteres). */
+    val category: LessonCategory? = null,
+    val topic: String = "",
     val level: NlpLevel = NlpLevel.DEFAULT,
     val readerName: String = "",
     val isReadingFile: Boolean = false,
@@ -51,7 +57,12 @@ data class NewReadingUiState(
     val result: AdaptationResult? = null,
     val errorMessage: String? = null
 ) {
-    val hasInput: Boolean get() = if (mode == InputMode.PASTE) text.isNotBlank() else fileName != null
+    val hasInput: Boolean
+        get() = when (mode) {
+            InputMode.PASTE -> text.isNotBlank()
+            InputMode.FILE -> fileName != null
+            InputMode.GENERATE -> category != null
+        }
     val canAdapt: Boolean get() = hasInput && !isAdapting && !isReadingFile
 }
 
@@ -65,6 +76,7 @@ class NewReadingViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val getChildren: GetChildrenUseCase,
     private val adaptText: AdaptTextUseCase,
+    private val generateLesson: GenerateLessonUseCase,
     private val holder: ActiveReadingHolder,
     private val isPinConfigured: IsTutorPinConfiguredUseCase
 ) : ViewModel() {
@@ -91,6 +103,8 @@ class NewReadingViewModel @Inject constructor(
     }
 
     fun onMode(mode: InputMode) = _state.update { it.copy(mode = mode, errorMessage = null, result = null) }
+    fun onCategory(category: LessonCategory) = _state.update { it.copy(category = category, errorMessage = null, result = null) }
+    fun onTopic(value: String) = _state.update { it.copy(topic = value.take(LessonRequest.MAX_TOPIC_LENGTH), errorMessage = null, result = null) }
     fun onText(value: String) = _state.update { it.copy(text = value, errorMessage = null, result = null) }
     fun onLevel(level: NlpLevel) = _state.update { it.copy(level = level, result = null) }
     fun backToEdit() = _state.update { it.copy(result = null) }
@@ -141,6 +155,7 @@ class NewReadingViewModel @Inject constructor(
     fun adapt() {
         val s = _state.value
         if (!s.canAdapt) return
+        if (s.mode == InputMode.GENERATE) return generate(s)
         val source = if (s.mode == InputMode.PASTE) {
             AdaptationSource("Texto pegado", SourceType.PASTED_TEXT, s.text.toByteArray(Charsets.UTF_8))
         } else {
@@ -149,6 +164,17 @@ class NewReadingViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isAdapting = true, errorMessage = null, result = null) }
             adaptText(source, s.level, childId)
+                .onSuccess { result -> _state.update { it.copy(isAdapting = false, result = result) } }
+                .onFailure { e -> _state.update { it.copy(isAdapting = false, errorMessage = e.toAppError().userMessage) } }
+        }
+    }
+
+    /** Pide una lección por categoría/tema al servidor; el resultado se muestra igual que una adaptación. */
+    private fun generate(s: NewReadingUiState) {
+        val category = s.category ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(isAdapting = true, errorMessage = null, result = null) }
+            generateLesson(LessonRequest(category, s.topic, s.level), childId)
                 .onSuccess { result -> _state.update { it.copy(isAdapting = false, result = result) } }
                 .onFailure { e -> _state.update { it.copy(isAdapting = false, errorMessage = e.toAppError().userMessage) } }
         }

@@ -4,6 +4,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,10 +18,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.HistoryEdu
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.PlayArrow
 import com.fluilet.app.presentation.common.SelectableChip
 import com.fluilet.app.presentation.common.CheckMark
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -31,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -40,6 +51,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fluilet.app.R
 import com.fluilet.app.domain.model.AdaptationResult
+import com.fluilet.app.domain.model.LessonCategory
+import com.fluilet.app.domain.model.LessonRequest
 import com.fluilet.app.domain.text.Szigriszt
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.PrimaryButton
@@ -87,7 +100,7 @@ fun NewReadingScreen(
                 InputSection(state, viewModel, onPick = { picker.launch(arrayOf("text/plain", "application/pdf")) })
                 ErrorMessage(state.errorMessage)
                 PrimaryButton(
-                    text = stringResource(R.string.newreading_adapt),
+                    text = stringResource(if (state.mode == InputMode.GENERATE) R.string.newreading_generate else R.string.newreading_adapt),
                     onClick = viewModel::adapt,
                     enabled = state.canAdapt,
                     loading = state.isAdapting,
@@ -129,21 +142,30 @@ private fun PinSetupHost(show: Boolean, onDone: () -> Unit, onDismiss: () -> Uni
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InputSection(state: NewReadingUiState, vm: NewReadingViewModel, onPick: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SelectableChip(
             selected = state.mode == InputMode.PASTE,
             onClick = { vm.onMode(InputMode.PASTE) },
-            label = { Text(stringResource(R.string.newreading_mode_paste), style = MaterialTheme.typography.labelLarge) },
-            modifier = Modifier.heightIn(min = 48.dp)
+            label = { Text(stringResource(R.string.newreading_mode_paste), style = MaterialTheme.typography.labelLarge) }
         )
         SelectableChip(
             selected = state.mode == InputMode.FILE,
             onClick = { vm.onMode(InputMode.FILE) },
-            label = { Text(stringResource(R.string.newreading_mode_file), style = MaterialTheme.typography.labelLarge) },
-            modifier = Modifier.heightIn(min = 48.dp)
+            label = { Text(stringResource(R.string.newreading_mode_file), style = MaterialTheme.typography.labelLarge) }
         )
+        SelectableChip(
+            selected = state.mode == InputMode.GENERATE,
+            onClick = { vm.onMode(InputMode.GENERATE) },
+            label = { Text(stringResource(R.string.newreading_mode_generate), style = MaterialTheme.typography.labelLarge) }
+        )
+    }
+
+    if (state.mode == InputMode.GENERATE) {
+        LessonGeneratorFields(state, vm)
+        return
     }
 
     if (state.mode == InputMode.PASTE) {
@@ -167,11 +189,49 @@ private fun InputSection(state: NewReadingUiState, vm: NewReadingViewModel, onPi
     NlpLevelSlider(state.level, vm::onLevel)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LessonGeneratorFields(state: NewReadingUiState, vm: NewReadingViewModel) {
+    Text(stringResource(R.string.newreading_category_title), style = MaterialTheme.typography.titleSmall)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LessonCategory.entries.forEach { category ->
+            SelectableChip(
+                selected = category == state.category,
+                onClick = { vm.onCategory(category) },
+                leadingIcon = { Icon(categoryIcon(category), contentDescription = null, modifier = Modifier.size(18.dp)) },
+                label = { Text(category.displayName, style = MaterialTheme.typography.labelLarge) }
+            )
+        }
+    }
+    OutlinedTextField(
+        value = state.topic,
+        onValueChange = vm::onTopic,
+        label = { Text(stringResource(R.string.newreading_topic_label)) },
+        supportingText = { Text("${state.topic.length}/${LessonRequest.MAX_TOPIC_LENGTH}") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    NlpLevelSlider(state.level, vm::onLevel)
+}
+
+fun categoryIcon(category: LessonCategory): ImageVector = when (category) {
+    LessonCategory.CIENCIA_ESPACIO -> Icons.Filled.RocketLaunch
+    LessonCategory.ANIMALES_NATURALEZA -> Icons.Filled.Pets
+    LessonCategory.HISTORIA_MISTERIOS -> Icons.Filled.HistoryEdu
+    LessonCategory.DEPORTES -> Icons.Filled.SportsSoccer
+    LessonCategory.TECNOLOGIA -> Icons.Filled.Memory
+    LessonCategory.CUENTOS_AVENTURAS -> Icons.Filled.AutoStories
+}
+
 @Composable
 private fun ResultSection(result: AdaptationResult) {
     val m = result.metrics
     SectionCard(stringResource(R.string.newreading_result_title)) {
         Text(result.title, style = MaterialTheme.typography.titleSmall)
+        result.category?.let { MetricRow(R.string.newreading_m_category, LessonCategory.displayNameFor(it)) }
+        result.simplificationLevel?.let { MetricRow(R.string.newreading_m_level, it.toString()) }
+        if (result.questions.isNotEmpty()) MetricRow(R.string.newreading_m_quiz, stringResource(R.string.newreading_quiz_count, result.questions.size))
+        if (result.bestEffort) Text(stringResource(R.string.newreading_best_effort), style = MaterialTheme.typography.bodySmall)
         MetricRow(R.string.newreading_m_original, "%.1f · %s".format(m.originalSzigrisztScore, Szigriszt.level(m.originalSzigrisztScore)))
         MetricRow(R.string.newreading_m_adapted, "%.1f · %s".format(m.adaptedSzigrisztScore, Szigriszt.level(m.adaptedSzigrisztScore)))
         MetricRow(R.string.newreading_m_delta, "%+.1f".format(m.scoreDelta))

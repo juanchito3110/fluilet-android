@@ -54,8 +54,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fluilet.app.R
 import com.fluilet.app.domain.model.ChildProfile
 import com.fluilet.app.domain.model.NlpLevel
-import com.fluilet.app.domain.model.SessionSummary
-import com.fluilet.app.domain.text.Szigriszt
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.FullScreenLoading
 import com.fluilet.app.presentation.common.PrimaryButton
@@ -138,7 +136,7 @@ fun HomeScreen(
                 )
             }
 
-            ProgressSection(state.history)
+            ProgressDashboard(state.progress, state.progressNote)
 
             if (state.isTutor) {
                 SectionCard(stringResource(R.string.home_pin_title)) {
@@ -268,55 +266,3 @@ fun NlpLevelSlider(level: NlpLevel, onCommit: (NlpLevel) -> Unit) {
     }
 }
 
-@Composable
-private fun ProgressSection(history: List<SessionSummary>) {
-    SectionCard(stringResource(R.string.home_progress_title)) {
-        if (history.isEmpty()) {
-            Text(stringResource(R.string.home_progress_empty), style = MaterialTheme.typography.bodyMedium)
-            return@SectionCard
-        }
-        val formatter = remember { DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale.forLanguageTag("es")) }
-        history.take(8).forEach { session ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    "${session.label} · ${formatter.format(session.startedAt.atZone(ZoneId.systemDefault()))}",
-                    style = MaterialTheme.typography.titleSmall
-                )
-                ScoreBar(stringResource(R.string.home_score_original), session.originalScore)
-                ScoreBar(stringResource(R.string.home_score_adapted), session.adaptedScore)
-                Text(
-                    stringResource(
-                        R.string.home_session_detail,
-                        session.scoreDelta,
-                        Szigriszt.level(session.adaptedScore),
-                        session.readingTimeSeconds / 60,
-                        session.completionPercent
-                    ),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
-}
-
-/** Barra de legibilidad Szigriszt-Pazos (0–100; mayor = más fácil de leer). */
-@Composable
-private fun ScoreBar(label: String, score: Double) {
-    val fraction = (score / 100.0).coerceIn(0.0, 1.0).toFloat()
-    Row(
-        Modifier.fillMaxWidth().semantics { contentDescription = "$label: %.1f".format(score) },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(84.dp))
-        Box(
-            Modifier.weight(1f).height(14.dp).clip(RoundedCornerShape(7.dp))
-                .background(MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Box(
-                Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(RoundedCornerShape(7.dp))
-                    .background(MaterialTheme.colorScheme.primary)
-            )
-        }
-        Text("%.0f".format(score), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 8.dp))
-    }
-}

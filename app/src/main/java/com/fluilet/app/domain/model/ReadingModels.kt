@@ -5,7 +5,7 @@ import java.time.Instant
 /** Bloque digerible de texto adaptado. Vive SOLO en RAM durante la sesión (cero retención). */
 data class TextChunk(val index: Int, val text: String)
 
-/** Métricas clínicas de legibilidad (Szigriszt-Pazos). Solo números: se pueden enviar al backend. */
+/** Métricas de legibilidad del texto (Szigriszt-Pazos). Solo números; el servidor las calcula. */
 data class ReadabilityMetrics(
     val originalSzigrisztScore: Double,
     val adaptedSzigrisztScore: Double,
@@ -25,7 +25,14 @@ data class AdaptationResult(
     val chunks: List<TextChunk>,
     val metrics: ReadabilityMetrics,
     /** Identificador de documento (metadatos) cuando el backend lo registra; `null` en local. */
-    val documentId: String? = null
+    val documentId: String? = null,
+    /** Categoría normalizada de la lección (`ciencia_espacio`, `lectura_libre`, ...). */
+    val category: String? = null,
+    val simplificationLevel: Int? = null,
+    /** Mini-reto de comprensión (2 preguntas). Vacío si el servidor no lo envía. */
+    val questions: List<ComprehensionQuestion> = emptyList(),
+    /** El servidor entregó la mejor adaptación posible sin alcanzar el objetivo de legibilidad. */
+    val bestEffort: Boolean = false
 )
 
 enum class SourceType { TXT, PDF, PASTED_TEXT }
@@ -42,24 +49,33 @@ class AdaptationSource(
     }
 }
 
-/** Avance numérico de una sesión (único dato que sale de la app al leer). Monótono. */
+/** Resultado del mini-reto de comprensión de una sesión. */
+data class ComprehensionResult(val answered: Int, val correct: Int) {
+    /** Porcentaje de aciertos (0, 50 o 100 con dos preguntas); `null` si no se contestó nada. */
+    val score: Int? get() = ComprehensionScoring.score(answered, correct)
+}
+
+/** Misma fórmula del backend: porcentaje de aciertos redondeado hacia arriba en la mitad. */
+object ComprehensionScoring {
+    fun score(answered: Int, correct: Int): Int? {
+        if (answered <= 0) return null
+        require(correct in 0..answered) { "correct debe estar entre 0 y answered" }
+        return (200 * correct + answered) / (2 * answered)
+    }
+}
+
+/**
+ * Avance numérico de una sesión (único dato que sale de la app al leer). Monótono. Incluye la
+ * práctica educativa: comprensión y velocidad de voz usada. Cero retención: no contiene texto.
+ */
 data class ReadingProgress(
     val readingTimeSeconds: Long,
     val completionPercent: Int,
-    val completed: Boolean
-)
-
-/** Resumen histórico para el panel clínico del tutor: lectura + métricas del documento. */
-data class SessionSummary(
-    val id: String,
-    val label: String,
-    val startedAt: Instant,
-    val readingTimeSeconds: Long,
-    val completionPercent: Int,
     val completed: Boolean,
-    val originalScore: Double,
-    val adaptedScore: Double,
-    val scoreDelta: Double
+    val category: String? = null,
+    val simplificationLevel: Int? = null,
+    val comprehension: ComprehensionResult? = null,
+    val ttsSpeed: Double? = null
 )
 
 /** Lectura activa: contenido adaptado + sujeto que lee. Solo en RAM. */

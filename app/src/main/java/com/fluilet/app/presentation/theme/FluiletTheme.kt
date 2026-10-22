@@ -18,7 +18,7 @@ import com.fluilet.app.domain.model.AccessiblePalette
 val LocalAccessiblePalette = staticCompositionLocalOf { AccessiblePalette.DEFAULT }
 
 /**
- * Tema Material 3 derivado de una paleta clínica. Se aplica a TODA la app (no solo al lector) para
+ * Tema Material 3 derivado de una paleta de alto confort visual. Se aplica a TODA la app (no solo al lector) para
  * evitar el blanco puro sobre negro puro; el lector lo reaplica con la paleta elegida por el niño.
  */
 @Composable

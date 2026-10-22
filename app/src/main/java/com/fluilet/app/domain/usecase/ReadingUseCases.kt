@@ -8,7 +8,8 @@ import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.ReadingProgress
 import com.fluilet.app.domain.text.SpanishText
 import com.fluilet.app.domain.model.ReadingSettings
-import com.fluilet.app.domain.model.SessionSummary
+import com.fluilet.app.domain.model.EducationalProgress
+import com.fluilet.app.domain.model.LessonRequest
 import com.fluilet.app.domain.repository.AdaptationRepository
 import com.fluilet.app.domain.repository.ReadingSessionRepository
 import javax.inject.Inject
@@ -44,8 +45,20 @@ class UpdateReadingProgressUseCase @Inject constructor(private val repository: R
         )
 }
 
-class GetSessionHistoryUseCase @Inject constructor(private val repository: ReadingSessionRepository) {
-    suspend operator fun invoke(childId: String?): Result<List<SessionSummary>> = repository.history(childId)
+/** Nunca falla hacia la UI: si no hay datos ni respaldo devuelve un resumen vacío con insignias bloqueadas. */
+class GetEducationalProgressUseCase @Inject constructor(private val repository: ReadingSessionRepository) {
+    suspend operator fun invoke(childId: String?, baselineLevel: Int = 2): Result<EducationalProgress> =
+        repository.educationalProgress(childId, baselineLevel)
+}
+
+class GenerateLessonUseCase @Inject constructor(private val repository: AdaptationRepository) {
+    suspend operator fun invoke(request: LessonRequest, childId: String?): Result<AdaptationResult> {
+        val topic = request.cleanTopic
+        if (request.topic != null && request.topic.isNotBlank() && topic == null) {
+            return Result.failure(AppError.Validation("El tema contiene caracteres no válidos."))
+        }
+        return repository.generate(request.copy(topic = topic), childId)
+    }
 }
 
 /** Cada actualización ajusta el valor a su rango: nunca confiamos en el valor crudo de la UI. */

@@ -1,0 +1,29 @@
+<resources>
+    <string name="progress_my_progress">Mi avance</string>
+    <string name="progress_title">Avance y Evolución</string>
+    <string name="progress_estimated">Calculado en este dispositivo a partir de tus lecturas.</string>
+    <string name="progress_completion_title">Lecciones completadas</string>
+    <string name="progress_completed_of">%1$d de %2$d lecciones</string>
+    <string name="progress_completion_detail">%1$s de cumplimiento · %2$d incompletas</string>
+    <string name="progress_time_title">Tiempo total de lectura</string>
+    <string name="progress_comprehension_title">Promedio de comprensión</string>
+    <string name="progress_no_quiz">Aún sin mini-retos</string>
+    <string name="progress_level_title">Nivel recomendado</string>
+    <string name="progress_level_value">Nivel %1$d de 5</string>
+    <string name="progress_level_hint">Sube cuando completas lecciones con buena comprensión.</string>
+    <string name="progress_evolution_title">Evolución por lección</string>
+    <string name="progress_empty">Cuando termines una lección verás aquí su categoría, nivel, comprensión y cuánto mejoró la legibilidad del texto.</string>
+    <string name="progress_chart_title">Legibilidad del texto por lección</string>
+    <string name="progress_original">Original</string>
+    <string name="progress_adapted">Adaptado</string>
+    <string name="progress_lesson_header">Lección %1$d · %2$s · Nivel %3$d</string>
+    <string name="progress_completed">Completada</string>
+    <string name="progress_incomplete">Incompleta · %1$d %%</string>
+    <string name="progress_lesson_comprehension">Comprensión: %1$d %%</string>
+    <string name="progress_lesson_no_quiz">Comprensión: sin mini-reto</string>
+    <string name="progress_lesson_jump">Legibilidad: %1$.0f → %2$.0f (%3$+.1f)</string>
+    <string name="progress_badges_title">Insignias educativas</string>
+    <string name="progress_badges_count">%1$d de %2$d desbloqueadas</string>
+    <string name="progress_badge_unlocked">Desbloqueada</string>
+    <string name="progress_badge_locked">Bloqueada</string>
+</resources>

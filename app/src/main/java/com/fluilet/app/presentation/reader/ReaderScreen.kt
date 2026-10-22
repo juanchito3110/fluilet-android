@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -68,7 +71,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
@@ -85,6 +90,7 @@ import com.fluilet.app.R
 import com.fluilet.app.core.tts.TtsStatus
 import com.fluilet.app.domain.model.AccessiblePalette
 import com.fluilet.app.domain.model.ReadingSettings
+import com.fluilet.app.domain.quiz.ComprehensionQuiz
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
@@ -169,15 +175,22 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel) {
                 .semantics { contentDescription = "Progreso de lectura ${(state.progressFraction * 100).toInt()} por ciento" }
         )
 
-        Box(Modifier.weight(1f)) {
-            ChunkCard(state)
-        }
-
-        if (state.completed) {
-            CompletionPanel(onAgain = vm::restart, onExit = vm::requestExit)
+        if (state.showQuiz) {
+            // Mini-Reto de Comprensión: aparece al terminar la lectura, antes de cerrar o pedir el PIN.
+            Box(Modifier.weight(1f)) {
+                state.quiz?.let { QuizCard(it, state.settings, vm::answerQuiz, vm::nextQuestion, vm::finishQuiz) }
+            }
         } else {
-            SpeechUnavailableBanner(state)
-            ReaderControls(state, vm)
+            Box(Modifier.weight(1f)) {
+                ChunkCard(state)
+            }
+
+            if (state.completed) {
+                CompletionPanel(state.quiz, onAgain = vm::restart, onExit = vm::requestExit)
+            } else {
+                SpeechUnavailableBanner(state)
+                ReaderControls(state, vm)
+            }
         }
     }
 }
@@ -302,9 +315,9 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
         }
 
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SpeedChip(R.string.reader_speed_slow, 0.7f, state, vm)
-            SpeedChip(R.string.reader_speed_normal, 0.85f, state, vm)
-            SpeedChip(R.string.reader_speed_fast, 1.1f, state, vm)
+            SpeedChip(R.string.reader_speed_slow, 0.8f, state, vm)
+            SpeedChip(R.string.reader_speed_normal, 1.0f, state, vm)
+            SpeedChip(R.string.reader_speed_fast, 1.2f, state, vm)
         }
 
         if (state.isLastChunk) {
@@ -343,7 +356,7 @@ private fun SpeechUnavailableBanner(state: ReaderUiState) {
 }
 
 @Composable
-private fun CompletionPanel(onAgain: () -> Unit, onExit: () -> Unit) {
+private fun CompletionPanel(quiz: ComprehensionQuiz?, onAgain: () -> Unit, onExit: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
         shape = RoundedCornerShape(24.dp),
@@ -352,6 +365,13 @@ private fun CompletionPanel(onAgain: () -> Unit, onExit: () -> Unit) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.reader_done_title), style = MaterialTheme.typography.headlineSmall)
             Text(stringResource(R.string.reader_done_body), style = MaterialTheme.typography.bodyLarge)
+            if (quiz != null && quiz.answered > 0) {
+                val r = quiz.result
+                Text(
+                    stringResource(R.string.quiz_result_summary, r.correct, r.answered, r.score ?: 0),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
             SecondaryButton(stringResource(R.string.reader_again), onAgain)
             PrimaryButton(stringResource(R.string.reader_exit), onExit, icon = Icons.Filled.Lock)
         }
@@ -413,5 +433,111 @@ fun PaletteSwatch(palette: AccessiblePalette, selected: Boolean, onClick: () -> 
             Text("Aa", color = Color(palette.onBackground), fontFamily = OpenDyslexicFontFamily)
         }
         Text(palette.displayName, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+// --- Mini-Reto de Comprensión ------------------------------------------------------------------
+
+/** Estado elevado: la tarjeta solo dibuja el [ComprehensionQuiz] y avisa de cada acción (probable con pruebas de UI). */
+@Composable
+internal fun QuizCard(
+    quiz: ComprehensionQuiz,
+    settings: ReadingSettings,
+    onAnswer: (Int) -> Unit,
+    onNext: () -> Unit,
+    onFinish: () -> Unit
+) {
+    val question = quiz.current ?: return
+    val answer = quiz.currentAnswer
+
+    Card(
+        modifier = Modifier.fillMaxSize(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(stringResource(R.string.quiz_title), style = MaterialTheme.typography.headlineSmall)
+            Text(
+                stringResource(R.string.quiz_question_of, quiz.viewIndex + 1, quiz.questions.size),
+                style = MaterialTheme.typography.labelLarge
+            )
+            Text(
+                question.question,
+                style = TextStyle(
+                    fontFamily = OpenDyslexicFontFamily,
+                    fontSize = settings.fontSizeSp.sp,
+                    lineHeight = (settings.fontSizeSp * settings.lineSpacing).sp,
+                    letterSpacing = settings.letterSpacingEm.em,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            )
+
+            question.options.forEachIndexed { index, option ->
+                QuizOption(
+                    text = option,
+                    answered = answer != null,
+                    isCorrectOption = index == question.correctOptionIndex,
+                    isSelected = answer?.selectedIndex == index,
+                    onClick = { onAnswer(index) }
+                )
+            }
+
+            if (answer != null) {
+                // Retroalimentación inmediata y alentadora; el estado nunca depende solo del color.
+                Text(
+                    if (answer.isCorrect) stringResource(R.string.quiz_feedback_correct)
+                    else stringResource(R.string.quiz_feedback_wrong, question.options[question.correctOptionIndex]),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                )
+                if (quiz.canAdvance) {
+                    PrimaryButton(stringResource(R.string.quiz_next), onNext)
+                } else if (quiz.isComplete) {
+                    val r = quiz.result
+                    Text(stringResource(R.string.quiz_result_summary, r.correct, r.answered, r.score ?: 0), style = MaterialTheme.typography.titleMedium)
+                    PrimaryButton(stringResource(R.string.quiz_finish), onFinish)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuizOption(text: String, answered: Boolean, isCorrectOption: Boolean, isSelected: Boolean, onClick: () -> Unit) {
+    val showCorrect = answered && isCorrectOption
+    val showWrong = answered && isSelected && !isCorrectOption
+    val container = when {
+        showCorrect -> MaterialTheme.colorScheme.primary
+        showWrong -> MaterialTheme.colorScheme.errorContainer
+        else -> MaterialTheme.colorScheme.background
+    }
+    val content = when {
+        showCorrect -> MaterialTheme.colorScheme.onPrimary
+        showWrong -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.onBackground
+    }
+    val stateText = when {
+        showCorrect -> stringResource(R.string.quiz_option_correct)
+        showWrong -> stringResource(R.string.quiz_option_wrong)
+        else -> ""
+    }
+    androidx.compose.material3.Button(
+        onClick = onClick,
+        enabled = !answered,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).semantics { contentDescription = "$text. $stateText" },
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(2.dp, if (showCorrect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+            containerColor = container, contentColor = content,
+            disabledContainerColor = container, disabledContentColor = content
+        )
+    ) {
+        if (showCorrect) Icon(Icons.Filled.Check, contentDescription = null)
+        if (showWrong) Icon(Icons.Filled.Close, contentDescription = null)
+        if (showCorrect || showWrong) Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f, fill = false))
     }
 }

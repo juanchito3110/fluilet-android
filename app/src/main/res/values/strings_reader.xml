@@ -12,10 +12,10 @@
     <string name="reader_pause">Pausar</string>
     <string name="reader_resume">Reanudar</string>
     <string name="reader_stop">Detener</string>
-    <string name="reader_speed_slow">Lento</string>
-    <string name="reader_speed_normal">Normal</string>
-    <string name="reader_speed_fast">Rápido</string>
-    <string name="reader_finish">¡Terminé de leer!</string>
+    <string name="reader_speed_slow">0.8x Pausado</string>
+    <string name="reader_speed_normal">1.0x Normal</string>
+    <string name="reader_speed_fast">1.2x Ágil</string>
+    <string name="reader_finish">Terminar lectura</string>
     <string name="reader_install_voice">Instalar voz en español</string>
     <string name="reader_done_title">¡Muy bien!</string>
     <string name="reader_done_body">Terminaste la lectura. Pide a tu tutor que te ayude a salir.</string>
@@ -25,4 +25,13 @@
     <string name="reader_letter_spacing">Espacio entre letras</string>
     <string name="reader_speech_rate">Velocidad de la voz</string>
     <string name="reader_palette">Colores</string>
+    <string name="quiz_title">Mini-Reto de Comprensión</string>
+    <string name="quiz_question_of">Pregunta %1$d de %2$d</string>
+    <string name="quiz_feedback_correct">¡Correcto! Muy bien.</string>
+    <string name="quiz_feedback_wrong">¡Casi! La respuesta era: %1$s</string>
+    <string name="quiz_option_correct">Respuesta correcta</string>
+    <string name="quiz_option_wrong">Respuesta incorrecta</string>
+    <string name="quiz_next">Siguiente pregunta</string>
+    <string name="quiz_finish">Continuar</string>
+    <string name="quiz_result_summary">Mini-reto: %1$d de %2$d correctas · %3$d %%</string>
 </resources>
