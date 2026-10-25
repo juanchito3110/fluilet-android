@@ -136,7 +136,7 @@ fun HomeScreen(
                 )
             }
 
-            ProgressDashboard(state.progress, state.progressNote)
+            ProgressDashboard(state.progress, state.progressNote, state.ownerKey)
 
             if (state.isTutor) {
                 SectionCard(stringResource(R.string.home_pin_title)) {

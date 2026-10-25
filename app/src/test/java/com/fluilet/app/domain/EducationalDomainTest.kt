@@ -10,6 +10,7 @@ import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.ReadingRecord
 import com.fluilet.app.domain.progress.EducationalProgressCalculator
 import com.fluilet.app.domain.quiz.ComprehensionQuiz
+import com.fluilet.app.presentation.common.formatExactPercent
 import com.fluilet.app.presentation.common.formatPercent
 import com.fluilet.app.presentation.common.formatReadingTime
 import com.fluilet.app.testutil.sampleQuestions
@@ -241,6 +242,14 @@ class FormattersTest {
         assertEquals("12 min", formatReadingTime(12 * 60 + 30))
         assertEquals("1 h 05 min", formatReadingTime(3900))
         assertEquals("2 h 00 min", formatReadingTime(7200))
+    }
+
+    @Test fun exactPercentForTheDonutCenter() {
+        assertEquals("100%", formatExactPercent(100.0))
+        assertEquals("0%", formatExactPercent(0.0))
+        assertEquals("66.7%", formatExactPercent(66.666))
+        assertEquals("50%", formatExactPercent(50.04))
+        assertEquals("33.3%", formatExactPercent(33.33))
     }
 
     @Test fun percent() {

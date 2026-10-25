@@ -197,4 +197,19 @@ class HomeViewModelTest {
         assertTrue(sessions.progressRequests.isEmpty())
         assertEquals(0, state().progress.totalLessons)
     }
+
+    @Test fun ownerKeyIdentifiesTheProfileForTheFluiBotData() = runTest(dispatcher) {
+        children.children = listOf(sampleChild("c1", "Mateo"), sampleChild("c2", "Lucía"))
+        val tutor = viewModel(UserRole.TUTOR)
+        val tutorState = observe(tutor)
+        tutor.refresh()
+        assertEquals("c1", tutorState().ownerKey)
+        tutor.select("c2")
+        assertEquals("cada niño tiene su propio taller y saldo", "c2", tutorState().ownerKey)
+
+        val adult = viewModel(UserRole.ADULTO_INDEPENDIENTE)
+        val adultState = observe(adult)
+        adult.refresh()
+        assertEquals("adult:x@example.com", adultState().ownerKey)
+    }
 }

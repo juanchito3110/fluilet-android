@@ -57,14 +57,19 @@ data class AdaptationReadDto(
     @SerializedName("simplification_level") val simplificationLevel: Int? = null,
     @SerializedName("comprehension_questions") val comprehensionQuestions: List<ComprehensionQuestionDto>? = null,
     @SerializedName("quality_status") val qualityStatus: String? = null,
-    @SerializedName("warnings") val warnings: List<String>? = null
+    @SerializedName("warnings") val warnings: List<String>? = null,
+    @SerializedName("question_age_group") val questionAgeGroup: String? = null,
+    @SerializedName("child_age_years") val childAgeYears: Int? = null
 )
 
 data class ComprehensionQuestionDto(
     @SerializedName("id") val id: String? = null,
     @SerializedName("question") val question: String? = null,
     @SerializedName("options") val options: List<String>? = null,
-    @SerializedName("correct_option_index") val correctOptionIndex: Int? = null
+    @SerializedName("correct_option_index") val correctOptionIndex: Int? = null,
+    // Adaptación por edad (opcionales; sin ellos la app usa pista y explicación locales).
+    @SerializedName("hint") val hint: String? = null,
+    @SerializedName("explanation") val explanation: String? = null
 )
 
 /** `POST /api/v1/adaptations/generate`. `topic` y `child_id` nulos se omiten al serializar. */

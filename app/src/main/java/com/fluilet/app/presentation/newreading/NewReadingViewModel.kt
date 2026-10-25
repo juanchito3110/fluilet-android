@@ -3,6 +3,7 @@ package com.fluilet.app.presentation.newreading
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.fluilet.app.core.auth.SessionManager
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -78,6 +79,7 @@ class NewReadingViewModel @Inject constructor(
     private val adaptText: AdaptTextUseCase,
     private val generateLesson: GenerateLessonUseCase,
     private val holder: ActiveReadingHolder,
+    private val sessionManager: SessionManager,
     private val isPinConfigured: IsTutorPinConfiguredUseCase
 ) : ViewModel() {
 
@@ -192,7 +194,17 @@ class NewReadingViewModel @Inject constructor(
     private fun useReading(outcome: NewReadingOutcome) {
         val result = _state.value.result ?: return
         val settings = child?.toReadingSettings() ?: ReadingSettings()
-        holder.set(ActiveReading(childId, _state.value.readerName.ifBlank { "Lector" }, settings, result))
+        val age = child?.let { java.time.Period.between(it.birthDate, java.time.LocalDate.now()).years }
+        holder.set(
+            ActiveReading(
+                childId = childId,
+                readerName = _state.value.readerName.ifBlank { "Lector" },
+                settings = settings,
+                adaptation = result,
+                ageYears = age,
+                ownerKey = childId ?: "adult:${sessionManager.email.orEmpty()}"
+            )
+        )
         pendingFile = null
         _state.update { it.copy(text = "", fileName = null) }
         _done.trySend(outcome)

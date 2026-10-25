@@ -32,7 +32,10 @@ data class AdaptationResult(
     /** Mini-reto de comprensión (2 preguntas). Vacío si el servidor no lo envía. */
     val questions: List<ComprehensionQuestion> = emptyList(),
     /** El servidor entregó la mejor adaptación posible sin alcanzar el objetivo de legibilidad. */
-    val bestEffort: Boolean = false
+    val bestEffort: Boolean = false,
+    /** Grupo de edad de las preguntas (`6-8`, `9-11`, `12+`) y edad del niño, si el servidor los envía. */
+    val questionAgeGroup: String? = null,
+    val childAgeYears: Int? = null
 )
 
 enum class SourceType { TXT, PDF, PASTED_TEXT }
@@ -83,5 +86,15 @@ data class ActiveReading(
     val childId: String?,
     val readerName: String,
     val settings: ReadingSettings,
-    val adaptation: AdaptationResult
-)
+    val adaptation: AdaptationResult,
+    /** Edad del niño (años), si se conoce: adapta el mini-reto. */
+    val ageYears: Int? = null,
+    /** Clave del perfil para sus datos de juego (FluiBot): id del niño o clave del adulto. */
+    val ownerKey: String = childId ?: "adult"
+) {
+    /** Grupo de edad efectivo: el del servidor, o el calculado con la edad del niño. */
+    val ageGroup: AgeGroup
+        get() = AgeGroup.fromCode(adaptation.questionAgeGroup) ?: AgeGroup.fromAge(adaptation.childAgeYears ?: ageYears)
+
+    val displayAge: Int? get() = adaptation.childAgeYears ?: ageYears
+}

@@ -31,6 +31,7 @@ import javax.inject.Inject
 data class HomeUiState(
     val role: UserRole = UserRole.TUTOR,
     val userName: String = "",
+    val email: String = "",
     val isLoading: Boolean = true,
     val children: List<ChildProfile> = emptyList(),
     val selectedChildId: String? = null,
@@ -42,6 +43,9 @@ data class HomeUiState(
     val errorMessage: String? = null
 ) {
     val selectedChild: ChildProfile? get() = children.firstOrNull { it.id == selectedChildId }
+
+    /** Clave del perfil para los datos de juego (FluiBot): el niño seleccionado o el adulto. */
+    val ownerKey: String get() = selectedChildId ?: "adult:$email"
     val isTutor: Boolean get() = role.canManageChildren
 
     /** La lectura lista pertenece al perfil seleccionado (tutor) o al propio adulto. */
@@ -80,6 +84,7 @@ class HomeViewModel @Inject constructor(
         HomeUiState(
             role = (session as? SessionState.LoggedIn)?.role ?: UserRole.TUTOR,
             userName = l.userName,
+            email = (session as? SessionState.LoggedIn)?.email.orEmpty(),
             isLoading = l.isLoading,
             children = l.children,
             selectedChildId = l.selectedChildId,

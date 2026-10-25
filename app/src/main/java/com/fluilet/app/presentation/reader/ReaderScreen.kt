@@ -37,6 +37,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -89,7 +91,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fluilet.app.R
 import com.fluilet.app.core.tts.TtsStatus
 import com.fluilet.app.domain.model.AccessiblePalette
+import com.fluilet.app.domain.model.AgeGroup
 import com.fluilet.app.domain.model.ReadingSettings
+import com.fluilet.app.domain.model.effectiveHint
+import com.fluilet.app.domain.model.explanationFor
+import com.fluilet.app.presentation.common.SelectableChip
 import com.fluilet.app.domain.quiz.ComprehensionQuiz
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.PrimaryButton
@@ -176,21 +182,32 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel) {
         )
 
         if (state.showQuiz) {
-            // Mini-Reto de Comprensión: aparece al terminar la lectura, antes de cerrar o pedir el PIN.
+            // Mini-Reto de Comprensión: al terminar la lectura, antes del Laboratorio. Nunca abre el PIN.
             Box(Modifier.weight(1f)) {
-                state.quiz?.let { QuizCard(it, state.settings, vm::answerQuiz, vm::nextQuestion, vm::finishQuiz) }
+                state.quiz?.let {
+                    QuizCard(
+                        quiz = it,
+                        settings = state.settings,
+                        ageGroup = state.ageGroup ?: AgeGroup.TWELVE_PLUS,
+                        ageYears = state.reading?.displayAge,
+                        onAnswer = vm::answerQuiz,
+                        onNext = vm::nextQuestion,
+                        onFinish = vm::finishQuiz
+                    )
+                }
+            }
+        } else if (state.showLab) {
+            // Laboratorio y Rincón de Recompensas, dentro del Modo Enfoque: solo el tutor (PIN) puede salir.
+            Box(Modifier.weight(1f)) {
+                RewardLab(state, onClaimChest = vm::claimChest, onReadAgain = vm::restart, onDeliver = vm::requestExit)
             }
         } else {
+            GuideBar(state, vm)
             Box(Modifier.weight(1f)) {
-                ChunkCard(state)
+                ChunkCard(state, onGuideTap = vm::guideNext)
             }
-
-            if (state.completed) {
-                CompletionPanel(state.quiz, onAgain = vm::restart, onExit = vm::requestExit)
-            } else {
-                SpeechUnavailableBanner(state)
-                ReaderControls(state, vm)
-            }
+            SpeechUnavailableBanner(state)
+            ReaderControls(state, vm)
         }
     }
 }
@@ -220,8 +237,29 @@ private fun ReaderTopBar(state: ReaderUiState, vm: ReaderViewModel) {
     }
 }
 
+/** Chip "Guía de renglón" (con flechas para mover la franja cuando está activa). */
 @Composable
-private fun ChunkCard(state: ReaderUiState) {
+private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SelectableChip(
+            selected = state.guideEnabled,
+            onClick = vm::toggleGuide,
+            label = { Text(stringResource(R.string.reader_guide), style = MaterialTheme.typography.labelLarge) },
+            modifier = Modifier.semantics { contentDescription = "Guía de renglón, ${if (state.guideEnabled) "activada" else "desactivada"}" }
+        )
+        if (state.guideEnabled) {
+            IconButton(onClick = vm::guidePrevious, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.reader_guide_previous))
+            }
+            IconButton(onClick = vm::guideNext, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.reader_guide_next))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
     val settings = state.settings
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
     val text = state.currentText
@@ -230,9 +268,17 @@ private fun ChunkCard(state: ReaderUiState) {
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     // El resaltado va en el AnnotatedString (solo fondo: sin cambiar el grosor para no reflujar el texto).
-    val annotated = remember(text, highlight, highlightColor) {
+    val guide = state.guideRange
+    val textColor = MaterialTheme.colorScheme.onBackground
+    val guideBand = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    val annotated = remember(text, highlight, highlightColor, guide, textColor, guideBand) {
         buildAnnotatedString {
             append(text)
+            // Guía de renglón: se atenúa todo el bloque y la oración activa recupera el contraste y una franja suave.
+            if (guide != null && guide.last < text.length) {
+                addStyle(SpanStyle(color = textColor.copy(alpha = 0.42f)), 0, text.length)
+                addStyle(SpanStyle(color = textColor, background = guideBand), guide.first, guide.last + 1)
+            }
             if (highlight != null && highlight.first in text.indices) {
                 addStyle(SpanStyle(background = highlightColor), highlight.first, (highlight.last + 1).coerceAtMost(text.length))
             }
@@ -240,6 +286,12 @@ private fun ChunkCard(state: ReaderUiState) {
     }
 
     // Mantiene visible la palabra que se está leyendo en bloques largos.
+    LaunchedEffect(guide) {
+        val l = layout
+        if (guide != null && l != null && guide.first < l.layoutInput.text.length) {
+            scroll.animateScrollTo((l.getBoundingBox(guide.first).top - 160f).toInt().coerceAtLeast(0))
+        }
+    }
     LaunchedEffect(highlight) {
         val l = layout
         if (l != null && highlight != null && highlight.first < l.layoutInput.text.length) {
@@ -253,7 +305,10 @@ private fun ChunkCard(state: ReaderUiState) {
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Box(Modifier.fillMaxSize().verticalScroll(scroll).padding(20.dp)) {
+        Box(
+            Modifier.fillMaxSize().verticalScroll(scroll).padding(20.dp)
+                .clickable(enabled = state.guideEnabled, onClickLabel = "Siguiente renglón", onClick = onGuideTap)
+        ) {
             androidx.compose.material3.Text(
                 text = annotated,
                 onTextLayout = { layout = it },
@@ -355,29 +410,6 @@ private fun SpeechUnavailableBanner(state: ReaderUiState) {
     }
 }
 
-@Composable
-private fun CompletionPanel(quiz: ComprehensionQuiz?, onAgain: () -> Unit, onExit: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.reader_done_title), style = MaterialTheme.typography.headlineSmall)
-            Text(stringResource(R.string.reader_done_body), style = MaterialTheme.typography.bodyLarge)
-            if (quiz != null && quiz.answered > 0) {
-                val r = quiz.result
-                Text(
-                    stringResource(R.string.quiz_result_summary, r.correct, r.answered, r.score ?: 0),
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
-            SecondaryButton(stringResource(R.string.reader_again), onAgain)
-            PrimaryButton(stringResource(R.string.reader_exit), onExit, icon = Icons.Filled.Lock)
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsSheet(settings: ReadingSettings, vm: ReaderViewModel) {
@@ -438,28 +470,38 @@ fun PaletteSwatch(palette: AccessiblePalette, selected: Boolean, onClick: () -> 
 
 // --- Mini-Reto de Comprensión ------------------------------------------------------------------
 
-/** Estado elevado: la tarjeta solo dibuja el [ComprehensionQuiz] y avisa de cada acción (probable con pruebas de UI). */
+/**
+ * Estado elevado: la tarjeta dibuja el [ComprehensionQuiz] y avisa de cada acción (probable con pruebas).
+ * Adaptado por edad: insignia "Adaptado para X años", pista sin penalización y explicación positiva; los
+ * lectores de 6 a 8 años ven botones más grandes, bordes más redondeados y tipografía más amplia.
+ */
 @Composable
 internal fun QuizCard(
     quiz: ComprehensionQuiz,
     settings: ReadingSettings,
+    ageGroup: AgeGroup,
+    ageYears: Int?,
     onAnswer: (Int) -> Unit,
     onNext: () -> Unit,
     onFinish: () -> Unit
 ) {
     val question = quiz.current ?: return
     val answer = quiz.currentAnswer
+    val young = ageGroup.isYoungReader
+    val bump = if (young) 4f else 0f
+    var hintVisible by remember(question.id) { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxSize(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(if (young) 32.dp else 24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(if (young) 18.dp else 14.dp)
         ) {
             Text(stringResource(R.string.quiz_title), style = MaterialTheme.typography.headlineSmall)
+            AgeBadge(ageGroup, ageYears)
             Text(
                 stringResource(R.string.quiz_question_of, quiz.viewIndex + 1, quiz.questions.size),
                 style = MaterialTheme.typography.labelLarge
@@ -468,12 +510,21 @@ internal fun QuizCard(
                 question.question,
                 style = TextStyle(
                     fontFamily = OpenDyslexicFontFamily,
-                    fontSize = settings.fontSizeSp.sp,
-                    lineHeight = (settings.fontSizeSp * settings.lineSpacing).sp,
-                    letterSpacing = settings.letterSpacingEm.em,
+                    fontSize = (settings.fontSizeSp + bump).sp,
+                    lineHeight = ((settings.fontSizeSp + bump) * settings.lineSpacing).sp,
+                    letterSpacing = (settings.letterSpacingEm + if (young) 0.02f else 0f).em,
                     color = MaterialTheme.colorScheme.onBackground
                 )
             )
+
+            // Pista pedagógica: no penaliza al niño ni cambia el puntaje.
+            if (answer == null) {
+                SecondaryButton(
+                    text = stringResource(if (hintVisible) R.string.quiz_hide_hint else R.string.quiz_show_hint),
+                    onClick = { hintVisible = !hintVisible }
+                )
+                if (hintVisible) HintCard(question.effectiveHint)
+            }
 
             question.options.forEachIndexed { index, option ->
                 QuizOption(
@@ -481,17 +532,15 @@ internal fun QuizCard(
                     answered = answer != null,
                     isCorrectOption = index == question.correctOptionIndex,
                     isSelected = answer?.selectedIndex == index,
+                    young = young,
                     onClick = { onAnswer(index) }
                 )
             }
 
             if (answer != null) {
-                // Retroalimentación inmediata y alentadora; el estado nunca depende solo del color.
-                Text(
-                    if (answer.isCorrect) stringResource(R.string.quiz_feedback_correct)
-                    else stringResource(R.string.quiz_feedback_wrong, question.options[question.correctOptionIndex]),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                FeedbackCard(
+                    correct = answer.isCorrect,
+                    explanation = question.explanationFor(answer.isCorrect)
                 )
                 if (quiz.canAdvance) {
                     PrimaryButton(stringResource(R.string.quiz_next), onNext)
@@ -506,7 +555,52 @@ internal fun QuizCard(
 }
 
 @Composable
-private fun QuizOption(text: String, answered: Boolean, isCorrectOption: Boolean, isSelected: Boolean, onClick: () -> Unit) {
+private fun AgeBadge(group: AgeGroup, ageYears: Int?) {
+    val label = if (ageYears != null) stringResource(R.string.quiz_age_badge, ageYears, group.code)
+    else stringResource(R.string.quiz_age_badge_group, group.code, group.code)
+    Box(
+        Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 14.dp, vertical = 6.dp)
+            .semantics { contentDescription = label }
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
+    }
+}
+
+@Composable
+private fun HintCard(hint: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    ) {
+        Text("💡 $hint", Modifier.padding(14.dp), style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** Retroalimentación con la explicación positiva; el estado se comunica con icono y texto, no solo con color. */
+@Composable
+private fun FeedbackCard(correct: Boolean, explanation: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (correct) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background
+        ),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                stringResource(if (correct) R.string.quiz_feedback_correct_title else R.string.quiz_feedback_wrong_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(explanation, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+@Composable
+private fun QuizOption(text: String, answered: Boolean, isCorrectOption: Boolean, isSelected: Boolean, young: Boolean, onClick: () -> Unit) {
     val showCorrect = answered && isCorrectOption
     val showWrong = answered && isSelected && !isCorrectOption
     val container = when {
@@ -527,9 +621,9 @@ private fun QuizOption(text: String, answered: Boolean, isCorrectOption: Boolean
     androidx.compose.material3.Button(
         onClick = onClick,
         enabled = !answered,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).semantics { contentDescription = "$text. $stateText" },
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(2.dp, if (showCorrect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+        modifier = Modifier.fillMaxWidth().heightIn(min = if (young) 80.dp else 56.dp).semantics { contentDescription = "$text. $stateText" },
+        shape = RoundedCornerShape(if (young) 32.dp else 16.dp),
+        border = BorderStroke(if (young) 3.dp else 2.dp, if (showCorrect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
             containerColor = container, contentColor = content,
             disabledContainerColor = container, disabledContentColor = content
@@ -538,6 +632,10 @@ private fun QuizOption(text: String, answered: Boolean, isCorrectOption: Boolean
         if (showCorrect) Icon(Icons.Filled.Check, contentDescription = null)
         if (showWrong) Icon(Icons.Filled.Close, contentDescription = null)
         if (showCorrect || showWrong) Spacer(Modifier.width(8.dp))
-        Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f, fill = false))
+        Text(
+            text,
+            style = if (young) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f, fill = false)
+        )
     }
 }

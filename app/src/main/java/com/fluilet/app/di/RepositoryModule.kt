@@ -4,11 +4,13 @@ import com.fluilet.app.BuildConfig
 import com.fluilet.app.core.security.TutorPinManager
 import com.fluilet.app.data.repository.AuthRepositoryImpl
 import com.fluilet.app.data.repository.ChildRepositoryImpl
+import com.fluilet.app.data.repository.FluiBotInventoryStore
 import com.fluilet.app.data.repository.InMemoryReaderSettingsRepository
 import com.fluilet.app.data.repository.LocalAdaptationRepository
 import com.fluilet.app.data.repository.LocalReadingSessionRepository
 import com.fluilet.app.data.repository.RemoteAdaptationRepository
 import com.fluilet.app.data.repository.RemoteReadingSessionRepository
+import com.fluilet.app.domain.gamification.FluiBotInventoryRepository
 import com.fluilet.app.domain.repository.AdaptationRepository
 import com.fluilet.app.domain.repository.AuthRepository
 import com.fluilet.app.domain.repository.ChildRepository
@@ -30,6 +32,7 @@ abstract class RepositoryModule {
     @Binds abstract fun bindChildRepository(impl: ChildRepositoryImpl): ChildRepository
     @Binds abstract fun bindReaderSettings(impl: InMemoryReaderSettingsRepository): ReaderSettingsRepository
     @Binds abstract fun bindTutorPin(impl: TutorPinManager): TutorPinRepository
+    @Binds abstract fun bindFluiBotInventory(impl: FluiBotInventoryStore): FluiBotInventoryRepository
 
     companion object {
         /**

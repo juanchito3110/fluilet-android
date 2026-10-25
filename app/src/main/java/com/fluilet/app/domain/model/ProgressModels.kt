@@ -1,5 +1,9 @@
 package com.fluilet.app.domain.model
 
+import com.fluilet.app.domain.gamification.CollectibleCard
+import com.fluilet.app.domain.gamification.Gamification
+import com.fluilet.app.domain.gamification.GamificationRules
+import com.fluilet.app.domain.gamification.PedagogicalSummary
 import java.time.Instant
 
 /** Una lección practicada (sesión de lectura) en la evolución del lector. */
@@ -14,7 +18,9 @@ data class LessonProgress(
     val comprehensionScore: Int?,
     val durationSeconds: Long,
     val originalScore: Double?,
-    val adaptedScore: Double?
+    val adaptedScore: Double?,
+    /** Respuestas acertadas del mini-reto, si se conocen (si no, se estiman con el puntaje). */
+    val questionsCorrect: Int? = null
 ) {
     /** Salto de legibilidad (Szigriszt-Pazos) entre el texto original y el adaptado. */
     val readabilityJump: Double?
@@ -40,7 +46,14 @@ data class EducationalProgress(
     val lessons: List<LessonProgress>,
     val badges: List<EducationalBadge>,
     /** `true` si se calculó en el dispositivo a partir de las lecturas (respaldo del endpoint de progreso). */
-    val isEstimated: Boolean = false
+    val isEstimated: Boolean = false,
+    // --- Juego educativo (FluiBot): del servidor si lo envía; si no, se calcula en el dispositivo ---
+    val totalGems: Int = GamificationRules.WELCOME_GEMS,
+    val currentXp: Int = 0,
+    val streakDays: Int = 0,
+    val pedagogicalSummary: PedagogicalSummary = Gamification.pedagogicalSummary(emptyList(), 0.0, 2, 0.0),
+    val cards: List<CollectibleCard> = Gamification.cardsFor(emptyList()),
+    val gamificationFromServer: Boolean = false
 ) {
     val hasLessons: Boolean get() = totalLessons > 0
 
@@ -66,7 +79,8 @@ data class ReadingRecord(
     val comprehensionScore: Int?,
     val questionsAnswered: Int,
     val originalScore: Double?,
-    val adaptedScore: Double?
+    val adaptedScore: Double?,
+    val questionsCorrect: Int? = null
 )
 
 /** Insignias educativas (mismos códigos y textos que el backend). */

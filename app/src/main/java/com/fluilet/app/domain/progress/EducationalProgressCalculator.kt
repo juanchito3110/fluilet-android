@@ -5,7 +5,10 @@ import com.fluilet.app.domain.model.EducationalBadge
 import com.fluilet.app.domain.model.EducationalProgress
 import com.fluilet.app.domain.model.LessonProgress
 import com.fluilet.app.domain.model.ReadingRecord
+import com.fluilet.app.domain.gamification.Gamification
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Cálculo local del resumen educativo, espejo de `educational_progress.summarize` del backend. Sirve
@@ -13,7 +16,12 @@ import java.time.Instant
  */
 object EducationalProgressCalculator {
 
-    fun summarize(records: List<ReadingRecord>, baselineLevel: Int = 2): EducationalProgress {
+    fun summarize(
+        records: List<ReadingRecord>,
+        baselineLevel: Int = 2,
+        today: LocalDate = LocalDate.now(),
+        zone: ZoneId = ZoneId.systemDefault()
+    ): EducationalProgress {
         val sessions = records.sortedWith(compareBy<ReadingRecord> { it.startedAt ?: Instant.EPOCH }.thenBy { it.id })
         val finished = sessions.filter { it.completed }
         val scores = sessions.mapNotNull { it.comprehensionScore }
@@ -40,7 +48,7 @@ object EducationalProgressCalculator {
             finished.any { it.level >= 3 }
         )
 
-        return EducationalProgress(
+        val base = EducationalProgress(
             totalLessons = sessions.size,
             completedLessons = finished.size,
             incompleteLessons = sessions.size - finished.size,
@@ -60,12 +68,14 @@ object EducationalProgressCalculator {
                     comprehensionScore = s.comprehensionScore,
                     durationSeconds = s.readingSeconds,
                     originalScore = s.originalScore,
-                    adaptedScore = s.adaptedScore
+                    adaptedScore = s.adaptedScore,
+                    questionsCorrect = s.questionsCorrect
                 )
             },
             badges = BadgeCatalog.all.zip(unlocked) { entry, earned ->
                 EducationalBadge(entry.code, entry.title, entry.description, earned)
             }
         )
+        return Gamification.enrich(base, today = today, zone = zone)
     }
 }

@@ -1,0 +1,13 @@
+<resources>
+    <string name="lab_title">Laboratorio y Rincón de Recompensas de %1$s</string>
+    <string name="lab_chest_prompt">¡Toca el cofre para reclamar tus premios de esta lectura!</string>
+    <string name="lab_loot_title">¡Tu botín de esta lectura!</string>
+    <string name="lab_loot_completed">+%1$d 💎 Gemas por completar la lectura</string>
+    <string name="lab_loot_answers">+25 💎 por cada respuesta correcta (%1$d = +%2$d 💎)</string>
+    <string name="lab_loot_xp">+%1$d XP de Evolución</string>
+    <string name="lab_card_unlocked">¡Desbloqueaste la carta «%1$s» (%2$s)!</string>
+    <string name="lab_card_upgraded">¡Tu carta «%1$s» mejoró a %2$s!</string>
+    <string name="lab_evolved">¡FluiBot evolucionó a la etapa %1$d: %2$s!</string>
+    <string name="lab_deliver_to_tutor">Entregar al Tutor (Desbloquear con PIN)</string>
+    <string name="lab_exit">Salir</string>
+</resources>

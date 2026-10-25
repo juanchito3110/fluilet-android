@@ -3,8 +3,6 @@
     <string name="progress_title">Avance y Evolución</string>
     <string name="progress_estimated">Calculado en este dispositivo a partir de tus lecturas.</string>
     <string name="progress_completion_title">Lecciones completadas</string>
-    <string name="progress_completed_of">%1$d de %2$d lecciones</string>
-    <string name="progress_completion_detail">%1$s de cumplimiento · %2$d incompletas</string>
     <string name="progress_time_title">Tiempo total de lectura</string>
     <string name="progress_comprehension_title">Promedio de comprensión</string>
     <string name="progress_no_quiz">Aún sin mini-retos</string>
@@ -14,8 +12,6 @@
     <string name="progress_evolution_title">Evolución por lección</string>
     <string name="progress_empty">Cuando termines una lección verás aquí su categoría, nivel, comprensión y cuánto mejoró la legibilidad del texto.</string>
     <string name="progress_chart_title">Legibilidad del texto por lección</string>
-    <string name="progress_original">Original</string>
-    <string name="progress_adapted">Adaptado</string>
     <string name="progress_lesson_header">Lección %1$d · %2$s · Nivel %3$d</string>
     <string name="progress_completed">Completada</string>
     <string name="progress_incomplete">Incompleta · %1$d %%</string>
@@ -26,4 +22,10 @@
     <string name="progress_badges_count">%1$d de %2$d desbloqueadas</string>
     <string name="progress_badge_unlocked">Desbloqueada</string>
     <string name="progress_badge_locked">Bloqueada</string>
+    <string name="progress_evolution_chart_title">Evolución de comprensión y nivel</string>
+    <string name="progress_stat_gems">%1$d 💎 Gemas</string>
+    <string name="progress_stat_streak">%1$d días de racha</string>
+    <string name="progress_recommendation_title">Recomendación pedagógica inteligente</string>
+    <string name="progress_strength">Tu fortaleza</string>
+    <string name="progress_focus">En qué enfocarte</string>
 </resources>

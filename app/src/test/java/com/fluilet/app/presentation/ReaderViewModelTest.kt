@@ -3,12 +3,20 @@ package com.fluilet.app.presentation
 import com.fluilet.app.core.focusmode.FocusServiceLauncher
 import com.fluilet.app.core.focusmode.FocusSessionController
 import com.fluilet.app.core.tts.TtsManager
+import com.fluilet.app.domain.gamification.CardChange
+import com.fluilet.app.domain.gamification.Gamification
 import com.fluilet.app.domain.model.ActiveReading
+import com.fluilet.app.domain.model.AdaptationResult
+import com.fluilet.app.domain.model.EducationalProgress
+import com.fluilet.app.domain.model.LessonProgress
+import com.fluilet.app.domain.model.ReadabilityMetrics
+import com.fluilet.app.domain.model.TextChunk
 import com.fluilet.app.domain.model.ComprehensionResult
 import com.fluilet.app.domain.model.PinVerification
 import com.fluilet.app.domain.model.ReadingProgress
 import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.session.ActiveReadingHolder
+import com.fluilet.app.domain.usecase.GetEducationalProgressUseCase
 import com.fluilet.app.domain.usecase.StartReadingSessionUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingProgressUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingSettingsUseCase
@@ -74,11 +82,14 @@ class ReaderViewModelTest {
         seconds, percent, completed, category = "ciencia_espacio", simplificationLevel = 2, ttsSpeed = 1.0
     )
 
-    private fun viewModel(childId: String?, chunks: Int = 3, withQuiz: Boolean = false): ReaderViewModel {
-        holder.set(ActiveReading(childId, "Lector", ReadingSettings(), sampleAdaptation(chunks, withQuiz = withQuiz)))
+    private fun viewModel(
+        childId: String?, chunks: Int = 3, withQuiz: Boolean = false, category: String? = "ciencia_espacio",
+        adaptation: AdaptationResult = sampleAdaptation(chunks, withQuiz = withQuiz, category = category)
+    ): ReaderViewModel {
+        holder.set(ActiveReading(childId, "Lector", ReadingSettings(), adaptation))
         return ReaderViewModel(
             holder, tts, focus, UpdateReadingSettingsUseCase(),
-            StartReadingSessionUseCase(repo), UpdateReadingProgressUseCase(repo), appScope
+            StartReadingSessionUseCase(repo), UpdateReadingProgressUseCase(repo), GetEducationalProgressUseCase(repo), appScope
         ).also(created::add)
     }
 
@@ -289,7 +300,7 @@ class ReaderViewModelTest {
         assertEquals(100, repo.progress.last().second.comprehension!!.score)
     }
 
-    @Test fun childQuizEndsByOpeningTheParentalGateAndOnlyThePinClosesTheSession() = readerTest {
+    @Test fun childQuizNeverOpensThePinAndLeadsToTheRewardLabInsideFocusMode() = readerTest {
         val vm = viewModel(childId = "child-1", withQuiz = true)
         val probe = observe(vm)
         vm.start()
@@ -299,17 +310,42 @@ class ReaderViewModelTest {
 
         vm.finishQuiz()
 
-        assertTrue("al terminar el mini-reto se abre el Muro Parental", probe.state().showGate)
-        assertTrue(focus.state.value.isActive)
+        assertFalse("responder el mini-reto JAMÁS abre el diálogo de PIN", probe.state().showGate)
+        assertTrue("sigue anclado en Modo Enfoque", focus.state.value.isActive && focus.state.value.lockRequested)
+        assertTrue(probe.state().lockActive)
+        assertTrue("pasa al Laboratorio de Recompensas", probe.state().showLab)
+        assertFalse(probe.state().showQuiz)
         assertTrue(probe.events.isEmpty())
+        assertEquals("sin cierre ni telemetría final todavía", 0, launcher.stops)
+    }
+
+    @Test fun onlyTheTutorButtonAndAValidPinLeaveTheLab() = readerTest {
+        val (vm, probe) = viewModelWithLab()
+
+        vm.requestExit() // botón "Entregar al Tutor (Desbloquear con PIN)"
+        assertTrue(probe.state().showGate)
+        assertTrue(focus.state.value.isActive)
+
+        vm.onGateVerified(null) // sin prueba de PIN no se sale
+        assertTrue(focus.state.value.isActive)
 
         vm.onGateVerified(PinVerification())
-
         assertEquals(listOf<ReaderEvent>(ReaderEvent.Exited), probe.events)
         val sent = repo.progress.last().second
         assertEquals(ComprehensionResult(2, 2), sent.comprehension)
-        assertEquals(100, sent.comprehension!!.score)
         assertTrue(sent.completed)
+    }
+
+    /** Un solo observador por ViewModel: los eventos viajan por un Channel y cada uno se entrega a un único colector. */
+    private fun kotlinx.coroutines.test.TestScope.viewModelWithLab(): Pair<ReaderViewModel, Probe> {
+        val vm = viewModel(childId = "child-1", withQuiz = true)
+        val probe = observe(vm)
+        vm.start()
+        mono += 60_000
+        vm.finishReading()
+        vm.answerQuiz(0); vm.nextQuestion(); vm.answerQuiz(1)
+        vm.finishQuiz()
+        return vm to probe
     }
 
     @Test fun leavingMidQuizReportsOnlyWhatWasAnswered() = readerTest {
@@ -397,5 +433,219 @@ class ReaderViewModelTest {
         vm.onSpeechRate(1.2f)
         vm.requestExit()
         assertEquals(1.2, repo.progress.last().second.ttsSpeed!!, 0.0001)
+    }
+
+    // --- Laboratorio de recompensas y cofre ------------------------------------------------------
+
+    @Test fun labAppearsAfterFinishingEvenWithoutAQuiz() = readerTest {
+        val vm = viewModel(childId = "child-1")
+        val probe = observe(vm)
+        vm.start()
+        assertFalse(probe.state().showLab)
+
+        vm.finishReading()
+
+        assertTrue(probe.state().showLab)
+        assertFalse(probe.state().showQuiz)
+        assertFalse(probe.state().showGate)
+    }
+
+    @Test fun theQuizComesBeforeTheLabAndTheLabIsInsideFocusMode() = readerTest {
+        val vm = viewModel(childId = "child-1", withQuiz = true)
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        assertTrue(probe.state().showQuiz)
+        assertFalse(probe.state().showLab)
+
+        vm.answerQuiz(0); vm.nextQuestion(); vm.answerQuiz(1)
+        assertFalse("aún dentro del reto: no hay laboratorio hasta pulsar Continuar", probe.state().showLab)
+        vm.finishQuiz()
+
+        assertTrue(probe.state().showLab)
+        assertTrue(probe.state().lockActive)
+        assertEquals("Lector", probe.state().readerName)
+        assertEquals("child-1", probe.state().ownerKey)
+    }
+
+    @Test fun lootPaysFiftyForCompletingAndTwentyFivePerCorrectAnswer() = readerTest {
+        val vm = viewModel(childId = "child-1", withQuiz = true)
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        vm.answerQuiz(0); vm.nextQuestion(); vm.answerQuiz(1)
+        vm.finishQuiz()
+
+        val loot = probe.state().loot
+        assertEquals(50, loot.gemsForCompleting)
+        assertEquals(2, loot.correctAnswers)
+        assertEquals(50, loot.gemsForAnswers)
+        assertEquals(100, loot.gems)
+        assertEquals(200, loot.xp)
+    }
+
+    @Test fun lootWithOneWrongAnswerOnlyPaysForTheCorrectOne() = readerTest {
+        val vm = viewModel(childId = "child-1", withQuiz = true)
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        vm.answerQuiz(0); vm.nextQuestion(); vm.answerQuiz(0) // la segunda era la 1
+        vm.finishQuiz()
+        assertEquals(75, probe.state().loot.gems) // 50 + 25
+        assertEquals(1, probe.state().loot.correctAnswers)
+    }
+
+    @Test fun lootWithoutAQuizIsJustTheCompletionBonus() = readerTest {
+        val vm = viewModel(childId = null)
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        assertEquals(50, probe.state().loot.gems)
+        assertEquals(100, probe.state().loot.xp)
+    }
+
+    @Test fun cardUnlockOrUpgradeIsDetectedFromTheProgressBeforeTheSession() = readerTest {
+        fun lesson(n: Int) = LessonProgress(n, "r$n", null, "deportes", 2, true, 100, null, 60, null, null)
+        // Antes de esta sesión el niño ya tiene 1 lección de Deportes (carta Bronce).
+        repo.educational = Gamification.enrich(EducationalProgress.empty().copy(lessons = listOf(lesson(1))))
+        val vm = viewModel(childId = "child-1", category = "deportes")
+        val probe = observe(vm)
+        vm.start()
+
+        vm.finishReading()
+
+        assertEquals(CardChange.UPGRADED, probe.state().loot.cardChange) // Bronce -> Plata
+        assertEquals("Plata", probe.state().loot.cardAfter!!.rarity!!.displayName)
+    }
+
+    @Test fun aFirstLessonInACategoryUnlocksItsCard() = readerTest {
+        val vm = viewModel(childId = "child-1", category = "tecnologia")
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        assertEquals(CardChange.UNLOCKED, probe.state().loot.cardChange)
+    }
+
+    @Test fun theChestStartsClosedAndOpensOnClaim() = readerTest {
+        val vm = viewModel(childId = "child-1")
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        assertFalse(probe.state().chestOpened)
+
+        vm.claimChest()
+
+        assertTrue(probe.state().chestOpened)
+        assertTrue("reclamar el cofre no sale del Modo Enfoque", focus.state.value.isActive)
+        assertFalse(probe.state().showGate)
+    }
+
+    @Test fun readingAgainFromTheLabReturnsToTheText() = readerTest {
+        val vm = viewModel(childId = "child-1")
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        assertTrue(probe.state().showLab)
+
+        vm.restart()
+
+        assertFalse(probe.state().showLab)
+        assertEquals(0, probe.state().chunkIndex)
+    }
+
+    @Test fun anAdultSeesTheLabToButItsExitNeedsNoPin() = readerTest {
+        val vm = viewModel(childId = null)
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        assertTrue(probe.state().showLab)
+        assertFalse(probe.state().lockActive)
+
+        vm.requestExit()
+
+        assertFalse(probe.state().showGate)
+        assertEquals(listOf<ReaderEvent>(ReaderEvent.Exited), probe.events)
+    }
+
+    // --- Guía de renglón ----------------------------------------------------------------------------
+
+    private val guideText = "Primera oración. Segunda oración. Tercera oración."
+    private val guideAdaptation = AdaptationResult(
+        title = "Guía",
+        chunks = listOf(TextChunk(0, guideText), TextChunk(1, "Otro bloque corto.")),
+        metrics = ReadabilityMetrics(30.0, 70.0, 40.0, 10, 10, 20, 3),
+        documentId = "doc-1", category = "deportes", simplificationLevel = 2
+    )
+
+    private fun ReaderUiState.guideSlice() = guideRange?.let { currentText.substring(it.first, it.last + 1) }
+
+    @Test fun guideIsOffByDefaultAndHighlightsTheFirstSentenceWhenEnabled() = readerTest {
+        val vm = viewModel(childId = null, adaptation = guideAdaptation)
+        val probe = observe(vm)
+        vm.start()
+        assertFalse(probe.state().guideEnabled)
+        assertNull(probe.state().guideRange)
+
+        vm.toggleGuide()
+
+        assertTrue(probe.state().guideEnabled)
+        assertEquals("Primera oración.", probe.state().guideSlice())
+
+        vm.toggleGuide()
+        assertNull("al apagarla se quita la franja", probe.state().guideRange)
+    }
+
+    @Test fun guideStepsThroughSentencesThenIntoTheNextBlock() = readerTest {
+        val vm = viewModel(childId = null, adaptation = guideAdaptation)
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleGuide()
+
+        vm.guideNext()
+        assertEquals("Segunda oración.", probe.state().guideSlice())
+        vm.guideNext()
+        assertEquals("Tercera oración.", probe.state().guideSlice())
+        vm.guideNext() // fin del bloque: pasa al siguiente
+
+        assertEquals(1, probe.state().chunkIndex)
+        assertEquals("Otro bloque corto.", probe.state().guideSlice())
+    }
+
+    @Test fun guidePreviousGoesBackAndCrossesToThePreviousBlock() = readerTest {
+        val vm = viewModel(childId = null, adaptation = guideAdaptation)
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleGuide()
+        vm.guideNext()
+        vm.guidePrevious()
+        assertEquals("Primera oración.", probe.state().guideSlice())
+
+        vm.next() // bloque 2
+        assertEquals(1, probe.state().chunkIndex)
+        vm.guidePrevious()
+        assertEquals(0, probe.state().chunkIndex)
+    }
+
+    @Test fun theSpokenWordMovesTheGuideToItsSentence() = readerTest {
+        val vm = viewModel(childId = null, adaptation = guideAdaptation)
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleGuide()
+        vm.togglePlayPause()
+
+        engine.range(guideText.indexOf("Tercera"), guideText.indexOf("Tercera") + 7)
+
+        assertEquals("Tercera oración.", probe.state().guideSlice())
+    }
+
+    @Test fun guideResetsToTheFirstSentenceWhenTheBlockChanges() = readerTest {
+        val vm = viewModel(childId = null, adaptation = guideAdaptation)
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleGuide()
+        vm.guideNext()
+        vm.next()
+        vm.previous()
+        assertEquals("Primera oración.", probe.state().guideSlice())
     }
 }

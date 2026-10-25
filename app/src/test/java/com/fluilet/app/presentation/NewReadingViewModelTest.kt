@@ -2,6 +2,7 @@ package com.fluilet.app.presentation
 
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
+import com.fluilet.app.core.auth.SessionManager
 import com.fluilet.app.core.network.AppError
 import com.fluilet.app.domain.model.LessonCategory
 import com.fluilet.app.domain.model.NlpLevel
@@ -54,7 +55,7 @@ class NewReadingViewModelTest {
             handle, mockk<Context>(relaxed = true),
             GetChildrenUseCase(FakeChildRepository(listOf(sampleChild("child-1", "Mateo")))),
             AdaptTextUseCase(adaptation), GenerateLessonUseCase(adaptation), holder,
-            IsTutorPinConfiguredUseCase(FakeTutorPin(true))
+            SessionManager(com.fluilet.app.testutil.FakeSecureStore()), IsTutorPinConfiguredUseCase(FakeTutorPin(true))
         )
     }
 

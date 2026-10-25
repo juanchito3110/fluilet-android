@@ -45,7 +45,9 @@ fun AdaptationReadDto.toDomain(title: String, level: NlpLevel): AdaptationResult
         category = category ?: document.category,
         simplificationLevel = simplificationLevel ?: document.simplificationLevel ?: level.value,
         questions = comprehensionQuestions.orEmpty().mapNotNull { it.toDomain() },
-        bestEffort = qualityStatus == "best_effort"
+        bestEffort = qualityStatus == "best_effort",
+        questionAgeGroup = questionAgeGroup,
+        childAgeYears = childAgeYears
     )
 }
 
@@ -55,5 +57,5 @@ fun ComprehensionQuestionDto.toDomain(): ComprehensionQuestion? {
     val opts = options.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
     val correct = correctOptionIndex ?: return null
     if (text.isEmpty() || opts.size < 2 || correct !in opts.indices) return null
-    return ComprehensionQuestion(id ?: "q", text, opts, correct)
+    return ComprehensionQuestion(id ?: "q", text, opts, correct, hint?.trim()?.takeIf { it.isNotEmpty() }, explanation?.trim()?.takeIf { it.isNotEmpty() })
 }

@@ -12,7 +12,40 @@ data class EducationalProgressDto(
     @SerializedName("average_comprehension_score") val averageComprehensionScore: Double = 0.0,
     @SerializedName("current_recommended_level") val currentRecommendedLevel: Int = 2,
     @SerializedName("level_progression") val levelProgression: List<LessonProgressDto>? = null,
-    @SerializedName("badges") val badges: List<BadgeDto>? = null
+    @SerializedName("badges") val badges: List<BadgeDto>? = null,
+    // Juego educativo de FluiBot (backend >= app/gamification.py). Todos opcionales: si faltan, la app los calcula.
+    @SerializedName(value = "total_gems", alternate = ["gems"]) val totalGems: Int? = null,
+    @SerializedName("total_xp") val totalXp: Int? = null,
+    @SerializedName("streak_days") val streakDays: Int? = null,
+    @SerializedName("current_rank_title") val currentRankTitle: String? = null,
+    @SerializedName("mascot") val mascot: FluiBotStateDto? = null,
+    @SerializedName("pedagogical_summary") val pedagogicalSummary: PedagogicalSummaryDto? = null,
+    @SerializedName(value = "collectible_cards", alternate = ["collectibles", "cards"]) val collectibleCards: List<CollectibleCardDto>? = null
+)
+
+data class FluiBotStateDto(
+    @SerializedName("stage") val stage: Int? = null,
+    @SerializedName("stage_name") val stageName: String? = null,
+    @SerializedName("stage_description") val stageDescription: String? = null,
+    @SerializedName("current_xp") val currentXp: Int? = null,
+    @SerializedName("next_stage_xp") val nextStageXp: Int? = null,
+    @SerializedName("progress_percent") val progressPercent: Double? = null
+)
+
+data class PedagogicalSummaryDto(
+    @SerializedName("headline") val headline: String? = null,
+    @SerializedName("strength_area") val strengthArea: String? = null,
+    @SerializedName("focus_area") val focusArea: String? = null,
+    @SerializedName("recommendation") val recommendation: String? = null
+)
+
+data class CollectibleCardDto(
+    @SerializedName(value = "category", alternate = ["category_code"]) val category: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("rarity") val rarity: String? = null,
+    @SerializedName(value = "lessons_completed_in_category", alternate = ["lessons_completed", "completed_lessons"]) val lessonsCompleted: Int? = null,
+    @SerializedName("fun_fact") val funFact: String? = null,
+    @SerializedName("unlocked") val unlocked: Boolean? = null
 )
 
 data class LessonProgressDto(

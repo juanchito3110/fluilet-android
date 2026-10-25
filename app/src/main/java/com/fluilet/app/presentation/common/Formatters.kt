@@ -12,3 +12,9 @@ fun formatReadingTime(totalSeconds: Long): String {
 
 /** Porcentaje entero sin decimales, p. ej. 66.6 -> "67 %". */
 fun formatPercent(value: Double): String = "${Math.round(value)} %"
+
+/** Porcentaje exacto para el anillo de cumplimiento: "100%", "66.7%" (sin decimales sobrantes). */
+fun formatExactPercent(value: Double): String {
+    val rounded = Math.round(value * 10) / 10.0
+    return if (rounded % 1.0 == 0.0) "${rounded.toInt()}%" else "%.1f%%".format(rounded)
+}

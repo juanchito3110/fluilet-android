@@ -21,13 +21,15 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fluilet.app.domain.model.BadgeCatalog
+import com.fluilet.app.domain.model.AgeGroup
 import com.fluilet.app.domain.model.ComprehensionQuestion
 import com.fluilet.app.domain.model.EducationalBadge
 import com.fluilet.app.domain.model.EducationalProgress
 import com.fluilet.app.domain.model.LessonProgress
 import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.quiz.ComprehensionQuiz
-import com.fluilet.app.presentation.home.ProgressDashboard
+import com.fluilet.app.presentation.fluibot.FluiBotUiState
+import com.fluilet.app.presentation.home.ProgressDashboardContent
 import com.fluilet.app.presentation.reader.QuizCard
 import com.fluilet.app.presentation.theme.FluiletTheme
 import org.junit.Assert.assertEquals
@@ -62,7 +64,7 @@ class EducationalUiTest {
         var finished = false
         rule.setContent {
             FluiletTheme {
-                QuizCard(quiz, ReadingSettings(), onAnswer = { quiz = quiz.answer(it) }, onNext = { quiz = quiz.next() }, onFinish = { finished = true })
+                QuizCard(quiz, ReadingSettings(), AgeGroup.NINE_TO_ELEVEN, 10, onAnswer = { quiz = quiz.answer(it) }, onNext = { quiz = quiz.next() }, onFinish = { finished = true })
             }
         }
         rule.onNodeWithText("Mini-Reto de Comprensión").assertIsDisplayed()
@@ -107,7 +109,7 @@ class EducationalUiTest {
     @Test fun dashboardShowsSummaryEvolutionAndAllFiveBadges() {
         rule.setContent {
             FluiletTheme {
-                Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) { ProgressDashboard(progress, note = null) }
+                Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) { ProgressDashboardContent(progress, null, FluiBotUiState(), {}, {}, {}) }
             }
         }
         rule.onNodeWithText("Mi avance").assertIsDisplayed()
@@ -135,7 +137,7 @@ class EducationalUiTest {
         rule.setContent {
             FluiletTheme {
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-                    ProgressDashboard(EducationalProgress.empty(), note = "No pudimos cargar el avance ahora.")
+                    ProgressDashboardContent(EducationalProgress.empty(), "No pudimos cargar el avance ahora.", FluiBotUiState(), {}, {}, {})
                 }
             }
         }

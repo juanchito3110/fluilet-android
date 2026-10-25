@@ -17,8 +17,6 @@
     <string name="reader_speed_fast">1.2x Ágil</string>
     <string name="reader_finish">Terminar lectura</string>
     <string name="reader_install_voice">Instalar voz en español</string>
-    <string name="reader_done_title">¡Muy bien!</string>
-    <string name="reader_done_body">Terminaste la lectura. Pide a tu tutor que te ayude a salir.</string>
     <string name="reader_again">Leer de nuevo</string>
     <string name="reader_font_size">Tamaño de letra</string>
     <string name="reader_line_spacing">Interlineado</string>
@@ -27,11 +25,18 @@
     <string name="reader_palette">Colores</string>
     <string name="quiz_title">Mini-Reto de Comprensión</string>
     <string name="quiz_question_of">Pregunta %1$d de %2$d</string>
-    <string name="quiz_feedback_correct">¡Correcto! Muy bien.</string>
-    <string name="quiz_feedback_wrong">¡Casi! La respuesta era: %1$s</string>
     <string name="quiz_option_correct">Respuesta correcta</string>
     <string name="quiz_option_wrong">Respuesta incorrecta</string>
     <string name="quiz_next">Siguiente pregunta</string>
     <string name="quiz_finish">Continuar</string>
     <string name="quiz_result_summary">Mini-reto: %1$d de %2$d correctas · %3$d %%</string>
+    <string name="reader_guide">Guía de renglón</string>
+    <string name="reader_guide_previous">Renglón anterior</string>
+    <string name="reader_guide_next">Renglón siguiente</string>
+    <string name="quiz_age_badge">Adaptado para %1$d años · Nivel %2$s</string>
+    <string name="quiz_age_badge_group">Adaptado para %1$s años · Nivel %2$s</string>
+    <string name="quiz_show_hint">💡 Ver pista</string>
+    <string name="quiz_hide_hint">Ocultar pista</string>
+    <string name="quiz_feedback_correct_title">¡Correcto! Muy bien.</string>
+    <string name="quiz_feedback_wrong_title">¡Casi! Sigue intentándolo.</string>
 </resources>

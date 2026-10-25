@@ -1,6 +1,18 @@
 package com.fluilet.app.presentation.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fluilet.app.domain.gamification.Accessory
+import com.fluilet.app.domain.gamification.PedagogicalSummary
+import com.fluilet.app.presentation.fluibot.AlbumSection
+import com.fluilet.app.presentation.fluibot.FluiBotPanel
+import com.fluilet.app.presentation.fluibot.FluiBotUiState
+import com.fluilet.app.presentation.fluibot.FluiBotViewModel
+import com.fluilet.app.presentation.fluibot.WorkshopSection
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,9 +60,43 @@ import com.fluilet.app.presentation.common.SectionCard
 import com.fluilet.app.presentation.common.formatPercent
 import com.fluilet.app.presentation.common.formatReadingTime
 
-/** "Mi avance": cumplimiento de lecciones, evolución por lección e insignias educativas. */
+/**
+ * "Mi avance": cabecera gamificada con FluiBot, recomendación pedagógica, 3 gráficas animadas en
+ * `Canvas` (anillo de cumplimiento, curva de comprensión y barras de legibilidad), detalle por lección y
+ * acceso al Taller de FluiBot, el Álbum de cartas y las Insignias.
+ */
 @Composable
-fun ProgressDashboard(progress: EducationalProgress, note: String?, modifier: Modifier = Modifier) {
+fun ProgressDashboard(
+    progress: EducationalProgress,
+    note: String?,
+    ownerKey: String,
+    modifier: Modifier = Modifier,
+    botViewModel: FluiBotViewModel = hiltViewModel()
+) {
+    val bot by botViewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(ownerKey, progress) { botViewModel.bind(ownerKey, progress) }
+    ProgressDashboardContent(
+        progress = progress,
+        note = note,
+        bot = bot,
+        onCelebrate = botViewModel::celebrate,
+        onBuy = botViewModel::buy,
+        onToggleEquip = botViewModel::toggleEquip,
+        modifier = modifier
+    )
+}
+
+/** Versión sin estado (probable): recibe el estado de FluiBot ya resuelto. */
+@Composable
+fun ProgressDashboardContent(
+    progress: EducationalProgress,
+    note: String?,
+    bot: FluiBotUiState,
+    onCelebrate: () -> Unit,
+    onBuy: (Accessory) -> Unit,
+    onToggleEquip: (Accessory) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.progress_my_progress), style = MaterialTheme.typography.headlineSmall)
@@ -61,43 +107,99 @@ fun ProgressDashboard(progress: EducationalProgress, note: String?, modifier: Mo
             if (note != null) Text(note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
 
-        SummaryCards(progress)
+        GamifiedHeader(bot, progress, onCelebrate)
+        PedagogicalCard(progress.pedagogicalSummary)
+
+        SectionCard(stringResource(R.string.progress_completion_title)) {
+            DonutChartCanvas(progress.completedLessons, progress.incompleteLessons, progress.completionRatePercent)
+        }
+        MiniSummaryCards(progress)
+
+        SectionCard(stringResource(R.string.progress_evolution_chart_title)) {
+            EvolutionLineChartCanvas(progress.lessons.takeLast(MAX_CHART_LESSONS))
+        }
+        SectionCard(stringResource(R.string.progress_chart_title)) {
+            ReadabilityBarChartCanvas(progress.lessons.takeLast(MAX_CHART_LESSONS))
+        }
 
         SectionCard(stringResource(R.string.progress_evolution_title)) {
             if (progress.lessons.isEmpty()) {
                 Text(stringResource(R.string.progress_empty), style = MaterialTheme.typography.bodyMedium)
             } else {
-                ReadabilityChart(progress.lessons.takeLast(MAX_CHART_LESSONS))
                 progress.lessons.asReversed().take(MAX_LESSON_ROWS).forEach { LessonRow(it) }
             }
         }
 
-        BadgeGallery(progress.badges)
+        // Taller, Álbum e Insignias también viven aquí: se compra, equipa y explora desde el panel.
+        WorkshopSection(bot, onBuy, onToggleEquip)
+        AlbumSection(bot.cards.ifEmpty { progress.cards }, bot.badges.ifEmpty { progress.badges })
     }
 }
 
 private const val MAX_CHART_LESSONS = 8
 private const val MAX_LESSON_ROWS = 10
 
+// --- Cabecera gamificada y recomendación pedagógica ---------------------------------------------------
+
+@Composable
+private fun GamifiedHeader(bot: FluiBotUiState, progress: EducationalProgress, onCelebrate: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FluiBotPanel(bot, onCelebrate, botSize = 170.dp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatPill("💎", stringResource(R.string.progress_stat_gems, bot.gems), Modifier.weight(1f))
+                StatPill("🔥", stringResource(R.string.progress_stat_streak, progress.streakDays), Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatPill(emoji: String, text: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.background).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(emoji, style = MaterialTheme.typography.titleMedium)
+        Text(text, style = MaterialTheme.typography.titleSmall)
+    }
+}
+
+@Composable
+private fun PedagogicalCard(summary: PedagogicalSummary) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.progress_recommendation_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(summary.headline, style = MaterialTheme.typography.titleLarge)
+            SummaryLine(stringResource(R.string.progress_strength), summary.strengthArea)
+            SummaryLine(stringResource(R.string.progress_focus), summary.focusArea)
+            Text(summary.recommendation, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun SummaryLine(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Text(value, style = MaterialTheme.typography.titleSmall)
+    }
+}
+
 // --- Tarjetas resumen ------------------------------------------------------------------------
 
 @Composable
-private fun SummaryCards(progress: EducationalProgress) {
-    SectionCard(stringResource(R.string.progress_completion_title)) {
-        Text(
-            stringResource(R.string.progress_completed_of, progress.completedLessons, progress.totalLessons),
-            style = MaterialTheme.typography.headlineSmall
-        )
-        PercentBar(progress.completionRatePercent, stringResource(R.string.progress_completion_title))
-        Text(
-            stringResource(
-                R.string.progress_completion_detail,
-                formatPercent(progress.completionRatePercent),
-                progress.incompleteLessons
-            ),
-            style = MaterialTheme.typography.bodyMedium
-        )
-    }
+private fun MiniSummaryCards(progress: EducationalProgress) {
     SectionCard(stringResource(R.string.progress_time_title)) {
         Text(formatReadingTime(progress.totalReadingSeconds), style = MaterialTheme.typography.headlineSmall)
     }
@@ -129,57 +231,7 @@ private fun PercentBar(percent: Double, description: String) {
     }
 }
 
-// --- Evolución por lección -------------------------------------------------------------------
-
-/** Barras pareadas por lección: legibilidad del texto original vs. adaptado (0–100). */
-@Composable
-private fun ReadabilityChart(lessons: List<LessonProgress>) {
-    val withScores = lessons.any { it.originalScore != null || it.adaptedScore != null }
-    if (!withScores) return
-    Text(stringResource(R.string.progress_chart_title), style = MaterialTheme.typography.titleSmall)
-    Row(
-        Modifier.fillMaxWidth().height(CHART_HEIGHT + 28.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        lessons.forEach { lesson ->
-            Column(
-                Modifier.weight(1f).semantics(mergeDescendants = true) {
-                    contentDescription = "Lección ${lesson.lessonNumber}: legibilidad original %.0f, adaptada %.0f".format(
-                        lesson.originalScore ?: 0.0, lesson.adaptedScore ?: 0.0
-                    )
-                },
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(Modifier.height(CHART_HEIGHT), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
-                    ChartBar(lesson.originalScore, MaterialTheme.colorScheme.outline)
-                    ChartBar(lesson.adaptedScore, MaterialTheme.colorScheme.primary)
-                }
-                Text("L${lesson.lessonNumber}", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        LegendDot(MaterialTheme.colorScheme.outline, stringResource(R.string.progress_original))
-        LegendDot(MaterialTheme.colorScheme.primary, stringResource(R.string.progress_adapted))
-    }
-}
-
-private val CHART_HEIGHT = 120.dp
-
-@Composable
-private fun ChartBar(score: Double?, color: androidx.compose.ui.graphics.Color) {
-    val fraction = ((score ?: 0.0) / 100.0).coerceIn(0.02, 1.0).toFloat()
-    Box(Modifier.width(14.dp).fillMaxHeight(fraction).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).background(color))
-}
-
-@Composable
-private fun LegendDot(color: androidx.compose.ui.graphics.Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.size(12.dp).clip(RoundedCornerShape(3.dp)).background(color))
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    }
-}
+// --- Detalle por lección -----------------------------------------------------------------------
 
 @Composable
 private fun LessonRow(lesson: LessonProgress) {
@@ -222,7 +274,7 @@ private fun LessonRow(lesson: LessonProgress) {
 // --- Insignias ---------------------------------------------------------------------------------
 
 @Composable
-private fun BadgeGallery(badges: List<EducationalBadge>) {
+internal fun BadgeGallery(badges: List<EducationalBadge>) {
     SectionCard(stringResource(R.string.progress_badges_title)) {
         val unlocked = badges.count { it.unlocked }
         Text(stringResource(R.string.progress_badges_count, unlocked, badges.size), style = MaterialTheme.typography.bodyMedium)
