@@ -3,10 +3,14 @@ package com.fluilet.app.presentation.fluibot
 import androidx.lifecycle.ViewModel
 import com.fluilet.app.domain.gamification.Accessory
 import com.fluilet.app.domain.gamification.CollectibleCard
+import com.fluilet.app.domain.gamification.DailyMission
+import com.fluilet.app.domain.gamification.DailyMissions
 import com.fluilet.app.domain.gamification.FluiBotInventory
 import com.fluilet.app.domain.gamification.FluiBotInventoryRepository
 import com.fluilet.app.domain.gamification.FluiBotProgress
 import com.fluilet.app.domain.gamification.PurchaseResult
+import com.fluilet.app.domain.gamification.Scenario
+import com.fluilet.app.domain.gamification.SessionContribution
 import com.fluilet.app.domain.gamification.SessionLoot
 import com.fluilet.app.domain.model.EducationalBadge
 import com.fluilet.app.domain.model.EducationalProgress
@@ -15,6 +19,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 
 /** Un accesorio del catálogo con su estado para este niño. */
@@ -25,6 +31,14 @@ data class AccessoryUi(
     val affordable: Boolean
 )
 
+/** Un escenario del catálogo con su estado para este niño. */
+data class ScenarioUi(val scenario: Scenario, val owned: Boolean, val equipped: Boolean, val affordable: Boolean)
+
+/** Misión del día con su estado de reclamo. */
+data class MissionUi(val mission: DailyMission, val claimKey: String, val claimed: Boolean) {
+    val canClaim: Boolean get() = mission.completed && !claimed
+}
+
 data class FluiBotUiState(
     val ownerKey: String = "",
     /** Gemas disponibles: total ganado (con las 30 de bienvenida) menos las gastadas en el taller. */
@@ -34,6 +48,9 @@ data class FluiBotUiState(
     val bot: FluiBotProgress = FluiBotProgress.of(0),
     val equipped: Set<String> = emptySet(),
     val accessories: List<AccessoryUi> = emptyList(),
+    val scenario: Scenario = Scenario.DEFAULT,
+    val scenarios: List<ScenarioUi> = emptyList(),
+    val missions: List<MissionUi> = emptyList(),
     val cards: List<CollectibleCard> = emptyList(),
     val badges: List<EducationalBadge> = emptyList(),
     val streakDays: Int = 0,
@@ -42,7 +59,7 @@ data class FluiBotUiState(
     val message: String? = null
 )
 
-private data class Input(val ownerKey: String, val progress: EducationalProgress, val loot: SessionLoot?)
+private data class Input(val ownerKey: String, val progress: EducationalProgress, val loot: SessionLoot?, val session: SessionContribution?)
 
 /**
  * Taller de FluiBot: combina el avance educativo (gemas/XP del niño), el botín reclamado de la sesión
@@ -58,16 +75,25 @@ class FluiBotViewModel @Inject constructor(
     private var celebration = 0
     private var message: String? = null
 
+    /** Reloj inyectable para probar el cambio de día de las misiones. */
+    internal var today: () -> LocalDate = { LocalDate.now() }
+    internal var zone: ZoneId = ZoneId.systemDefault()
+
     private val _state = MutableStateFlow(FluiBotUiState())
     val state: StateFlow<FluiBotUiState> = _state.asStateFlow()
 
     /** [claimedLoot] solo se pasa cuando el niño ya abrió el cofre: suma sus gemas y XP al saldo. */
-    fun bind(ownerKey: String, progress: EducationalProgress, claimedLoot: SessionLoot? = null) {
+    fun bind(
+        ownerKey: String,
+        progress: EducationalProgress,
+        claimedLoot: SessionLoot? = null,
+        session: SessionContribution? = null
+    ) {
         if (input?.ownerKey != ownerKey) {
             inventory = inventories.load(ownerKey)
             message = null
         }
-        input = Input(ownerKey, progress, claimedLoot)
+        input = Input(ownerKey, progress, claimedLoot, session)
         publish()
     }
 
@@ -96,6 +122,42 @@ class FluiBotViewModel @Inject constructor(
         publish()
     }
 
+    fun buyScenario(scenario: Scenario) {
+        val current = input ?: return
+        when (val result = inventory.purchaseScenario(scenario, totalGems(current))) {
+            is PurchaseResult.Bought -> {
+                inventory = result.inventory
+                inventories.save(current.ownerKey, inventory)
+                message = "¡Nuevo escenario: ${scenario.displayName}! Ya está puesto."
+                celebration++
+            }
+            is PurchaseResult.NotEnoughGems -> message = "Te faltan ${result.missing} 💎 para ${scenario.displayName}."
+            PurchaseResult.AlreadyOwned -> message = "${scenario.displayName} ya es tuyo."
+            PurchaseResult.UnknownItem -> Unit
+        }
+        publish()
+    }
+
+    fun equipScenario(scenario: Scenario) {
+        val current = input ?: return
+        inventory = inventory.equipScenario(scenario)
+        inventories.save(current.ownerKey, inventory)
+        message = null
+        publish()
+    }
+
+    /** Reclama el premio de una misión completada (una vez por día): suma sus gemas al saldo. */
+    fun claimMission(missionId: String) {
+        val current = input ?: return
+        val ui = currentMissions(current).firstOrNull { it.mission.id == missionId } ?: return
+        if (!ui.canClaim) return
+        inventory = inventory.claimMission(ui.mission, ui.claimKey)
+        inventories.save(current.ownerKey, inventory)
+        message = "¡Misión cumplida! +${ui.mission.rewardGems} 💎"
+        celebration++
+        publish()
+    }
+
     /** "⚡ Recargar Energía" o un toque sobre FluiBot: reacción festiva. */
     fun celebrate() {
         celebration++
@@ -105,6 +167,15 @@ class FluiBotViewModel @Inject constructor(
     fun consumeMessage() {
         message = null
         publish()
+    }
+
+    private fun currentMissions(input: Input): List<MissionUi> {
+        val day = today()
+        val missions = input.progress.serverMissions ?: DailyMissions.compute(input.progress.lessons, day, zone, input.session)
+        return missions.map { m ->
+            val key = DailyMissions.claimKey(day, m.id)
+            MissionUi(m, key, key in inventory.claimedMissions)
+        }
     }
 
     private fun totalGems(input: Input) = input.progress.totalGems + (input.loot?.gems ?: 0)
@@ -124,6 +195,11 @@ class FluiBotViewModel @Inject constructor(
                 accessories = Accessory.entries.map { a ->
                     AccessoryUi(a, a.id in inventory.owned, a.id in inventory.equipped, balance >= a.cost)
                 },
+                scenario = inventory.scenario,
+                scenarios = Scenario.entries.map { sc ->
+                    ScenarioUi(sc, inventory.ownsScenario(sc), inventory.scenario == sc, balance >= sc.cost)
+                },
+                missions = currentMissions(current),
                 cards = current.progress.cards,
                 badges = current.progress.badges,
                 streakDays = current.progress.streakDays,

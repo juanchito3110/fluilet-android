@@ -14,4 +14,22 @@
     <string name="album_lessons_completed">Lecciones completadas: %1$d</string>
     <string name="album_fun_fact_title">Dato curioso educativo</string>
     <string name="album_locked_hint">Completa una lección de esta categoría para desbloquear la carta.</string>
+    <string name="fluibot_name">FluiBot</string>
+    <string name="fluibot_buy_short">Comprar</string>
+    <string name="fluibot_not_enough_short">Faltan 💎</string>
+    <string name="fluibot_remove">Quitar</string>
+    <string name="scenarios_title">Escenarios de FluiBot</string>
+    <string name="scenarios_free">Gratis</string>
+    <string name="scenarios_equipped">Puesto</string>
+    <string name="scenarios_equip">Poner escenario</string>
+    <string name="evolution_title">Evolución de FluiBot</string>
+    <string name="evolution_current">Etapa actual</string>
+    <string name="evolution_reached">Etapa alcanzada</string>
+    <string name="evolution_requires">Requiere %1$d XP</string>
+    <string name="evolution_missing">Te faltan %1$d XP para %2$s</string>
+    <string name="evolution_max">¡Llegaste a la etapa máxima!</string>
+    <string name="missions_title">🎯 Misiones Diarias</string>
+    <string name="missions_subtitle">Se renuevan cada día. Cúmplelas y reclama tus gemas.</string>
+    <string name="missions_claim">Reclamar</string>
+    <string name="missions_claimed">✓ Reclamada</string>
 </resources>

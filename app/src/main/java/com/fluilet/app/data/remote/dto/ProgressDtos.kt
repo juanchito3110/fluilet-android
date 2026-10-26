@@ -20,7 +20,17 @@ data class EducationalProgressDto(
     @SerializedName("current_rank_title") val currentRankTitle: String? = null,
     @SerializedName("mascot") val mascot: FluiBotStateDto? = null,
     @SerializedName("pedagogical_summary") val pedagogicalSummary: PedagogicalSummaryDto? = null,
-    @SerializedName(value = "collectible_cards", alternate = ["collectibles", "cards"]) val collectibleCards: List<CollectibleCardDto>? = null
+    @SerializedName(value = "collectible_cards", alternate = ["collectibles", "cards"]) val collectibleCards: List<CollectibleCardDto>? = null,
+    @SerializedName(value = "daily_missions", alternate = ["missions"]) val dailyMissions: List<DailyMissionDto>? = null
+)
+
+data class DailyMissionDto(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName(value = "title", alternate = ["name"]) val title: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName(value = "progress", alternate = ["current"]) val progress: Int? = null,
+    @SerializedName("target") val target: Int? = null,
+    @SerializedName(value = "reward_gems", alternate = ["reward"]) val rewardGems: Int? = null
 )
 
 data class FluiBotStateDto(

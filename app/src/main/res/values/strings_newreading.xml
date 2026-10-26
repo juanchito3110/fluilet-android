@@ -1,5 +1,5 @@
 <resources>
-    <string name="newreading_title">Nueva lectura</string>
+    <string name="newreading_title">Crear una lectura</string>
     <string name="newreading_for">Para %1$s</string>
     <string name="newreading_privacy">El texto se adapta y se mantiene solo en la memoria de la app mientras se lee. No se guarda en el dispositivo.</string>
     <string name="newreading_mode_paste">Pegar texto</string>
@@ -30,4 +30,5 @@
     <string name="newreading_m_syllables">Sílabas</string>
     <string name="newreading_m_blocks">Bloques de lectura</string>
     <string name="newreading_preview_title">Vista previa</string>
+    <string name="newreading_suggestions_title">Ideas rápidas (toca una o escribe la tuya)</string>
 </resources>

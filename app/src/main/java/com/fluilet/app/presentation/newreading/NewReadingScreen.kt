@@ -53,6 +53,7 @@ import com.fluilet.app.R
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.LessonCategory
 import com.fluilet.app.domain.model.LessonRequest
+import com.fluilet.app.domain.model.TopicSuggestions
 import com.fluilet.app.domain.text.Szigriszt
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.PrimaryButton
@@ -63,11 +64,14 @@ import com.fluilet.app.presentation.parentalgate.GateMode
 import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
 
+/**
+ * Tarjeta "Crear una lectura" del apartado Lecturas, con sus 3 modos (Pegar texto, Subir archivo, Generar
+ * lección). El perfil lo decide el selector del apartado ([NewReadingViewModel.bindChild]).
+ */
 @Composable
-fun NewReadingScreen(
+fun NewReadingContent(
     onSaved: () -> Unit,
     onStartNow: () -> Unit,
-    onCancel: () -> Unit,
     viewModel: NewReadingViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -84,43 +88,36 @@ fun NewReadingScreen(
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { viewModel.onFilePicked(it) }
 
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(stringResource(R.string.newreading_title), style = MaterialTheme.typography.headlineMedium)
-            if (state.readerName.isNotBlank()) {
-                Text(stringResource(R.string.newreading_for, state.readerName), style = MaterialTheme.typography.bodyLarge)
-            }
-            Text(stringResource(R.string.newreading_privacy), style = MaterialTheme.typography.bodySmall)
+    SectionCard(stringResource(R.string.newreading_title)) {
+        if (state.readerName.isNotBlank()) {
+            Text(stringResource(R.string.newreading_for, state.readerName), style = MaterialTheme.typography.bodyLarge)
+        }
+        Text(stringResource(R.string.newreading_privacy), style = MaterialTheme.typography.bodySmall)
 
-            val result = state.result
-            if (result == null) {
-                InputSection(state, viewModel, onPick = { picker.launch(arrayOf("text/plain", "application/pdf")) })
-                ErrorMessage(state.errorMessage)
-                PrimaryButton(
-                    text = stringResource(if (state.mode == InputMode.GENERATE) R.string.newreading_generate else R.string.newreading_adapt),
-                    onClick = viewModel::adapt,
-                    enabled = state.canAdapt,
-                    loading = state.isAdapting,
-                    icon = Icons.Filled.AutoFixHigh
-                )
-                SecondaryButton(stringResource(R.string.action_cancel), onCancel)
-            } else {
-                ResultSection(result)
-                // Traspaso directo Tutor -> Niño: un toque y el niño empieza a leer en Modo Enfoque.
-                PrimaryButton(
-                    text = stringResource(if (state.forChild) R.string.newreading_start_focus else R.string.newreading_start),
-                    onClick = {
-                        // Con perfil de niño el PIN del tutor debe existir antes de bloquear la pantalla.
-                        if (state.forChild && !state.pinConfigured) showPinSetup = true else viewModel.startNow()
-                    },
-                    icon = Icons.Filled.PlayArrow
-                )
-                SecondaryButton(stringResource(R.string.newreading_save_later), viewModel::saveForLater)
-                SecondaryButton(stringResource(R.string.newreading_edit), viewModel::backToEdit)
-            }
+        val result = state.result
+        if (result == null) {
+            InputSection(state, viewModel, onPick = { picker.launch(arrayOf("text/plain", "application/pdf")) })
+            ErrorMessage(state.errorMessage)
+            PrimaryButton(
+                text = stringResource(if (state.mode == InputMode.GENERATE) R.string.newreading_generate else R.string.newreading_adapt),
+                onClick = viewModel::adapt,
+                enabled = state.canAdapt,
+                loading = state.isAdapting,
+                icon = Icons.Filled.AutoFixHigh
+            )
+        } else {
+            ResultSection(result)
+            // Traspaso directo Tutor -> Niño: un toque y el niño empieza a leer en Modo Enfoque.
+            PrimaryButton(
+                text = stringResource(if (state.forChild) R.string.newreading_start_focus else R.string.newreading_start),
+                onClick = {
+                    // Con perfil de niño el PIN del tutor debe existir antes de bloquear la pantalla.
+                    if (state.forChild && !state.pinConfigured) showPinSetup = true else viewModel.startNow()
+                },
+                icon = Icons.Filled.PlayArrow
+            )
+            SecondaryButton(stringResource(R.string.newreading_save_later), viewModel::saveForLater)
+            SecondaryButton(stringResource(R.string.newreading_edit), viewModel::backToEdit)
         }
     }
 
@@ -201,6 +198,18 @@ private fun LessonGeneratorFields(state: NewReadingUiState, vm: NewReadingViewMo
                 leadingIcon = { Icon(categoryIcon(category), contentDescription = null, modifier = Modifier.size(18.dp)) },
                 label = { Text(category.displayName, style = MaterialTheme.typography.labelLarge) }
             )
+        }
+    }
+    state.category?.let { category ->
+        Text(stringResource(R.string.newreading_suggestions_title), style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TopicSuggestions.forCategory(category).forEach { suggestion ->
+                SelectableChip(
+                    selected = state.topic.equals(suggestion, ignoreCase = true),
+                    onClick = { vm.onSuggestion(suggestion) },
+                    label = { Text(suggestion, style = MaterialTheme.typography.labelLarge) }
+                )
+            }
         }
     }
     OutlinedTextField(

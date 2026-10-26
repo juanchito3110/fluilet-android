@@ -38,10 +38,15 @@ import com.fluilet.app.domain.gamification.SessionLoot
 import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.fluibot.AlbumSection
-import com.fluilet.app.presentation.fluibot.FluiBotPanel
 import com.fluilet.app.presentation.fluibot.FluiBotViewModel
 import com.fluilet.app.presentation.fluibot.TreasureChest
-import com.fluilet.app.presentation.fluibot.WorkshopSection
+import com.fluilet.app.presentation.fluibot.AccessoriesGrid
+import com.fluilet.app.presentation.fluibot.FluiBotStageCard
+import com.fluilet.app.presentation.fluibot.GemPill
+import com.fluilet.app.presentation.fluibot.MissionsCard
+import com.fluilet.app.presentation.fluibot.ScenariosSection
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 
 /**
  * "Laboratorio y Rincón de Recompensas de [Nombre]": cofre, FluiBot, taller y álbum. Se muestra DENTRO
@@ -54,14 +59,20 @@ fun RewardLab(
     onClaimChest: () -> Unit,
     onReadAgain: () -> Unit,
     onDeliver: () -> Unit,
+    onLabTab: (LabTab) -> Unit,
     botViewModel: FluiBotViewModel = hiltViewModel()
 ) {
     val bot by botViewModel.state.collectAsStateWithLifecycle()
     val loot = state.loot
 
     // El botín solo suma al saldo y al XP cuando el niño abre el cofre.
-    LaunchedEffect(state.baseline, state.chestOpened, loot, state.ownerKey) {
-        botViewModel.bind(state.ownerKey, state.baseline, if (state.chestOpened) loot else null)
+    LaunchedEffect(state.baseline, state.chestOpened, loot, state.ownerKey, state.session) {
+        botViewModel.bind(
+            state.ownerKey,
+            state.baseline,
+            if (state.chestOpened) loot else null,
+            if (state.chestOpened) state.session else null
+        )
     }
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -73,10 +84,30 @@ fun RewardLab(
                 stringResource(R.string.lab_title, state.readerName.ifBlank { "ti" }),
                 style = MaterialTheme.typography.headlineSmall
             )
-            ChestSection(state, loot, bot.bot.stage, onClaimChest)
-            FluiBotPanel(bot, onCelebrate = botViewModel::celebrate)
-            WorkshopSection(bot, botViewModel::buy, botViewModel::toggleEquip)
-            AlbumSection(bot.cards, bot.badges)
+            TabRow(selectedTabIndex = state.labTab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
+                LabTab.entries.forEach { tab ->
+                    Tab(
+                        selected = tab == state.labTab,
+                        onClick = { onLabTab(tab) },
+                        text = { Text("${tab.emoji} ${tab.label}", style = MaterialTheme.typography.labelMedium, maxLines = 2) }
+                    )
+                }
+            }
+            when (state.labTab) {
+                LabTab.PREMIO -> {
+                    ChestSection(state, loot, bot.bot.stage, onClaimChest)
+                    if (state.chestOpened) {
+                        GemPill(bot.gems)
+                        MissionsCard(bot.missions, botViewModel::claimMission)
+                    }
+                }
+                LabTab.FLUIBOT -> {
+                    FluiBotStageCard(bot, botViewModel::celebrate)
+                    AccessoriesGrid(bot, botViewModel::buy, botViewModel::toggleEquip)
+                    ScenariosSection(bot, botViewModel::buyScenario, botViewModel::equipScenario)
+                }
+                LabTab.ALBUM -> AlbumSection(bot.cards, bot.badges)
+            }
         }
 
         // Salida exclusiva del tutor: fija y siempre visible.

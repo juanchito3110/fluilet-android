@@ -155,4 +155,40 @@ class TtsManagerTest {
         assertTrue(e.shutdownCalled)
         assertEquals(TtsStatus.Uninitialized, m.state.value.status)
     }
+
+    // --- "🔊 Escuchar palabra" del Glosario Mágico --------------------------------------------
+
+    @Test fun speakWordPronouncesOnlyThatWordWhileIdle() {
+        val (m, e) = ready()
+        m.speakWord("planeta")
+        assertEquals("planeta", e.last.text)
+        assertTrue(e.last.id.startsWith("word-"))
+        assertEquals(TtsStatus.Idle, m.state.value.status)
+    }
+
+    @Test fun speakWordPausesThePlaybackInProgress() {
+        val (m, e) = ready()
+        m.play()
+        m.speakWord("lava")
+        assertEquals(TtsStatus.Paused, m.state.value.status)
+        assertEquals("lava", e.last.text)
+    }
+
+    @Test fun speakWordIgnoresBlankWordsAndUnavailableVoices() {
+        val (m, e) = ready()
+        val before = e.spoken.size
+        m.speakWord("   ")
+        assertEquals(before, e.spoken.size)
+
+        val broken = FakeSpeechEngine(SpeechEngineInit.Unavailable("Sin voz", missingVoiceData = true))
+        val (m2, e2) = ready(broken)
+        m2.speakWord("volcán")
+        assertTrue(e2.spoken.isEmpty())
+    }
+
+    @Test fun speakWordBeforeInitializationDoesNothing() {
+        val engine = FakeSpeechEngine()
+        TtsManager { engine }.speakWord("estrella")
+        assertTrue(engine.spoken.isEmpty())
+    }
 }

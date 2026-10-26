@@ -212,4 +212,21 @@ class HomeViewModelTest {
         adult.refresh()
         assertEquals("adult:x@example.com", adultState().ownerKey)
     }
+
+    // --- Navegación de 4 apartados -----------------------------------------------------------
+
+    @Test fun sectionsStartOnLecturasAndSelectTabSwitchesThemIndependently() = runTest(dispatcher) {
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        assertEquals(com.fluilet.app.presentation.home.HomeTab.LECTURAS, state().selectedTab)
+
+        com.fluilet.app.presentation.home.HomeTab.entries.forEach { tab ->
+            vm.selectTab(tab)
+            assertEquals(tab, state().selectedTab)
+        }
+        vm.selectTab(com.fluilet.app.presentation.home.HomeTab.ESTADISTICAS)
+        vm.refresh() // volver de otra pantalla no pierde el apartado
+        assertEquals(com.fluilet.app.presentation.home.HomeTab.ESTADISTICAS, state().selectedTab)
+    }
 }

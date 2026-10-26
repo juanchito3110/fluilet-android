@@ -4,6 +4,8 @@ import com.fluilet.app.core.network.AppError
 import com.fluilet.app.data.remote.dto.AdaptationReadDto
 import com.fluilet.app.data.remote.dto.ComprehensionQuestionDto
 import com.fluilet.app.data.remote.dto.DocumentDto
+import com.fluilet.app.data.remote.dto.VocabularyDto
+import com.fluilet.app.domain.text.VocabularyEntry
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.ReadabilityMetrics
@@ -47,8 +49,18 @@ fun AdaptationReadDto.toDomain(title: String, level: NlpLevel): AdaptationResult
         questions = comprehensionQuestions.orEmpty().mapNotNull { it.toDomain() },
         bestEffort = qualityStatus == "best_effort",
         questionAgeGroup = questionAgeGroup,
-        childAgeYears = childAgeYears
+        childAgeYears = childAgeYears,
+        funFact = funFact?.trim()?.takeIf { it.isNotEmpty() },
+        keyVocabulary = keyVocabulary.orEmpty().mapNotNull { it.toDomain() }
     )
+}
+
+/** Una palabra clave necesita palabra y definición; el ejemplo es opcional. */
+fun VocabularyDto.toDomain(): VocabularyEntry? {
+    val w = word?.trim().orEmpty()
+    val d = definition?.trim().orEmpty()
+    if (w.isEmpty() || d.isEmpty()) return null
+    return VocabularyEntry(w, d, example?.trim().orEmpty())
 }
 
 /** Descarta preguntas mal formadas en lugar de fallar: el mini-reto es un complemento de la lectura. */

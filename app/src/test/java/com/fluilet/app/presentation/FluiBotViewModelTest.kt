@@ -143,4 +143,111 @@ class FluiBotViewModelTest {
         vm.consumeMessage()
         assertNull(vm.state.value.message)
     }
+
+    // --- Escenarios y misiones diarias -----------------------------------------------------
+
+    private val day = java.time.LocalDate.of(2026, 10, 25)
+
+    private fun lessonToday(correct: Int = 2, seconds: Long = 320) = com.fluilet.app.domain.model.LessonProgress(
+        1, "r1", java.time.Instant.parse("2026-10-25T12:00:00Z"), "deportes", 2, true, 100, 100, seconds, 30.0, 70.0, correct
+    )
+
+    private fun withClock(date: java.time.LocalDate = day) {
+        vm.today = { date }
+        vm.zone = java.time.ZoneOffset.UTC
+    }
+
+    @Test fun theLaboratoryIsTheFreeDefaultAndAllFiveScenariosAreListed() {
+        val s = vm.state.value
+        assertEquals(com.fluilet.app.domain.gamification.Scenario.LABORATORIO_CIAN, s.scenario)
+        assertEquals(5, s.scenarios.size)
+        assertTrue(s.scenarios.first().owned && s.scenarios.first().equipped)
+        assertTrue(s.scenarios.all { it.affordable }) // 130 de saldo alcanza para los cinco (máximo 60)
+    }
+
+    @Test fun buyingAScenarioSpendsGemsEquipsItAndCelebrates() {
+        val before = vm.state.value.celebrationTick
+        vm.buyScenario(com.fluilet.app.domain.gamification.Scenario.ESTACION_ESPACIAL)
+
+        val s = vm.state.value
+        assertEquals(110, s.gems)
+        assertEquals(com.fluilet.app.domain.gamification.Scenario.ESTACION_ESPACIAL, s.scenario)
+        assertTrue(s.scenarios.first { it.scenario == com.fluilet.app.domain.gamification.Scenario.ESTACION_ESPACIAL }.equipped)
+        assertTrue(s.message!!.contains("Estación Espacial Estelar"))
+        assertEquals(before + 1, s.celebrationTick)
+    }
+
+    @Test fun aScenarioCannotBeBoughtWithoutGemsAndYouCanSwitchBackForFree() {
+        vm.bind("child-1", progress.copy(totalGems = 30))
+        vm.buyScenario(com.fluilet.app.domain.gamification.Scenario.ESTADIO_CAMPEON) // 45: faltan 15
+        assertEquals(30, vm.state.value.gems)
+        assertTrue(vm.state.value.message!!.contains("Te faltan 15"))
+        assertEquals(com.fluilet.app.domain.gamification.Scenario.LABORATORIO_CIAN, vm.state.value.scenario)
+
+        vm.buyScenario(com.fluilet.app.domain.gamification.Scenario.OCEANO_SUBMARINO) // 30: alcanza
+        assertEquals(0, vm.state.value.gems)
+        vm.equipScenario(com.fluilet.app.domain.gamification.Scenario.LABORATORIO_CIAN)
+        assertEquals(com.fluilet.app.domain.gamification.Scenario.LABORATORIO_CIAN, vm.state.value.scenario)
+    }
+
+    @Test fun theChosenScenarioIsRememberedPerProfile() {
+        vm.buyScenario(com.fluilet.app.domain.gamification.Scenario.BOSQUE_CYBER_NEON)
+        val again = FluiBotViewModel(store).also { it.bind("child-1", progress) }
+        assertEquals(com.fluilet.app.domain.gamification.Scenario.BOSQUE_CYBER_NEON, again.state.value.scenario)
+        val other = FluiBotViewModel(store).also { it.bind("child-2", progress) }
+        assertEquals(com.fluilet.app.domain.gamification.Scenario.LABORATORIO_CIAN, other.state.value.scenario)
+    }
+
+    @Test fun threeDailyMissionsStartPendingAndCannotBeClaimed() {
+        withClock()
+        vm.bind("child-1", progress)
+        val missions = vm.state.value.missions
+        assertEquals(3, missions.size)
+        assertTrue(missions.none { it.canClaim || it.claimed })
+        vm.claimMission("leer_leccion")
+        assertEquals(130, vm.state.value.gems)
+    }
+
+    @Test fun completedMissionsAreClaimedOnceAndPayTheirGems() {
+        withClock()
+        vm.bind("child-1", progress.copy(lessons = listOf(lessonToday())))
+        assertTrue(vm.state.value.missions.all { it.canClaim })
+
+        vm.claimMission("leer_leccion")
+        vm.claimMission("leer_leccion") // duplicado: no vuelve a pagar
+        vm.claimMission("respuestas_correctas")
+        vm.claimMission("practicar_tiempo")
+
+        val s = vm.state.value
+        assertEquals(130 + 25 + 30 + 40, s.gems)
+        assertTrue(s.missions.all { it.claimed && !it.canClaim })
+    }
+
+    @Test fun missionsRenewTheNextDayButKeepTheEarnedGems() {
+        withClock()
+        vm.bind("child-1", progress.copy(lessons = listOf(lessonToday())))
+        vm.claimMission("leer_leccion")
+
+        withClock(day.plusDays(1))
+        vm.bind("child-1", progress.copy(lessons = listOf(lessonToday())))
+
+        val s = vm.state.value
+        assertEquals(155, s.gems)
+        assertTrue(s.missions.none { it.claimed || it.mission.current > 0 })
+    }
+
+    @Test fun serverMissionsTakePrecedenceOverTheLocalOnes() {
+        withClock()
+        val server = com.fluilet.app.domain.gamification.DailyMission("m_servidor", "Misión del servidor", "d", 2, 2, 15)
+        vm.bind("child-1", progress.copy(serverMissions = listOf(server)))
+        val missions = vm.state.value.missions
+        assertEquals(listOf("m_servidor"), missions.map { it.mission.id })
+        assertTrue(missions.single().canClaim)
+    }
+
+    @Test fun theSessionBeingReadCountsTowardsTheMissions() {
+        withClock()
+        vm.bind("child-1", progress, session = com.fluilet.app.domain.gamification.SessionContribution(true, 2, 310))
+        assertTrue(vm.state.value.missions.all { it.canClaim })
+    }
 }

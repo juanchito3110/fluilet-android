@@ -28,8 +28,8 @@ import com.fluilet.app.domain.model.EducationalProgress
 import com.fluilet.app.domain.model.LessonProgress
 import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.quiz.ComprehensionQuiz
-import com.fluilet.app.presentation.fluibot.FluiBotUiState
-import com.fluilet.app.presentation.home.ProgressDashboardContent
+import com.fluilet.app.presentation.home.ProgressDashboard
+import com.fluilet.app.presentation.home.BadgeGallery
 import com.fluilet.app.presentation.reader.QuizCard
 import com.fluilet.app.presentation.theme.FluiletTheme
 import org.junit.Assert.assertEquals
@@ -106,27 +106,27 @@ class EducationalUiTest {
         badges = BadgeCatalog.all.mapIndexed { i, b -> EducationalBadge(b.code, b.title, b.description, i < 3) }
     )
 
-    @Test fun dashboardShowsSummaryEvolutionAndAllFiveBadges() {
+    @Test fun statsTabShowsOnlyAnalytics() {
         rule.setContent {
             FluiletTheme {
-                Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) { ProgressDashboardContent(progress, null, FluiBotUiState(), {}, {}, {}) }
+                Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) { ProgressDashboard(progress, null) }
             }
         }
         rule.onNodeWithText("Mi avance").assertIsDisplayed()
-        rule.onNodeWithText("Avance y Evolución").assertIsDisplayed()
-        rule.onNodeWithText("2 de 3 lecciones").assertIsDisplayed()
-        rule.onNodeWithText("67 % de cumplimiento · 1 incompletas").assertIsDisplayed()
+        rule.onNodeWithText("Racha").assertIsDisplayed()
+        rule.onNodeWithText("Lecciones").assertIsDisplayed()
         rule.onNodeWithText("1 h 05 min").assertIsDisplayed()
         rule.onNodeWithText("75 %").assertIsDisplayed()
-        rule.onNodeWithText("Nivel 3 de 5").assertIsDisplayed()
+        rule.onNodeWithText("Nivel 3 de 5").performScrollTo().assertIsDisplayed()
         screenshot("avance_1_resumen")
+    }
 
-        rule.onNodeWithText("Evolución por lección").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Lección 3 · Tecnología · Nivel 3").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Incompleta · 45 %").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Comprensión: sin mini-reto").performScrollTo().assertIsDisplayed()
-        screenshot("avance_2_evolucion")
-
+    @Test fun badgeGalleryShowsAllFiveBadges() {
+        rule.setContent {
+            FluiletTheme {
+                Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) { BadgeGallery(progress.badges) }
+            }
+        }
         rule.onNodeWithText("Insignias educativas").performScrollTo().assertIsDisplayed()
         BadgeCatalog.all.forEach { rule.onNodeWithText(it.title).performScrollTo().assertIsDisplayed() }
         rule.onNodeWithText("3 de 5 desbloqueadas").performScrollTo().assertIsDisplayed()
@@ -137,11 +137,11 @@ class EducationalUiTest {
         rule.setContent {
             FluiletTheme {
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-                    ProgressDashboardContent(EducationalProgress.empty(), "No pudimos cargar el avance ahora.", FluiBotUiState(), {}, {}, {})
+                    ProgressDashboard(EducationalProgress.empty(), "No pudimos cargar el avance ahora.")
+                    BadgeGallery(EducationalProgress.empty().badges)
                 }
             }
         }
-        rule.onNodeWithText("0 de 0 lecciones").assertIsDisplayed()
         rule.onNodeWithText("Aún sin mini-retos").assertIsDisplayed()
         rule.onNodeWithText("No pudimos cargar el avance ahora.").assertIsDisplayed()
         rule.onNodeWithText("Insignias educativas").performScrollTo()

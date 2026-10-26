@@ -38,6 +38,7 @@ data class HomeUiState(
     /** Avance educativo del perfil seleccionado (o del adulto): siempre presente, vacío si no hay datos. */
     val progress: EducationalProgress = EducationalProgress.empty(),
     val progressNote: String? = null,
+    val selectedTab: HomeTab = HomeTab.DEFAULT,
     val activeReading: ActiveReading? = null,
     val pinConfigured: Boolean = false,
     val errorMessage: String? = null
@@ -60,6 +61,7 @@ private data class HomeLocal(
     val selectedChildId: String? = null,
     val progress: EducationalProgress = EducationalProgress.empty(),
     val progressNote: String? = null,
+    val selectedTab: HomeTab = HomeTab.DEFAULT,
     val pinConfigured: Boolean = false,
     val errorMessage: String? = null
 )
@@ -90,6 +92,7 @@ class HomeViewModel @Inject constructor(
             selectedChildId = l.selectedChildId,
             progress = l.progress,
             progressNote = l.progressNote,
+            selectedTab = l.selectedTab,
             activeReading = reading,
             pinConfigured = l.pinConfigured,
             errorMessage = l.errorMessage
@@ -119,6 +122,9 @@ class HomeViewModel @Inject constructor(
             loadProgress()
         }
     }
+
+    /** Cambia de apartado (Lecturas, Mi FluiBot, Colección, Estadísticas). */
+    fun selectTab(tab: HomeTab) = local.update { it.copy(selectedTab = tab) }
 
     fun refreshPin() = local.update { it.copy(pinConfigured = isPinConfigured()) }
 

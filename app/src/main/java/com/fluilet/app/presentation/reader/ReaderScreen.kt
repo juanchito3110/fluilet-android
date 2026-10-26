@@ -199,13 +199,14 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel) {
         } else if (state.showLab) {
             // Laboratorio y Rincón de Recompensas, dentro del Modo Enfoque: solo el tutor (PIN) puede salir.
             Box(Modifier.weight(1f)) {
-                RewardLab(state, onClaimChest = vm::claimChest, onReadAgain = vm::restart, onDeliver = vm::requestExit)
+                RewardLab(state, onClaimChest = vm::claimChest, onReadAgain = vm::restart, onDeliver = vm::requestExit, onLabTab = vm::selectLabTab)
             }
         } else {
             GuideBar(state, vm)
             Box(Modifier.weight(1f)) {
-                ChunkCard(state, onGuideTap = vm::guideNext)
+                if (state.showOriginal) ComparisonCard(state) else ChunkCard(state, onGuideTap = vm::guideNext)
             }
+            GlossaryBar(state, vm)
             SpeechUnavailableBanner(state)
             ReaderControls(state, vm)
         }
@@ -240,14 +241,26 @@ private fun ReaderTopBar(state: ReaderUiState, vm: ReaderViewModel) {
 /** Chip "Guía de renglón" (con flechas para mover la franja cuando está activa). */
 @Composable
 private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         SelectableChip(
             selected = state.guideEnabled,
             onClick = vm::toggleGuide,
             label = { Text(stringResource(R.string.reader_guide), style = MaterialTheme.typography.labelLarge) },
             modifier = Modifier.semantics { contentDescription = "Guía de renglón, ${if (state.guideEnabled) "activada" else "desactivada"}" }
         )
-        if (state.guideEnabled) {
+        SelectableChip(
+            selected = state.showOriginal,
+            onClick = vm::toggleOriginal,
+            label = { Text(stringResource(R.string.reader_compare), style = MaterialTheme.typography.labelLarge) },
+            modifier = Modifier.semantics {
+                contentDescription = "Adaptado contra original, ${if (state.showOriginal) "activado" else "desactivado"}"
+            }
+        )
+        if (state.guideEnabled && !state.showOriginal) {
             IconButton(onClick = vm::guidePrevious, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.reader_guide_previous))
             }
@@ -309,17 +322,22 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(scroll).padding(20.dp)
                 .clickable(enabled = state.guideEnabled, onClickLabel = "Siguiente renglón", onClick = onGuideTap)
         ) {
-            androidx.compose.material3.Text(
-                text = annotated,
-                onTextLayout = { layout = it },
-                style = TextStyle(
-                    fontFamily = OpenDyslexicFontFamily,
-                    fontSize = settings.fontSizeSp.sp,
-                    lineHeight = (settings.fontSizeSp * settings.lineSpacing).sp,
-                    letterSpacing = settings.letterSpacingEm.em,
-                    color = MaterialTheme.colorScheme.onBackground
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                androidx.compose.material3.Text(
+                    text = annotated,
+                    onTextLayout = { layout = it },
+                    style = TextStyle(
+                        fontFamily = OpenDyslexicFontFamily,
+                        fontSize = settings.fontSizeSp.sp,
+                        lineHeight = (settings.fontSizeSp * settings.lineSpacing).sp,
+                        letterSpacing = settings.letterSpacingEm.em,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
                 )
-            )
+                // "¿Sabías que...?" cierra la lectura: solo al final del último bloque.
+                val fact = state.funFact
+                if (state.isLastChunk && fact != null) FunFactCard(fact)
+            }
         }
     }
 }

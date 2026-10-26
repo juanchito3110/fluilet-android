@@ -246,7 +246,8 @@ object Gamification {
             cards = server?.cards?.takeIf { it.isNotEmpty() }?.let { mergeCards(it, base.lessons) } ?: cardsFor(base.lessons),
             pedagogicalSummary = server?.summary
                 ?: pedagogicalSummary(base.lessons, base.completionRatePercent, base.recommendedLevel, base.averageComprehension),
-            gamificationFromServer = server != null
+            gamificationFromServer = server != null,
+            serverMissions = server?.missions?.takeIf { it.isNotEmpty() }
         )
     }
 
@@ -264,5 +265,6 @@ data class ServerGamification(
     val currentXp: Int?,
     val streakDays: Int?,
     val summary: PedagogicalSummary?,
-    val cards: List<CollectibleCard>?
+    val cards: List<CollectibleCard>?,
+    val missions: List<DailyMission>? = null
 )

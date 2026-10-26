@@ -1,5 +1,8 @@
 package com.fluilet.app.domain.model
 
+import com.fluilet.app.domain.gamification.LessonFacts
+import com.fluilet.app.domain.text.LocalGlossary
+import com.fluilet.app.domain.text.VocabularyEntry
 import java.time.Instant
 
 /** Bloque digerible de texto adaptado. Vive SOLO en RAM durante la sesión (cero retención). */
@@ -35,8 +38,23 @@ data class AdaptationResult(
     val bestEffort: Boolean = false,
     /** Grupo de edad de las preguntas (`6-8`, `9-11`, `12+`) y edad del niño, si el servidor los envía. */
     val questionAgeGroup: String? = null,
-    val childAgeYears: Int? = null
-)
+    val childAgeYears: Int? = null,
+    /** "¿Sabías que...?" del servidor (`fun_fact`), si lo envía. */
+    val funFact: String? = null,
+    /** Palabras clave del servidor (`key_vocabulary`), si las envía. */
+    val keyVocabulary: List<VocabularyEntry> = emptyList(),
+    /** Tema libre con el que se generó la lección (solo para el dato curioso local). */
+    val topic: String? = null,
+    /** Texto original, SOLO en RAM y solo si se pegó o subió un .txt: permite la vista "Original vs. Adaptado". */
+    val originalText: String? = null
+) {
+    /** Dato curioso: el del servidor o uno local según tema/categoría. */
+    val effectiveFunFact: String? get() = LessonFacts.forLesson(funFact, topic, category)
+
+    /** Glosario: el del servidor o las palabras conocidas que aparecen en el texto adaptado. */
+    val effectiveVocabulary: List<VocabularyEntry>
+        get() = keyVocabulary.ifEmpty { LocalGlossary.find(chunks.joinToString(" ") { it.text }) }
+}
 
 enum class SourceType { TXT, PDF, PASTED_TEXT }
 

@@ -10,6 +10,9 @@ import com.fluilet.app.core.tts.TtsState
 import com.fluilet.app.core.tts.TtsStatus
 import com.fluilet.app.di.ApplicationScope
 import com.fluilet.app.domain.gamification.Gamification
+import com.fluilet.app.domain.gamification.SessionContribution
+import com.fluilet.app.domain.text.VocabularyEntry
+import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.gamification.SessionLoot
 import com.fluilet.app.domain.model.AccessiblePalette
 import com.fluilet.app.domain.model.EducationalProgress
@@ -42,6 +45,17 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** Pestañas del Laboratorio de Recompensas (siempre dentro del Modo Enfoque). */
+enum class LabTab(val emoji: String, val label: String) {
+    PREMIO("🎁", "Tu Premio"),
+    FLUIBOT("🤖", "Personalizar a FluiBot"),
+    ALBUM("🃏", "Mi Álbum");
+
+    companion object {
+        val DEFAULT = PREMIO
+    }
+}
+
 data class ReaderUiState(
     val reading: ActiveReading? = null,
     val settings: ReadingSettings = ReadingSettings(),
@@ -59,8 +73,25 @@ data class ReaderUiState(
     val guideRange: IntRange? = null,
     /** Avance antes de esta sesión (base del botín y de las gemas del niño). */
     val baseline: EducationalProgress = EducationalProgress.empty(),
-    val chestOpened: Boolean = false
+    val chestOpened: Boolean = false,
+    /** Vista "Adaptado vs. Original" activa. */
+    val showOriginal: Boolean = false,
+    /** Palabra del Glosario Mágico seleccionada (con su definición y ejemplo). */
+    val selectedWord: VocabularyEntry? = null,
+    /** Palabras clave de la lectura (servidor o glosario local). */
+    val vocabulary: List<VocabularyEntry> = emptyList(),
+    val labTab: LabTab = LabTab.DEFAULT
 ) {
+    /** "¿Sabías que...?": dato del servidor o local según tema/categoría; se muestra al final del texto. */
+    val funFact: String? get() = reading?.adaptation?.effectiveFunFact
+
+    /** Texto original (solo en RAM, solo si se pegó o subió un .txt); `null` si no está disponible. */
+    val originalText: String? get() = reading?.adaptation?.originalText
+
+    /** Aporte de esta sesión a las misiones del día. */
+    val session: SessionContribution
+        get() = SessionContribution(completed, quiz?.correct ?: 0, elapsedSeconds)
+
     /** El reto aparece al terminar la lectura, antes del Laboratorio de Recompensas. */
     val showQuiz: Boolean get() = completed && quiz != null && !quizDone
 
@@ -102,7 +133,10 @@ private data class Local(
     val guideSentence: Int = 0,
     val lastChunk: Int = 0,
     val baseline: EducationalProgress = EducationalProgress.empty(),
-    val chestOpened: Boolean = false
+    val chestOpened: Boolean = false,
+    val showOriginal: Boolean = false,
+    val selectedWord: String? = null,
+    val labTab: LabTab = LabTab.DEFAULT
 )
 
 @HiltViewModel
@@ -128,6 +162,7 @@ class ReaderViewModel @Inject constructor(
     val events = _events.receiveAsFlow()
 
     val uiState: StateFlow<ReaderUiState> = combine(holder.current, tts.state, focus.state, local) { reading, ttsState, focusState, l ->
+        val words = vocabularyFor(reading?.adaptation)
         ReaderUiState(
             reading = reading,
             settings = l.settings,
@@ -142,7 +177,11 @@ class ReaderViewModel @Inject constructor(
             guideEnabled = l.guideEnabled,
             guideRange = if (l.guideEnabled) activeSentence(reading, ttsState, l.guideSentence) else null,
             baseline = l.baseline,
-            chestOpened = l.chestOpened
+            chestOpened = l.chestOpened,
+            showOriginal = l.showOriginal,
+            vocabulary = words,
+            selectedWord = words.firstOrNull { it.word == l.selectedWord },
+            labTab = l.labTab
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderUiState())
 
@@ -223,6 +262,28 @@ class ReaderViewModel @Inject constructor(
      */
     fun finishQuiz() {
         local.update { it.copy(quizDone = true) }
+    }
+
+    // --- Original vs. Adaptado y Glosario Mágico -------------------------------------------------
+
+    fun toggleOriginal() = local.update { it.copy(showOriginal = !it.showOriginal) }
+
+    /** Un toque en una palabra clave muestra su definición; otro toque en la misma la cierra. */
+    fun selectWord(word: String) = local.update { it.copy(selectedWord = if (it.selectedWord == word) null else word) }
+    fun clearWord() = local.update { it.copy(selectedWord = null) }
+
+    /** "🔊 Escuchar palabra": el motor de voz del dispositivo pronuncia solo esa palabra. */
+    fun speakWord(word: String) = tts.speakWord(word)
+
+    fun selectLabTab(tab: LabTab) = local.update { it.copy(labTab = tab) }
+
+    /** Glosario de la lectura: se calcula una vez por lectura (no en cada recomposición). */
+    private var vocabularyCache: Pair<AdaptationResult, List<VocabularyEntry>>? = null
+
+    private fun vocabularyFor(adaptation: AdaptationResult?): List<VocabularyEntry> {
+        adaptation ?: return emptyList()
+        vocabularyCache?.takeIf { it.first === adaptation }?.let { return it.second }
+        return adaptation.effectiveVocabulary.also { vocabularyCache = adaptation to it }
     }
 
     // --- Cofre y guía de renglón ----------------------------------------------------------------

@@ -21,7 +21,6 @@ import com.fluilet.app.presentation.auth.RegisterScreen
 import com.fluilet.app.presentation.child.ChildFormScreen
 import com.fluilet.app.presentation.common.FullScreenLoading
 import com.fluilet.app.presentation.home.HomeScreen
-import com.fluilet.app.presentation.newreading.NewReadingScreen
 import com.fluilet.app.presentation.reader.ReaderScreen
 
 object Routes {
@@ -31,10 +30,8 @@ object Routes {
     const val HOME = "home"
     const val READER = "reader"
     const val CHILD_FORM = "child_form?childId={childId}"
-    const val NEW_READING = "new_reading?childId={childId}"
 
     fun childForm(childId: String? = null) = if (childId == null) "child_form" else "child_form?childId=$childId"
-    fun newReading(childId: String? = null) = if (childId == null) "new_reading" else "new_reading?childId=$childId"
 
     /** Tutor y adulto independiente entran al panel; la vista de niño (NINO) va directo a la lectura. */
     fun homeFor(role: UserRole) = if (role.isChildView) READER else HOME
@@ -89,26 +86,12 @@ fun AppNavigation(
             HomeScreen(
                 onNewChild = { navController.navigate(Routes.childForm()) },
                 onEditChild = { navController.navigate(Routes.childForm(it)) },
-                onNewReading = { navController.navigate(Routes.newReading(it)) },
                 onStartReading = { navController.navigate(Routes.READER) }
             )
         }
         composable(Routes.CHILD_FORM, arguments = listOf(optionalChildArg)) {
             ChildFormScreen(onDone = { navController.popBackStack() })
         }
-        composable(Routes.NEW_READING, arguments = listOf(optionalChildArg)) {
-            NewReadingScreen(
-                onSaved = { navController.popBackStack() },
-                // Directo al lector; al salir (tras el Muro Parental) se vuelve al panel del tutor.
-                onStartNow = {
-                    navController.navigate(Routes.READER) {
-                        popUpTo(Routes.NEW_READING) { inclusive = true }
-                    }
-                },
-                onCancel = { navController.popBackStack() }
-            )
-        }
-
         composable(Routes.READER) {
             ReaderScreen(
                 onExit = {

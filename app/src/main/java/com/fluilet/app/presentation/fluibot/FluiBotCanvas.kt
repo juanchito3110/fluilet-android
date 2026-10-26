@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.fluilet.app.domain.gamification.Accessory
 import com.fluilet.app.domain.gamification.FluiBotStage
+import com.fluilet.app.domain.gamification.Scenario
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -62,7 +63,9 @@ fun FluiBotCanvas(
     equipped: Set<String>,
     modifier: Modifier = Modifier,
     celebrationTick: Int = 0,
-    onTap: (() -> Unit)? = null
+    onTap: (() -> Unit)? = null,
+    /** Fondo dibujado detrás de FluiBot; `null` = transparente (miniaturas). */
+    scenario: Scenario? = null
 ) {
     val transition = rememberInfiniteTransition(label = "fluibot")
     val time by transition.animateFloat(
@@ -88,7 +91,7 @@ fun FluiBotCanvas(
         }
     }
 
-    val description = "FluiBot, ${stage.displayName}" +
+    val description = "FluiBot, ${stage.displayName}" + (scenario?.let { " en ${it.displayName}" } ?: "") +
         if (equipped.isEmpty()) "" else ", con ${equipped.mapNotNull { Accessory.fromId(it)?.displayName }.joinToString()}"
 
     Canvas(
@@ -101,6 +104,7 @@ fun FluiBotCanvas(
                 }
             }
     ) {
+        if (scenario != null) drawScenario(scenario, time)
         drawFluiBot(stage, equipped, time, blinkPhase, celebrate.value)
     }
 }

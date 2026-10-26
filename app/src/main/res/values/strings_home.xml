@@ -27,4 +27,12 @@
     <string name="home_delete_body">Se eliminará el perfil. Esta acción no se puede deshacer.</string>
     <string name="home_delete_confirm">Eliminar</string>
     <string name="nlp_level_title">Simplificación (1 a 5): %1$s</string>
+    <string name="readings_history_title">Historial de lecturas</string>
+    <string name="readings_history_empty">Aquí aparecerán las lecturas que completes.</string>
+    <string name="bot_tab_accessories">🛍️ Accesorios (%1$d)</string>
+    <string name="bot_tab_scenarios">🌌 Escenarios (%1$d)</string>
+    <string name="bot_tab_evolution">🚀 Evolución (%1$d Etapas)</string>
+    <string name="stats_streak">Racha</string>
+    <string name="stats_lessons">Lecciones</string>
+    <string name="stats_days">%1$d días</string>
 </resources>

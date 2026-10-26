@@ -39,4 +39,17 @@
     <string name="quiz_hide_hint">Ocultar pista</string>
     <string name="quiz_feedback_correct_title">¡Correcto! Muy bien.</string>
     <string name="quiz_feedback_wrong_title">¡Casi! Sigue intentándolo.</string>
+    <string name="reader_compare">🔄 Adaptado vs. Original</string>
+    <string name="compare_title">Adaptado vs. Original</string>
+    <string name="compare_score">Legibilidad (Szigriszt-Pazos): %1$.0f → %2$.0f</string>
+    <string name="compare_delta">Cambio: %1$+.0f puntos (más alto = más fácil de leer)</string>
+    <string name="compare_words">Palabras: %1$d en el original · %2$d en el adaptado</string>
+    <string name="compare_original_label">📄 Texto original</string>
+    <string name="compare_original_unavailable">Esta lección no tiene un texto original que mostrar (se generó o vino de un PDF). Por privacidad, el texto no se guarda en el dispositivo.</string>
+    <string name="compare_adapted_label">✨ Texto adaptado (este bloque)</string>
+    <string name="funfact_title">🧠 ¿Sabías que...?</string>
+    <string name="glossary_title">🔍 Palabras clave de esta lectura</string>
+    <string name="glossary_close">Cerrar</string>
+    <string name="glossary_example">Ejemplo: %1$s</string>
+    <string name="glossary_listen">🔊 Escuchar palabra</string>
 </resources>

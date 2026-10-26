@@ -61,7 +61,7 @@ class RemoteAdaptationRepository @Inject constructor(
                     childId = childId
                 )
             )
-        }.mapCatching { it.toDomain(title = request.category.displayName, level = request.level) }
+        }.mapCatching { it.toDomain(title = request.category.displayName, level = request.level).copy(topic = request.cleanTopic) }
 }
 
 /**

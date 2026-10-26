@@ -59,7 +59,16 @@ data class AdaptationReadDto(
     @SerializedName("quality_status") val qualityStatus: String? = null,
     @SerializedName("warnings") val warnings: List<String>? = null,
     @SerializedName("question_age_group") val questionAgeGroup: String? = null,
-    @SerializedName("child_age_years") val childAgeYears: Int? = null
+    @SerializedName("child_age_years") val childAgeYears: Int? = null,
+    // Opcionales (aún no publicados por el backend): sin ellos la app usa dato curioso y glosario locales.
+    @SerializedName("fun_fact") val funFact: String? = null,
+    @SerializedName("key_vocabulary") val keyVocabulary: List<VocabularyDto>? = null
+)
+
+data class VocabularyDto(
+    @SerializedName(value = "word", alternate = ["term"]) val word: String? = null,
+    @SerializedName(value = "definition", alternate = ["meaning"]) val definition: String? = null,
+    @SerializedName("example") val example: String? = null
 )
 
 data class ComprehensionQuestionDto(

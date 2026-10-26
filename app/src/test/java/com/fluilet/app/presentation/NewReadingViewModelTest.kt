@@ -42,6 +42,8 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class NewReadingViewModelTest {
 
+    private val MIN_TEST_WORDS = com.fluilet.app.domain.model.AdaptationSource.MIN_WORDS + 5
+
     private val dispatcher = UnconfinedTestDispatcher()
     private val adaptation = FakeAdaptationRepository()
     private val holder = ActiveReadingHolder()
@@ -172,5 +174,67 @@ class NewReadingViewModelTest {
         assertNull(s.category)
         assertEquals("", s.topic)
         assertFalse(s.canAdapt)
+    }
+
+    // --- Apartado "Lecturas": perfil, sugerencias y original en RAM --------------------------
+
+    @Test fun aSuggestionChipFillsTheTopicButFreeTextStillWorks() {
+        val vm = viewModel()
+        vm.onMode(InputMode.GENERATE)
+        vm.onCategory(LessonCategory.DEPORTES)
+        vm.onSuggestion("Real Madrid")
+        assertEquals("Real Madrid", vm.state.value.topic)
+        vm.onTopic("El mundial de 2030")
+        assertEquals("El mundial de 2030", vm.state.value.topic)
+    }
+
+    @Test fun bindChildSwitchesTheProfileAndDiscardsThePendingResult() {
+        val vm = viewModel("child-1")
+        assertEquals("Mateo", vm.state.value.readerName)
+        vm.onMode(InputMode.GENERATE)
+        vm.onCategory(LessonCategory.TECNOLOGIA)
+        vm.adapt()
+        assertNotNull(vm.state.value.result)
+
+        vm.bindChild(null)
+        assertNull(vm.state.value.result)
+        assertFalse(vm.state.value.forChild)
+        assertEquals("", vm.state.value.readerName)
+
+        vm.bindChild("child-1")
+        assertTrue(vm.state.value.forChild)
+        assertEquals("Mateo", vm.state.value.readerName)
+    }
+
+    @Test fun pastedTextKeepsTheOriginalOnlyInTheResultForTheComparison() {
+        val vm = viewModel()
+        val text = List(MIN_TEST_WORDS) { "palabra" }.joinToString(" ") + "."
+        vm.onMode(InputMode.PASTE)
+        vm.onText(text)
+        vm.adapt()
+        assertEquals(text, vm.state.value.result!!.originalText)
+    }
+
+    @Test fun generatedLessonsHaveNoOriginalText() {
+        val vm = viewModel()
+        vm.onMode(InputMode.GENERATE)
+        vm.onCategory(LessonCategory.CIENCIA_ESPACIO)
+        vm.adapt()
+        assertNull(vm.state.value.result!!.originalText)
+    }
+
+    @Test fun afterStartingTheFormIsClearedForTheNextReading() = runTest(dispatcher) {
+        val vm = viewModel()
+        backgroundScopeCollect(vm, mutableListOf())
+        vm.onMode(InputMode.GENERATE)
+        vm.onCategory(LessonCategory.DEPORTES)
+        vm.onTopic("Natación")
+        vm.adapt()
+        vm.startNow()
+
+        val s = vm.state.value
+        assertEquals("", s.topic)
+        assertEquals("", s.text)
+        assertNull(s.result)
     }
 }

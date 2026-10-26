@@ -83,7 +83,7 @@ class NewReadingViewModel @Inject constructor(
     private val isPinConfigured: IsTutorPinConfiguredUseCase
 ) : ViewModel() {
 
-    private val childId: String? = savedStateHandle.get<String>("childId")?.takeIf { it.isNotBlank() }
+    private var childId: String? = savedStateHandle.get<String>("childId")?.takeIf { it.isNotBlank() }
     private var child: ChildProfile? = null
     private var pendingFile: AdaptationSource? = null
 
@@ -94,15 +94,37 @@ class NewReadingViewModel @Inject constructor(
     val done = _done.receiveAsFlow()
 
     init {
-        if (childId != null) {
-            viewModelScope.launch {
-                getChildren().onSuccess { list ->
-                    child = list.firstOrNull { it.id == childId }
-                    child?.let { c -> _state.update { it.copy(level = c.nlpLevel, readerName = c.name) } }
-                }
+        loadChild()
+    }
+
+    private fun loadChild() {
+        val id = childId ?: return
+        viewModelScope.launch {
+            getChildren().onSuccess { list ->
+                if (childId != id) return@onSuccess // el selector cambió mientras cargaba
+                child = list.firstOrNull { it.id == id }
+                child?.let { c -> _state.update { it.copy(level = c.nlpLevel, readerName = c.name) } }
             }
         }
     }
+
+    /**
+     * Cambia el perfil para el que se crea la lectura (selector de niño del apartado "Lecturas"):
+     * recarga su nivel y su nombre, y descarta cualquier resultado pendiente del perfil anterior.
+     */
+    fun bindChild(newChildId: String?) {
+        val normalized = newChildId?.takeIf { it.isNotBlank() }
+        if (normalized == childId && (normalized == null || child != null)) return
+        childId = normalized
+        child = null
+        _state.update {
+            it.copy(forChild = normalized != null, readerName = "", result = null, errorMessage = null, level = NlpLevel.DEFAULT)
+        }
+        loadChild()
+    }
+
+    /** Un toque en una sugerencia rellena el tema (el niño también puede escribir cualquier texto). */
+    fun onSuggestion(suggestion: String) = onTopic(suggestion)
 
     fun onMode(mode: InputMode) = _state.update { it.copy(mode = mode, errorMessage = null, result = null) }
     fun onCategory(category: LessonCategory) = _state.update { it.copy(category = category, errorMessage = null, result = null) }
@@ -166,10 +188,18 @@ class NewReadingViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isAdapting = true, errorMessage = null, result = null) }
             adaptText(source, s.level, childId)
-                .onSuccess { result -> _state.update { it.copy(isAdapting = false, result = result) } }
+                .onSuccess { result ->
+                    // El original solo se conserva en RAM (texto pegado o .txt) para la vista "Original vs. Adaptado".
+                    val original = originalTextOf(source)
+                    _state.update { it.copy(isAdapting = false, result = result.copy(originalText = original)) }
+                }
                 .onFailure { e -> _state.update { it.copy(isAdapting = false, errorMessage = e.toAppError().userMessage) } }
         }
     }
+
+    private fun originalTextOf(source: AdaptationSource): String? =
+        if (source.type == SourceType.PDF) null
+        else String(source.bytes, Charsets.UTF_8).takeIf { it.length <= MAX_ORIGINAL_CHARS }
 
     /** Pide una lección por categoría/tema al servidor; el resultado se muestra igual que una adaptación. */
     private fun generate(s: NewReadingUiState) {
@@ -206,7 +236,13 @@ class NewReadingViewModel @Inject constructor(
             )
         )
         pendingFile = null
-        _state.update { it.copy(text = "", fileName = null) }
+        // La lectura ya está en RAM (ActiveReadingHolder): el formulario queda limpio para la siguiente.
+        _state.update { it.copy(text = "", fileName = null, topic = "", result = null) }
         _done.trySend(outcome)
+    }
+
+    private companion object {
+        /** El original más largo que esto no se retiene (la comparación se desactiva). */
+        const val MAX_ORIGINAL_CHARS = 100_000
     }
 }

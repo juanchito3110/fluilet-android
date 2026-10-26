@@ -48,6 +48,7 @@ class TtsManager internal constructor(
     private var utteranceBaseOffset = 0   // desplazamiento del texto hablado dentro del bloque
     private var lastWordStart = 0         // último inicio de palabra (absoluto en el bloque)
     private var utteranceCounter = 0L
+    private var wordCounter = 0L
 
     private val _state = MutableStateFlow(TtsState())
     val state: StateFlow<TtsState> = _state.asStateFlow()
@@ -143,6 +144,20 @@ class TtsManager internal constructor(
             haltEngine()
             speakChunk(index, lastWordStart)
         }
+    }
+
+    /**
+     * Pronuncia una palabra suelta (Glosario Mágico) sin perder el lugar de la lectura: si el texto se
+     * estaba leyendo en voz alta, se pausa (se puede reanudar desde la misma palabra).
+     */
+    fun speakWord(word: String) = synchronized(lock) {
+        val current = engine ?: return@synchronized
+        val status = _state.value.status
+        if (word.isBlank() || status == TtsStatus.Uninitialized || status == TtsStatus.Initializing || status == TtsStatus.Unavailable) {
+            return@synchronized
+        }
+        if (status == TtsStatus.Playing) pause()
+        current.speak(word, "word-${++wordCounter}", _state.value.speechRate)
     }
 
     fun release() = synchronized(lock) {

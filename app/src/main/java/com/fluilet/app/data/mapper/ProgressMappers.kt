@@ -1,12 +1,15 @@
 package com.fluilet.app.data.mapper
 
 import com.fluilet.app.data.remote.dto.CollectibleCardDto
+import com.fluilet.app.data.remote.dto.DailyMissionDto
 import com.fluilet.app.data.remote.dto.EducationalProgressDto
 import com.fluilet.app.data.remote.dto.PedagogicalSummaryDto
 import com.fluilet.app.data.remote.dto.ReadingDto
 import com.fluilet.app.domain.gamification.CardCatalog
 import com.fluilet.app.domain.gamification.CardRarity
 import com.fluilet.app.domain.gamification.CollectibleCard
+import com.fluilet.app.domain.gamification.DailyMission
+import com.fluilet.app.domain.gamification.DailyMissions
 import com.fluilet.app.domain.gamification.Gamification
 import com.fluilet.app.domain.gamification.PedagogicalSummary
 import com.fluilet.app.domain.gamification.ServerGamification
@@ -31,8 +34,23 @@ private fun EducationalProgressDto.serverGamification(): ServerGamification? {
     val summary = pedagogicalSummary?.toDomain()
     val cards = collectibleCards?.mapNotNull { it.toDomain() }
     val xp = totalXp ?: mascot?.currentXp
-    if (totalGems == null && xp == null && streakDays == null && summary == null && cards.isNullOrEmpty()) return null
-    return ServerGamification(totalGems?.coerceAtLeast(0), xp?.coerceAtLeast(0), streakDays?.coerceAtLeast(0), summary, cards)
+    val missions = dailyMissions?.mapNotNull { it.toDomain() }
+    if (totalGems == null && xp == null && streakDays == null && summary == null && cards.isNullOrEmpty() && missions.isNullOrEmpty()) return null
+    return ServerGamification(totalGems?.coerceAtLeast(0), xp?.coerceAtLeast(0), streakDays?.coerceAtLeast(0), summary, cards, missions)
+}
+
+/** Descarta misiones sin identificador o sin meta; las que falten se tratan como "las calcula la app". */
+private fun DailyMissionDto.toDomain(): DailyMission? {
+    val missionId = id?.takeIf { it.isNotBlank() } ?: return null
+    val goal = target?.takeIf { it > 0 } ?: return null
+    return DailyMission(
+        id = missionId,
+        title = title?.takeIf { it.isNotBlank() } ?: "Misión del día",
+        description = description.orEmpty(),
+        current = (progress ?: 0).coerceIn(0, goal),
+        target = goal,
+        rewardGems = (rewardGems ?: 0).coerceAtLeast(0)
+    )
 }
 
 private fun PedagogicalSummaryDto.toDomain(): PedagogicalSummary? {

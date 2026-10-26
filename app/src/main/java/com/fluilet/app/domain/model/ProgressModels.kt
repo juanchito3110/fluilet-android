@@ -1,6 +1,7 @@
 package com.fluilet.app.domain.model
 
 import com.fluilet.app.domain.gamification.CollectibleCard
+import com.fluilet.app.domain.gamification.DailyMission
 import com.fluilet.app.domain.gamification.Gamification
 import com.fluilet.app.domain.gamification.GamificationRules
 import com.fluilet.app.domain.gamification.PedagogicalSummary
@@ -53,7 +54,9 @@ data class EducationalProgress(
     val streakDays: Int = 0,
     val pedagogicalSummary: PedagogicalSummary = Gamification.pedagogicalSummary(emptyList(), 0.0, 2, 0.0),
     val cards: List<CollectibleCard> = Gamification.cardsFor(emptyList()),
-    val gamificationFromServer: Boolean = false
+    val gamificationFromServer: Boolean = false,
+    /** Misiones del día que calculó el servidor (`daily_missions`); `null` => se calculan en el dispositivo. */
+    val serverMissions: List<DailyMission>? = null
 ) {
     val hasLessons: Boolean get() = totalLessons > 0
 

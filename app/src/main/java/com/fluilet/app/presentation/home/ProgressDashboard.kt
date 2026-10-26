@@ -1,29 +1,14 @@
 package com.fluilet.app.presentation.home
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.fluilet.app.domain.gamification.Accessory
 import com.fluilet.app.domain.gamification.PedagogicalSummary
-import com.fluilet.app.presentation.fluibot.AlbumSection
-import com.fluilet.app.presentation.fluibot.FluiBotPanel
-import com.fluilet.app.presentation.fluibot.FluiBotUiState
-import com.fluilet.app.presentation.fluibot.FluiBotViewModel
-import com.fluilet.app.presentation.fluibot.WorkshopSection
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -42,10 +27,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -61,42 +44,12 @@ import com.fluilet.app.presentation.common.formatPercent
 import com.fluilet.app.presentation.common.formatReadingTime
 
 /**
- * "Mi avance": cabecera gamificada con FluiBot, recomendación pedagógica, 3 gráficas animadas en
- * `Canvas` (anillo de cumplimiento, curva de comprensión y barras de legibilidad), detalle por lección y
- * acceso al Taller de FluiBot, el Álbum de cartas y las Insignias.
+ * 📊 Estadísticas: solo analítica. Tarjetas resumen (racha, lecciones, tiempo, comprensión), la
+ * recomendación pedagógica y 3 gráficas animadas en `Canvas` (anillo, curva de comprensión y barras
+ * de legibilidad Szigriszt-Pazos original vs. adaptado). Sin tienda ni juguetes.
  */
 @Composable
-fun ProgressDashboard(
-    progress: EducationalProgress,
-    note: String?,
-    ownerKey: String,
-    modifier: Modifier = Modifier,
-    botViewModel: FluiBotViewModel = hiltViewModel()
-) {
-    val bot by botViewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(ownerKey, progress) { botViewModel.bind(ownerKey, progress) }
-    ProgressDashboardContent(
-        progress = progress,
-        note = note,
-        bot = bot,
-        onCelebrate = botViewModel::celebrate,
-        onBuy = botViewModel::buy,
-        onToggleEquip = botViewModel::toggleEquip,
-        modifier = modifier
-    )
-}
-
-/** Versión sin estado (probable): recibe el estado de FluiBot ya resuelto. */
-@Composable
-fun ProgressDashboardContent(
-    progress: EducationalProgress,
-    note: String?,
-    bot: FluiBotUiState,
-    onCelebrate: () -> Unit,
-    onBuy: (Accessory) -> Unit,
-    onToggleEquip: (Accessory) -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun ProgressDashboard(progress: EducationalProgress, note: String?, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.progress_my_progress), style = MaterialTheme.typography.headlineSmall)
@@ -107,68 +60,25 @@ fun ProgressDashboardContent(
             if (note != null) Text(note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
 
-        GamifiedHeader(bot, progress, onCelebrate)
+        SummaryTiles(progress)
         PedagogicalCard(progress.pedagogicalSummary)
 
         SectionCard(stringResource(R.string.progress_completion_title)) {
             DonutChartCanvas(progress.completedLessons, progress.incompleteLessons, progress.completionRatePercent)
         }
-        MiniSummaryCards(progress)
-
         SectionCard(stringResource(R.string.progress_evolution_chart_title)) {
             EvolutionLineChartCanvas(progress.lessons.takeLast(MAX_CHART_LESSONS))
         }
         SectionCard(stringResource(R.string.progress_chart_title)) {
             ReadabilityBarChartCanvas(progress.lessons.takeLast(MAX_CHART_LESSONS))
         }
-
-        SectionCard(stringResource(R.string.progress_evolution_title)) {
-            if (progress.lessons.isEmpty()) {
-                Text(stringResource(R.string.progress_empty), style = MaterialTheme.typography.bodyMedium)
-            } else {
-                progress.lessons.asReversed().take(MAX_LESSON_ROWS).forEach { LessonRow(it) }
-            }
-        }
-
-        // Taller, Álbum e Insignias también viven aquí: se compra, equipa y explora desde el panel.
-        WorkshopSection(bot, onBuy, onToggleEquip)
-        AlbumSection(bot.cards.ifEmpty { progress.cards }, bot.badges.ifEmpty { progress.badges })
+        LevelCard(progress)
     }
 }
 
 private const val MAX_CHART_LESSONS = 8
-private const val MAX_LESSON_ROWS = 10
 
 // --- Cabecera gamificada y recomendación pedagógica ---------------------------------------------------
-
-@Composable
-private fun GamifiedHeader(bot: FluiBotUiState, progress: EducationalProgress, onCelebrate: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            FluiBotPanel(bot, onCelebrate, botSize = 170.dp)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatPill("💎", stringResource(R.string.progress_stat_gems, bot.gems), Modifier.weight(1f))
-                StatPill("🔥", stringResource(R.string.progress_stat_streak, progress.streakDays), Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatPill(emoji: String, text: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.background).padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(emoji, style = MaterialTheme.typography.titleMedium)
-        Text(text, style = MaterialTheme.typography.titleSmall)
-    }
-}
 
 @Composable
 private fun PedagogicalCard(summary: PedagogicalSummary) {
@@ -199,18 +109,41 @@ private fun SummaryLine(label: String, value: String) {
 // --- Tarjetas resumen ------------------------------------------------------------------------
 
 @Composable
-private fun MiniSummaryCards(progress: EducationalProgress) {
-    SectionCard(stringResource(R.string.progress_time_title)) {
-        Text(formatReadingTime(progress.totalReadingSeconds), style = MaterialTheme.typography.headlineSmall)
+private fun SummaryTiles(progress: EducationalProgress) {
+    val hasScores = progress.averageComprehension > 0.0
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SummaryTile("🔥", stringResource(R.string.stats_streak), stringResource(R.string.stats_days, progress.streakDays), Modifier.weight(1f))
+            SummaryTile("📖", stringResource(R.string.stats_lessons), "${progress.completedLessons}/${progress.totalLessons}", Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SummaryTile("⏱️", stringResource(R.string.progress_time_title), formatReadingTime(progress.totalReadingSeconds), Modifier.weight(1f))
+            SummaryTile(
+                "🧠", stringResource(R.string.progress_comprehension_title),
+                if (hasScores) formatPercent(progress.averageComprehension) else stringResource(R.string.progress_no_quiz),
+                Modifier.weight(1f)
+            )
+        }
     }
-    SectionCard(stringResource(R.string.progress_comprehension_title)) {
-        val hasScores = progress.averageComprehension > 0.0
-        Text(
-            if (hasScores) formatPercent(progress.averageComprehension) else stringResource(R.string.progress_no_quiz),
-            style = MaterialTheme.typography.headlineSmall
-        )
-        if (hasScores) PercentBar(progress.averageComprehension, stringResource(R.string.progress_comprehension_title))
+}
+
+@Composable
+private fun SummaryTile(emoji: String, label: String, value: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = "$label: $value" },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(emoji, style = MaterialTheme.typography.headlineSmall)
+            Text(value, style = MaterialTheme.typography.titleLarge)
+            Text(label, style = MaterialTheme.typography.labelMedium)
+        }
     }
+}
+
+@Composable
+private fun LevelCard(progress: EducationalProgress) {
     SectionCard(stringResource(R.string.progress_level_title)) {
         val level = NlpLevel.fromValue(progress.recommendedLevel)
         Text(stringResource(R.string.progress_level_value, progress.recommendedLevel), style = MaterialTheme.typography.headlineSmall)
@@ -219,22 +152,10 @@ private fun MiniSummaryCards(progress: EducationalProgress) {
     }
 }
 
-@Composable
-private fun PercentBar(percent: Double, description: String) {
-    val fraction = (percent / 100.0).coerceIn(0.0, 1.0).toFloat()
-    Box(
-        Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.outlineVariant)
-            .semantics { contentDescription = "$description: ${formatPercent(percent)}" }
-    ) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(MaterialTheme.colorScheme.primary))
-    }
-}
-
 // --- Detalle por lección -----------------------------------------------------------------------
 
 @Composable
-private fun LessonRow(lesson: LessonProgress) {
+internal fun LessonRow(lesson: LessonProgress) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),

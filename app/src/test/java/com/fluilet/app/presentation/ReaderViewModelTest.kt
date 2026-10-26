@@ -648,4 +648,118 @@ class ReaderViewModelTest {
         vm.previous()
         assertEquals("Primera oración.", probe.state().guideSlice())
     }
+
+    // --- Original vs. Adaptado, dato curioso, Glosario Mágico y Laboratorio en 3 pestañas ---------
+
+    private fun richAdaptation() = sampleAdaptation(2, withQuiz = true, category = "deportes").copy(
+        funFact = "Dato del servidor.",
+        originalText = "Texto original pegado por el tutor.",
+        keyVocabulary = listOf(
+            com.fluilet.app.domain.text.VocabularyEntry("planeta", "Un mundo redondo.", "La Tierra es un planeta."),
+            com.fluilet.app.domain.text.VocabularyEntry("lava", "Roca derretida.", "La lava es roja.")
+        )
+    )
+
+    @Test fun theOriginalViewToggleExposesTheOriginalTextFromRamOnly() = readerTest {
+        val vm = viewModel(childId = "child-1", adaptation = richAdaptation())
+        val probe = observe(vm)
+        vm.start()
+        assertFalse(probe.state().showOriginal)
+
+        vm.toggleOriginal()
+
+        assertTrue(probe.state().showOriginal)
+        assertEquals("Texto original pegado por el tutor.", probe.state().originalText)
+        vm.toggleOriginal()
+        assertFalse(probe.state().showOriginal)
+    }
+
+    @Test fun lessonsWithoutAnOriginalOnlyOfferTheMetricsComparison() = readerTest {
+        val vm = viewModel(childId = null)
+        val probe = observe(vm)
+        vm.start()
+        assertNull(probe.state().originalText)
+        assertEquals(77.1, probe.state().reading!!.adaptation.metrics.adaptedSzigrisztScore, 0.001)
+    }
+
+    @Test fun funFactIsTheServersOrALocalOneByCategory() = readerTest {
+        val server = viewModel(childId = null, adaptation = richAdaptation())
+        assertEquals("Dato del servidor.", observe(server).state().funFact)
+
+        val local = viewModel(childId = null, adaptation = sampleAdaptation(2, category = "deportes"))
+        assertEquals(com.fluilet.app.domain.gamification.LessonFacts.forCategory("deportes"), observe(local).state().funFact)
+
+        val none = viewModel(childId = null, adaptation = sampleAdaptation(2, category = null))
+        assertNull(observe(none).state().funFact)
+    }
+
+    @Test fun glossaryWordsAreSelectableAndTappingTwiceClosesThem() = readerTest {
+        val vm = viewModel(childId = null, adaptation = richAdaptation())
+        val probe = observe(vm)
+        vm.start()
+        assertEquals(listOf("planeta", "lava"), probe.state().vocabulary.map { it.word })
+        assertNull(probe.state().selectedWord)
+
+        vm.selectWord("lava")
+        assertEquals("Roca derretida.", probe.state().selectedWord!!.definition)
+        vm.selectWord("planeta")
+        assertEquals("planeta", probe.state().selectedWord!!.word)
+        vm.selectWord("planeta")
+        assertNull(probe.state().selectedWord)
+
+        vm.selectWord("inexistente")
+        assertNull(probe.state().selectedWord)
+        vm.selectWord("lava")
+        vm.clearWord()
+        assertNull(probe.state().selectedWord)
+    }
+
+    @Test fun withoutServerVocabularyTheLocalGlossaryUsesTheTextOfTheLesson() = readerTest {
+        val adaptation = sampleAdaptation(1).copy(
+            chunks = listOf(com.fluilet.app.domain.model.TextChunk(0, "El volcán echó lava cerca del planeta."))
+        )
+        val vm = viewModel(childId = null, adaptation = adaptation)
+        assertEquals(listOf("volcán", "lava", "planeta"), observe(vm).state().vocabulary.map { it.word })
+    }
+
+    @Test fun listenToWordSpeaksThatWordWithoutLeavingTheReader() = readerTest {
+        val vm = viewModel(childId = "child-1", adaptation = richAdaptation())
+        val probe = observe(vm)
+        vm.start()
+
+        vm.speakWord("planeta")
+
+        assertEquals("planeta", engine.last.text)
+        assertFalse(probe.state().showGate)
+        assertTrue(probe.state().lockActive)
+    }
+
+    @Test fun theLabStartsOnTuPremioAndSwitchesBetweenItsThreeTabs() = readerTest {
+        val vm = viewModel(childId = "child-1", adaptation = richAdaptation())
+        val probe = observe(vm)
+        vm.start()
+        assertEquals(listOf("🎁 Tu Premio", "🤖 Personalizar a FluiBot", "🃏 Mi Álbum"), com.fluilet.app.presentation.reader.LabTab.entries.map { "${it.emoji} ${it.label}" })
+        assertEquals(com.fluilet.app.presentation.reader.LabTab.PREMIO, probe.state().labTab)
+
+        vm.selectLabTab(com.fluilet.app.presentation.reader.LabTab.FLUIBOT)
+        assertEquals(com.fluilet.app.presentation.reader.LabTab.FLUIBOT, probe.state().labTab)
+        vm.selectLabTab(com.fluilet.app.presentation.reader.LabTab.ALBUM)
+        assertEquals(com.fluilet.app.presentation.reader.LabTab.ALBUM, probe.state().labTab)
+        // Cambiar de pestaña nunca abre el PIN ni desbloquea el Modo Enfoque.
+        assertFalse(probe.state().showGate)
+        assertTrue(probe.state().lockActive)
+    }
+
+    @Test fun theSessionContributionFeedsTheDailyMissions() = readerTest {
+        val vm = viewModel(childId = "child-1", adaptation = richAdaptation())
+        val probe = observe(vm)
+        vm.start()
+        mono = 90_000
+        vm.finishReading()
+        vm.answerQuiz(0)
+
+        val session = probe.state().session
+        assertTrue(session.completed)
+        assertEquals(1, session.correctAnswers)
+    }
 }
