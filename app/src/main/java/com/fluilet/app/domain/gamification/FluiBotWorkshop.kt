@@ -90,6 +90,15 @@ data class FluiBotInventory(
         return copy(bonusGems = bonusGems + mission.rewardGems, claimedMissions = claimedMissions + claimKey)
     }
 
+    /**
+     * Retira un premio local de misión cuando el servidor ya lo abonó (`claimed` en `daily_missions`): evita sumar dos
+     * veces las gemas que se dieron de forma provisional mientras el backend no estaba disponible.
+     */
+    fun revokeClaim(mission: DailyMission, claimKey: String): FluiBotInventory {
+        if (claimKey !in claimedMissions) return this
+        return copy(bonusGems = (bonusGems - mission.rewardGems).coerceAtLeast(0), claimedMissions = claimedMissions - claimKey)
+    }
+
     fun purchase(accessory: Accessory, totalGems: Int): PurchaseResult {
         if (accessory.id in owned) return PurchaseResult.AlreadyOwned
         val balance = balance(totalGems)

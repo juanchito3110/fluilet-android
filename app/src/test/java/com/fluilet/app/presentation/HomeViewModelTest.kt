@@ -359,11 +359,49 @@ class HomeViewModelTest {
     @Test fun aFailedClaimShowsTheErrorAndKeepsTheProgress() = runTest(dispatcher) {
         demoChildren()
         sessions.educational = progress()
+        sessions.claimResult = Result.failure(com.fluilet.app.core.network.AppError.Forbidden())
         val vm = viewModel(UserRole.TUTOR)
         val state = observe(vm)
         vm.refresh()
         vm.claimServerMission("mission_x")
-        assertTrue(state().errorMessage!!.contains("conexión"))
+        assertTrue(state().errorMessage!!.contains("permisos"))
         assertEquals(2, state().progress.completedLessons)
+    }
+
+    // --- Claim: servidor primero, respaldo local solo si el backend no está disponible ------------
+
+    @Test fun aClaimThatReachesTheServerNeverTriggersTheLocalFallback() = runTest(dispatcher) {
+        demoChildren()
+        sessions.claimResult = Result.success(DemoData.progress().copy(totalGems = 740))
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        var fallback = 0
+        vm.claimServerMission("mission_read_lesson") { fallback++ }
+        assertEquals(0, fallback)
+        assertEquals(740, state().progress.totalGems)
+    }
+
+    @Test fun whenTheBackendIsUnavailableTheLocalFallbackRunsWithoutAnErrorBanner() = runTest(dispatcher) {
+        demoChildren()
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        var fallback = 0
+        vm.claimServerMission("mission_read_lesson") { fallback++ } // claimResult por omisión: sin conexión
+        assertEquals(1, fallback)
+        assertEquals(null, state().errorMessage)
+    }
+
+    @Test fun aRealServerRejectionIsShownAndDoesNotUseTheFallback() = runTest(dispatcher) {
+        demoChildren()
+        sessions.claimResult = Result.failure(com.fluilet.app.core.network.AppError.Conflict("La misión aún no está completa."))
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        var fallback = 0
+        vm.claimServerMission("mission_quiz_master") { fallback++ }
+        assertEquals(0, fallback)
+        assertEquals("La misión aún no está completa.", state().errorMessage)
     }
 }

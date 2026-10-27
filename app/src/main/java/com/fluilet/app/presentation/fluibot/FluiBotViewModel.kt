@@ -94,6 +94,7 @@ class FluiBotViewModel @Inject constructor(
             message = null
         }
         input = Input(ownerKey, progress, claimedLoot, session)
+        reconcileServerClaims()
         publish()
     }
 
@@ -159,6 +160,35 @@ class FluiBotViewModel @Inject constructor(
         publish()
     }
 
+    /**
+     * Respaldo SIN conexión para una misión del servidor: el backend no respondió al claim, así que el premio se
+     * abona de forma provisional. En cuanto el resumen del servidor la traiga como `claimed` se retira ([reconcileServerClaims]).
+     */
+    fun claimMissionOffline(missionId: String) {
+        val current = input ?: return
+        val ui = currentMissions(current).firstOrNull { it.mission.id == missionId } ?: return
+        if (!ui.canClaim) return
+        inventory = inventory.claimMission(ui.mission, ui.claimKey)
+        inventories.save(current.ownerKey, inventory)
+        message = "Sin conexión: +${ui.mission.rewardGems} 💎 provisionales. Se ajustarán al sincronizar."
+        celebration++
+        publish()
+    }
+
+    /** Si el servidor ya abonó una misión que se había reclamado sin conexión, se descarta el premio provisional. */
+    private fun reconcileServerClaims() {
+        val current = input ?: return
+        val day = today()
+        var updated = inventory
+        current.progress.serverMissions.orEmpty().filter { it.claimed }.forEach { m ->
+            updated = updated.revokeClaim(m, DailyMissions.claimKey(day, m.id))
+        }
+        if (updated != inventory) {
+            inventory = updated
+            inventories.save(current.ownerKey, inventory)
+        }
+    }
+
     /** "⚡ Recargar Energía" o un toque sobre FluiBot: reacción festiva. */
     fun celebrate() {
         celebration++
@@ -176,7 +206,8 @@ class FluiBotViewModel @Inject constructor(
         return missions.map { m ->
             val key = DailyMissions.claimKey(day, m.id)
             // Las del servidor ya vienen abonadas en `total_gems`: manda su `claimed`, nunca el inventario local.
-            MissionUi(m, key, if (m.fromServer) m.claimed else key in inventory.claimedMissions)
+            // Una misión del servidor puede estar abonada por el backend (`claimed`) o, sin conexión, de forma provisional aquí.
+            MissionUi(m, key, if (m.fromServer) m.claimed || key in inventory.claimedMissions else key in inventory.claimedMissions)
         }
     }
 

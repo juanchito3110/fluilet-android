@@ -187,4 +187,15 @@ class ModulesDomainTest {
         )
         assertTrue(TopicSuggestions.forCategory(LessonCategory.CIENCIA_ESPACIO).containsAll(listOf("Agujeros Negros", "Sistema Solar", "Volcanes")))
     }
+
+    @Test fun revokingALocalClaimTakesBackItsGemsOnlyOnce() {
+        val mission = DailyMission("m", "t", "d", 1, 1, 25, fromServer = true)
+        val key = DailyMissions.claimKey(today, mission.id)
+        val claimed = FluiBotInventory.EMPTY.claimMission(mission, key)
+        val revoked = claimed.revokeClaim(mission, key)
+        assertEquals(0, revoked.bonusGems)
+        assertFalse(key in revoked.claimedMissions)
+        assertEquals(revoked, revoked.revokeClaim(mission, key))
+        assertEquals(FluiBotInventory.EMPTY, FluiBotInventory.EMPTY.revokeClaim(mission, key))
+    }
 }

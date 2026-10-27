@@ -124,7 +124,9 @@ fun HomeScreen(
                         progress = state.progress,
                         // Las misiones del servidor se confirman con su endpoint (ya abonadas); las locales suman al instante.
                         onClaim = { id ->
-                            if (state.progress.serverMissions?.any { it.id == id } == true) viewModel.claimServerMission(id)
+                            if (state.progress.serverMissions?.any { it.id == id } == true) {
+                                viewModel.claimServerMission(id, onBackendUnavailable = { botViewModel.claimMissionOffline(id) })
+                            }
                             else botViewModel.claimMission(id)
                         }
                     )

@@ -285,4 +285,46 @@ class FluiBotViewModelTest {
         assertEquals(125, vm.state.value.gems) // 155 - 30 gastadas
         assertTrue(vm.state.value.missions.single().claimed)
     }
+
+    // --- Claim sin conexión: abono provisional que se concilia con el backend --------------------
+
+    @Test fun whenTheBackendIsDownAnUnclaimedServerMissionIsPaidProvisionallyOnce() {
+        withClock()
+        vm.bind("child-1", progress.copy(serverMissions = listOf(serverMission(claimed = false))))
+
+        vm.claimMissionOffline("mission_read_lesson")
+        vm.claimMissionOffline("mission_read_lesson") // no se duplica
+
+        val s = vm.state.value
+        assertEquals(155, s.gems)
+        assertTrue(s.missions.single().claimed)
+        assertTrue(s.message!!.contains("provisionales"))
+    }
+
+    @Test fun theProvisionalRewardIsRemovedWhenTheServerReportsTheMissionAsClaimed() {
+        withClock()
+        vm.bind("child-1", progress.copy(serverMissions = listOf(serverMission(claimed = false))))
+        vm.claimMissionOffline("mission_read_lesson")
+        assertEquals(155, vm.state.value.gems)
+
+        // Vuelve la conexión: el servidor ya abonó la misión dentro de `total_gems` (130 + 25).
+        vm.bind("child-1", progress.copy(totalGems = 155, serverMissions = listOf(serverMission(claimed = true))))
+
+        assertEquals("sin duplicar: 155, no 180", 155, vm.state.value.gems)
+        assertTrue(vm.state.value.missions.single().claimed)
+        // Y queda persistido: un ViewModel nuevo tampoco suma el premio provisional.
+        val again = FluiBotViewModel(store).also {
+            it.today = { day }
+            it.zone = java.time.ZoneOffset.UTC
+            it.bind("child-1", progress.copy(totalGems = 155, serverMissions = listOf(serverMission(claimed = true))))
+        }
+        assertEquals(155, again.state.value.gems)
+    }
+
+    @Test fun anIncompleteServerMissionCannotBeClaimedOffline() {
+        withClock()
+        vm.bind("child-1", progress.copy(serverMissions = listOf(serverMission(claimed = false, done = false))))
+        vm.claimMissionOffline("mission_read_lesson")
+        assertEquals(130, vm.state.value.gems)
+    }
 }

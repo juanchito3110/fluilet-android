@@ -3,6 +3,7 @@ package com.fluilet.app.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fluilet.app.core.auth.SessionManager
+import com.fluilet.app.core.network.AppError
 import com.fluilet.app.core.network.toAppError
 import com.fluilet.app.domain.model.ActiveReading
 import com.fluilet.app.domain.model.ChildProfile
@@ -281,12 +282,18 @@ class HomeViewModel @Inject constructor(
      * Confirma una misión diaria del servidor. El backend ya abonó las gemas al completarla, así que la respuesta
      * (resumen con `total_gems` actualizado) alimenta el contador 💎 de FluiBot sin pagar dos veces.
      */
-    fun claimServerMission(missionId: String) {
-        val child = uiState.value.selectedChild ?: return
+    fun claimServerMission(missionId: String, onBackendUnavailable: () -> Unit = {}) {
+        val child = uiState.value.selectedChild ?: run { onBackendUnavailable(); return }
         viewModelScope.launch {
             claimDailyMission(child.id, missionId)
                 .onSuccess { p -> local.update { it.copy(progress = p, progressNote = null) } }
-                .onFailure { e -> local.update { it.copy(errorMessage = e.toAppError().userMessage) } }
+                .onFailure { e ->
+                    // Solo si el backend no está disponible se usa el respaldo local; cualquier otro error se muestra.
+                    when (e.toAppError()) {
+                        is AppError.NoConnection, is AppError.Timeout, is AppError.Server, is AppError.Unsupported -> onBackendUnavailable()
+                        else -> local.update { it.copy(errorMessage = e.toAppError().userMessage) }
+                    }
+                }
         }
     }
 
