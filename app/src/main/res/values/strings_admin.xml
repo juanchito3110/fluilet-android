@@ -1,0 +1,34 @@
+<resources>
+    <string name="admin_badge">👑 SISTEMA MAESTRO</string>
+    <string name="admin_restore">🔄 Restaurar Cuentas Demo</string>
+    <string name="admin_logout">🚪 Cerrar Sesión</string>
+    <string name="admin_kpi_tutors">Total de Tutores</string>
+    <string name="admin_kpi_children">Total de Niños</string>
+    <string name="admin_kpi_adaptations">Lecturas Adaptadas</string>
+    <string name="admin_kpi_comprehension">Comprensión Promedio</string>
+    <string name="admin_no_children">Aún no hay niños registrados. Toca «Restaurar Cuentas Demo» para recrear los 4 de la demostración.</string>
+    <string name="admin_no_tutors">Aún no hay tutores registrados.</string>
+    <string name="admin_inactive">(inactivo)</string>
+    <string name="admin_tutor_line">Tutor: %1$s</string>
+    <string name="admin_profile_line">Edad %1$s · Nivel %2$d · Etapa %3$d: %4$s</string>
+    <string name="admin_profile_stats">XP %1$d · 💎 %2$d · Racha %3$d · Lecciones %4$d</string>
+    <string name="admin_gems_section">Gemas 💎</string>
+    <string name="admin_exact_gems">Cantidad exacta</string>
+    <string name="admin_set_gems">Fijar</string>
+    <string name="admin_stage_section">Etapa de evolución de FluiBot / XP</string>
+    <string name="admin_stage_chip">Etapa %1$d</string>
+    <string name="admin_add_xp">+100 XP</string>
+    <string name="admin_level_section">Nivel pedagógico y edad didáctica</string>
+    <string name="admin_level_chip">Nivel %1$d</string>
+    <string name="admin_age_chip">%1$s años</string>
+    <string name="admin_unlock_all">🎁 Desbloquear Todo</string>
+    <string name="admin_delete_child">🗑️ Dar de Baja Niño</string>
+    <string name="admin_delete_child_title">¿Dar de baja a %1$s?</string>
+    <string name="admin_delete_child_body">Se elimina el perfil con sus sesiones, ajustes y cuenta vinculada. No se puede deshacer.</string>
+    <string name="admin_children_count">%1$d niños</string>
+    <string name="admin_reset_pin">🔑 Resetear PIN a 1234</string>
+    <string name="admin_delete_tutor">🚫 Dar de Baja Usuario</string>
+    <string name="admin_delete_tutor_title">¿Dar de baja a %1$s?</string>
+    <string name="admin_delete_tutor_body">Se elimina la cuenta y sus %1$d perfiles de niños en cascada. No se puede deshacer.</string>
+    <string name="admin_delete_confirm">Dar de baja</string>
+</resources>

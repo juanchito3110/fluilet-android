@@ -87,7 +87,8 @@ fun HomeScreen(
             ) {
                 Header(state, onLogout = viewModel::logout, onShowIntro = onShowIntro)
                 ErrorMessage(state.errorMessage)
-                if (state.selectedTab != HomeTab.LECTURAS) ProfileSelector(state, viewModel::select)
+                ChildCardsRow(state, onSelect = viewModel::select, onNew = onNewChild)
+                if (state.offlineDemo) Text(stringResource(R.string.child_offline_demo), style = MaterialTheme.typography.bodySmall)
 
                 when (state.selectedTab) {
                     HomeTab.LECTURAS -> ReadingsTab(

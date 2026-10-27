@@ -1,5 +1,8 @@
 package com.fluilet.app.domain.repository
 
+import com.fluilet.app.domain.model.AdminOverview
+import com.fluilet.app.domain.model.MasterGrant
+import com.fluilet.app.domain.model.PinResetResult
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.AdaptationSource
 import com.fluilet.app.domain.model.AuthSession
@@ -88,9 +91,30 @@ interface TutorPinRepository {
     /** Primer registro del PIN. Falla si ya existe uno (usar cambio o restablecimiento). */
     fun setInitialPin(pin: String): Result<Unit>
 
+    /**
+     * PIN público de la cuenta de demostración del tutor (1234): se guarda aunque sea una secuencia que
+     * [setInitialPin] rechazaría. Solo lo usa el acceso rápido de la demo.
+     */
+    fun configureDemoPin(pin: String): Result<Unit> = resetAfterReauthentication(pin)
+
     /** Cambio de PIN: exige el PIN actual. */
     fun changePin(currentPin: String, newPin: String): com.fluilet.app.domain.model.PinResult
 
     /** Restablecimiento tras reautenticar la contraseña del tutor contra el backend. */
     fun resetAfterReauthentication(newPin: String): Result<Unit>
+}
+
+/** Sistema de Control Maestro (`/api/v1/admin/...`): solo la cuenta `master_admin` (el resto recibe 403). */
+interface AdminRepository {
+    suspend fun overview(): Result<AdminOverview>
+
+    /** Recrea `tutor@fluilet.com` y sus 4 niños si faltan (idempotente) y devuelve el overview. */
+    suspend fun ensureDemoAccounts(): Result<AdminOverview>
+
+    suspend fun grant(profileId: String, grant: MasterGrant): Result<EducationalProgress>
+    suspend fun deleteProfile(profileId: String): Result<Unit>
+    suspend fun deleteTutor(userId: String): Result<Unit>
+
+    /** Restablece el PIN parental del tutor (1234 por omisión). */
+    suspend fun resetPin(userId: String, pin: String = "1234"): Result<PinResetResult>
 }

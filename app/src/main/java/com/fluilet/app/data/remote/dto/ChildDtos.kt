@@ -13,7 +13,10 @@ data class ChildDto(
     @SerializedName("tamano_fuente") val fontSize: Int?,
     @SerializedName("interlineado") val lineSpacing: Double?,
     @SerializedName("is_active") val isActive: Boolean = true,
-    @SerializedName("created_at") val createdAt: String? = null
+    @SerializedName("created_at") val createdAt: String? = null,
+    /** `6-8`, `9-11` o `12+` (backend >= bac5798): refleja el ajuste didáctico del maestro. */
+    @SerializedName("age_group") val ageGroup: String? = null,
+    @SerializedName("current_level") val currentLevel: Int? = null
 )
 
 data class ChildCreateDto(

@@ -48,8 +48,13 @@ data class ChildProfile(
     val palette: AccessiblePalette,
     val fontSizeSp: Float,
     val lineSpacing: Float,
-    val isActive: Boolean
+    val isActive: Boolean,
+    /** Edad didáctica (`6-8`, `9-11`, `12+`) que envía el backend; `null` en servidores anteriores. */
+    val ageGroup: String? = null
 ) {
+    /** Edad en años cumplidos. */
+    fun ageYears(today: LocalDate = LocalDate.now()): Int = java.time.Period.between(birthDate, today).years
+
     /** Preferencias de lectura iniciales derivadas del perfil. */
     fun toReadingSettings(): ReadingSettings = ReadingSettings.coerced(
         fontSizeSp = fontSizeSp,

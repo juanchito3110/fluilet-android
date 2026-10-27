@@ -28,6 +28,10 @@ class FluiletApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         // Primer acceso al Keystore/EncryptedSharedPreferences fuera del hilo principal.
-        appScope.launch { sessionManager.restore() }
+        appScope.launch {
+            sessionManager.restore()
+            // Siempre se abre en el Splash y en Iniciar Sesión / Crear Cuenta, sin saltar al panel con una sesión anterior.
+            sessionManager.discardPersistedSession()
+        }
     }
 }

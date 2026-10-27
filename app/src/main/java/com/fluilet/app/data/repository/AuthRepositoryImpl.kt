@@ -41,6 +41,7 @@ class AuthRepositoryImpl @Inject constructor(
 
     /** Orden: `role` de la respuesta de login → claim del JWT → `/users/me`. */
     private suspend fun resolveRole(tokens: TokenDto): UserRole? {
+        if (tokens.isMasterAdmin == true) return UserRole.MASTER_ADMIN
         UserRole.fromWire(tokens.role)?.let { return it }
         JwtClaims.role(tokens.accessToken)?.let { return it }
         return apiCall { api.meWithToken("Bearer ${tokens.accessToken}") }

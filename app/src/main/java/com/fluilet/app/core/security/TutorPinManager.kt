@@ -108,8 +108,16 @@ class TutorPinManager internal constructor(
         persist(newPin)
     }
 
-    private fun persist(pin: String): Result<Unit> {
-        Validators.tutorPin(pin)?.let { return Result.failure(IllegalArgumentException(it)) }
+    override fun configureDemoPin(pin: String): Result<Unit> = synchronized(lock) {
+        persist(pin, enforceStrength = false)
+    }
+
+    private fun persist(pin: String, enforceStrength: Boolean = true): Result<Unit> {
+        if (enforceStrength) {
+            Validators.tutorPin(pin)?.let { return Result.failure(IllegalArgumentException(it)) }
+        } else if (pin.length !in 4..6 || !pin.all(Char::isDigit)) {
+            return Result.failure(IllegalArgumentException("El PIN debe tener de 4 a 6 dígitos."))
+        }
         val salt = ByteArray(SALT_BYTES).also { SecureRandom().nextBytes(it) }
         store.putString(KEY_SALT, salt.encode())
         store.putString(KEY_HASH, hash(pin, salt).encode())

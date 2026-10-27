@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.fluilet.app.core.network.toAppError
 import com.fluilet.app.domain.model.RegistrationData
 import com.fluilet.app.domain.model.UserRole
+import com.fluilet.app.domain.repository.TutorPinRepository
 import com.fluilet.app.domain.usecase.DemoConfig
-import com.fluilet.app.domain.usecase.EnterDemoModeUseCase
+import com.fluilet.app.domain.usecase.QuickAccess
+import com.fluilet.app.domain.usecase.QuickAccessUseCase
 import com.fluilet.app.domain.usecase.LoginUseCase
 import com.fluilet.app.domain.usecase.RegisterUseCase
 import com.fluilet.app.domain.validation.Validators
@@ -56,19 +58,24 @@ data class RegisterUiState(
     val email: String = "",
     val password: String = "",
     val role: UserRole = UserRole.TUTOR,
+    /** PIN parental del tutor (4 a 6 dígitos): protege la salida del Modo Enfoque. Solo para el rol tutor. */
+    val pin: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 ) {
+    val needsPin: Boolean get() = role == UserRole.TUTOR
     val passwordHint: String? get() = if (password.isEmpty()) null else Validators.strongPassword(password)
+    val pinHint: String? get() = if (!needsPin || pin.isEmpty()) null else Validators.tutorPin(pin)
     val canSubmit: Boolean
         get() = Validators.fullName(fullName) == null && Validators.email(email) == null &&
-            Validators.strongPassword(password) == null && !isLoading
+            Validators.strongPassword(password) == null && (!needsPin || Validators.tutorPin(pin) == null) && !isLoading
 }
 
 @HiltViewModel
 class RegisterViewModel @Inject constructor(
     private val register: RegisterUseCase,
-    private val login: LoginUseCase
+    private val login: LoginUseCase,
+    private val pinRepository: TutorPinRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RegisterUiState())
@@ -78,6 +85,7 @@ class RegisterViewModel @Inject constructor(
     fun onEmail(value: String) = _state.update { it.copy(email = value, errorMessage = null) }
     fun onPassword(value: String) = _state.update { it.copy(password = value, errorMessage = null) }
     fun onRole(value: UserRole) = _state.update { it.copy(role = value) }
+    fun onPin(value: String) = _state.update { it.copy(pin = value.filter(Char::isDigit).take(6), errorMessage = null) }
 
     fun submit() {
         val s = _state.value
@@ -87,39 +95,48 @@ class RegisterViewModel @Inject constructor(
             register(RegistrationData(s.email, s.fullName, s.password, s.role))
                 .onFailure { e -> _state.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
                 .onSuccess {
+                    // El PIN parental queda guardado (cifrado, con sal) ANTES de iniciar sesión: al entrar, la navegación
+                    // cierra esta pantalla y cancelaría el guardado.
+                    if (s.needsPin) pinRepository.resetAfterReauthentication(s.pin)
                     // Cuenta creada: inicia sesión; la navegación reacciona al cambio de sesión.
                     login(s.email, s.password)
                         .onFailure { e -> _state.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
-                        .onSuccess { _state.update { it.copy(isLoading = false, password = "") } }
+                        .onSuccess { _state.update { it.copy(isLoading = false, password = "", pin = "") } }
                 }
         }
     }
 }
 
-data class DemoUiState(
+data class QuickAccessUiState(
     val enabled: Boolean = false,
-    val isLoading: Boolean = false,
+    /** Acceso que se está procesando (para mostrar el progreso solo en su botón). */
+    val loading: QuickAccess? = null,
     val errorMessage: String? = null
-)
+) {
+    val isLoading: Boolean get() = loading != null
+}
 
-/** "🚀 Entrar en Modo Demo (Revisión Profesor)": un toque, sin escribir correo ni contraseña. */
+/**
+ * Accesos rápidos de la demostración: `👨‍👧‍👦 Cuenta Tutor` (tutor@fluilet.com) y `👑 Usuario Maestro` (admin@fluilet.com).
+ * Es el login normal con las credenciales públicas del backend; la navegación reacciona a la sesión.
+ */
 @HiltViewModel
-class DemoModeViewModel @Inject constructor(
+class QuickAccessViewModel @Inject constructor(
     config: DemoConfig,
-    private val enterDemo: EnterDemoModeUseCase
+    private val quickAccess: QuickAccessUseCase
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(DemoUiState(enabled = config.enabled))
-    val state: StateFlow<DemoUiState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(QuickAccessUiState(enabled = config.enabled))
+    val state: StateFlow<QuickAccessUiState> = _state.asStateFlow()
 
-    fun enter() {
+    fun enter(access: QuickAccess) {
         val current = _state.value
         if (!current.enabled || current.isLoading) return
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
-            enterDemo()
-                .onFailure { e -> _state.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
-                .onSuccess { _state.update { it.copy(isLoading = false) } }
+            _state.update { it.copy(loading = access, errorMessage = null) }
+            quickAccess(access)
+                .onFailure { e -> _state.update { it.copy(loading = null, errorMessage = e.toAppError().userMessage) } }
+                .onSuccess { _state.update { it.copy(loading = null) } }
         }
     }
 }

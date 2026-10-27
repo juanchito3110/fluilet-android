@@ -13,5 +13,5 @@ import javax.inject.Singleton
 object DemoModule {
     @Provides
     @Singleton
-    fun provideDemoConfig(): DemoConfig = DemoConfig(BuildConfig.DEMO_EMAIL, BuildConfig.DEMO_PASSWORD)
+    fun provideDemoConfig(): DemoConfig = DemoConfig(BuildConfig.DEMO_ACCOUNTS_ENABLED)
 }

@@ -1,70 +1,49 @@
 package com.fluilet.app.domain.usecase
 
 import com.fluilet.app.core.network.AppError
-import com.fluilet.app.domain.model.AccessiblePalette
-import com.fluilet.app.domain.model.ChildDraft
-import com.fluilet.app.domain.model.DifficultyType
-import com.fluilet.app.domain.model.NlpLevel
-import com.fluilet.app.domain.model.RegistrationData
 import com.fluilet.app.domain.model.UserRole
 import com.fluilet.app.domain.repository.AuthRepository
-import com.fluilet.app.domain.repository.ChildRepository
-import java.time.LocalDate
+import com.fluilet.app.domain.repository.TutorPinRepository
 import javax.inject.Inject
 
 /**
- * Cuenta de tutor de demostración para la revisión académica. Viene de `BuildConfig` (preconfigurada en
- * debug, desactivada en release salvo que se definan `fluilet.demoEmail` y `fluilet.demoPassword`).
+ * Cuentas públicas de la demostración académica que el backend (>= bac5798) crea al arrancar; ver
+ * `docs/demo-accounts.md`. El login es el normal (`POST /auth/login`): no existe ninguna puerta trasera.
  */
-data class DemoConfig(val email: String, val password: String) {
-    val enabled: Boolean get() = email.isNotBlank() && password.isNotBlank()
+object DemoAccounts {
+    const val TUTOR_EMAIL = "tutor@fluilet.com"
+    const val TUTOR_PASSWORD = "Tutor2026!"
+    const val TUTOR_PIN = "1234"
+    const val ADMIN_EMAIL = "admin@fluilet.com"
+    const val ADMIN_PASSWORD = "Master2026!"
+}
 
+/** `true` muestra los accesos rápidos de demostración (siempre en debug; en release solo con `-Pfluilet.demoAccounts=true`). */
+data class DemoConfig(val enabled: Boolean) {
     companion object {
-        val DISABLED = DemoConfig("", "")
+        val DISABLED = DemoConfig(false)
     }
 }
 
+enum class QuickAccess { TUTOR, MASTER }
+
 /**
- * "🚀 Entrar en Modo Demo": inicia sesión con la cuenta de demostración (la crea la primera vez como tutor)
- * y deja un perfil de niño listo para cargar los datos demo. Todo contra el backend real.
+ * Accesos rápidos del Splash/Login: entra con la cuenta de demostración elegida. Para el tutor deja además
+ * su PIN parental (1234) listo en el dispositivo.
  */
-class EnterDemoModeUseCase @Inject constructor(
+class QuickAccessUseCase @Inject constructor(
     private val config: DemoConfig,
     private val auth: AuthRepository,
-    private val children: ChildRepository
+    private val pin: TutorPinRepository
 ) {
-    suspend operator fun invoke(today: LocalDate = LocalDate.now()): Result<Unit> {
-        if (!config.enabled) return Result.failure(AppError.Unsupported("El Modo Demo no está habilitado en esta versión."))
-
-        var session = auth.login(config.email, config.password)
-        if (session.exceptionOrNull() is AppError.Unauthorized) {
-            // Primera vez: se crea la cuenta de demostración y se vuelve a entrar.
-            val created = auth.register(RegistrationData(config.email, DEMO_NAME, config.password, UserRole.TUTOR))
-            created.exceptionOrNull()?.let { return Result.failure(it) }
-            session = auth.login(config.email, config.password)
+    suspend operator fun invoke(access: QuickAccess): Result<UserRole> {
+        if (!config.enabled) return Result.failure(AppError.Unsupported("Los accesos de demostración no están habilitados en esta versión."))
+        val (email, password) = when (access) {
+            QuickAccess.TUTOR -> DemoAccounts.TUTOR_EMAIL to DemoAccounts.TUTOR_PASSWORD
+            QuickAccess.MASTER -> DemoAccounts.ADMIN_EMAIL to DemoAccounts.ADMIN_PASSWORD
         }
-        session.exceptionOrNull()?.let { return Result.failure(it) }
-
-        // Un perfil de ocho años para que "Cargar Datos Demo" tenga a quién cargárselos (si falla, no bloquea el ingreso).
-        if (children.list().getOrNull()?.isEmpty() == true) {
-            children.create(demoChild(today))
-        }
-        return Result.success(Unit)
-    }
-
-    companion object {
-        const val DEMO_NAME = "Profesor Demo"
-        const val DEMO_CHILD_NAME = "Mateo"
-        const val DEMO_CHILD_AGE_YEARS = 8L
-
-        fun demoChild(today: LocalDate) = ChildDraft(
-            name = DEMO_CHILD_NAME,
-            birthDate = today.minusYears(DEMO_CHILD_AGE_YEARS).minusMonths(2),
-            difficulty = DifficultyType.DISLEXIA,
-            nlpLevel = NlpLevel.NIVEL_3,
-            palette = AccessiblePalette.SEPIA,
-            fontSizeSp = 20f,
-            lineSpacing = 1.8f
-        )
+        val session = auth.login(email, password).getOrElse { return Result.failure(it) }
+        if (access == QuickAccess.TUTOR) pin.configureDemoPin(DemoAccounts.TUTOR_PIN)
+        return Result.success(session.role)
     }
 }

@@ -1,5 +1,9 @@
 package com.fluilet.app.data.remote
 
+import com.fluilet.app.data.remote.dto.AdminOverviewDto
+import com.fluilet.app.data.remote.dto.MasterGrantDto
+import com.fluilet.app.data.remote.dto.ResetPinRequestDto
+import com.fluilet.app.data.remote.dto.ResetPinResponseDto
 import com.fluilet.app.data.remote.dto.ChildCreateDto
 import com.fluilet.app.data.remote.dto.ChildDto
 import com.fluilet.app.data.remote.dto.ChildUpdateDto
@@ -118,6 +122,28 @@ interface FluiletApi {
         @Query("offset") offset: Int = 0,
         @Query("limit") limit: Int = 100
     ): List<ReadingDto>
+
+    // --- Sistema de Control Maestro (solo `master_admin`; el resto recibe 403) ---------------------
+
+    @GET("api/v1/admin/overview")
+    suspend fun adminOverview(): AdminOverviewDto
+
+    /** Idempotente; el servidor lo serializa con un lock, así que puede tardar un poco. */
+    @Headers("$READ_TIMEOUT_HEADER: $ADAPTATION_READ_TIMEOUT_SECONDS")
+    @POST("api/v1/admin/ensure-demo-accounts")
+    suspend fun adminEnsureDemoAccounts(): AdminOverviewDto
+
+    @POST("api/v1/admin/profiles/{id}/grant")
+    suspend fun adminGrant(@Path("id") profileId: String, @Body body: MasterGrantDto): EducationalProgressDto
+
+    @DELETE("api/v1/admin/profiles/{id}")
+    suspend fun adminDeleteProfile(@Path("id") profileId: String)
+
+    @DELETE("api/v1/admin/tutors/{id}")
+    suspend fun adminDeleteTutor(@Path("id") userId: String)
+
+    @POST("api/v1/admin/tutors/{id}/reset-pin")
+    suspend fun adminResetPin(@Path("id") userId: String, @Body body: ResetPinRequestDto): ResetPinResponseDto
 
     // --- Sesión ---------------------------------------------------------------------------------
 

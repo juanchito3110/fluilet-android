@@ -21,10 +21,9 @@ val releaseCertPins = providers.gradleProperty("fluilet.certPins")
             "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="  // TODO: pin SPKI de respaldo (intermedio / siguiente llave)
     ).get()
 
-// Modo Demo (revisión académica): cuenta de tutor de demostración. En debug viene preconfigurada para el
-// backend local; en release queda DESACTIVADA salvo que se definan fluilet.demoEmail y fluilet.demoPassword.
-val demoEmail = providers.gradleProperty("fluilet.demoEmail").orElse("").get()
-val demoPassword = providers.gradleProperty("fluilet.demoPassword").orElse("").get()
+// Accesos rápidos de la demostración (tutor@fluilet.com y admin@fluilet.com, públicos en docs/demo-accounts.md del backend).
+// En debug siempre se muestran; en release quedan ocultos salvo -Pfluilet.demoAccounts=true.
+val demoAccounts = providers.gradleProperty("fluilet.demoAccounts").orElse("false").get().toBoolean()
 
 android {
     namespace = "com.fluilet.app"
@@ -51,8 +50,7 @@ android {
             buildConfigField("boolean", "ENFORCE_TLS_ONLY", "false")
             // Adaptación y telemetría contra el backend real. false = modo offline explícito (solo desarrollo).
             buildConfigField("boolean", "USE_REMOTE_ADAPTATION", "true")
-            buildConfigField("String", "DEMO_EMAIL", "\"${demoEmail.ifBlank { "profesor.demo@fluilet.app" }}\"")
-            buildConfigField("String", "DEMO_PASSWORD", "\"${demoPassword.ifBlank { "FluiletDemo#2026" }}\"")
+            buildConfigField("boolean", "DEMO_ACCOUNTS_ENABLED", "true")
         }
         release {
             optimization {
@@ -63,8 +61,7 @@ android {
             buildConfigField("String", "CERT_PINS", "\"$releaseCertPins\"")
             buildConfigField("boolean", "ENFORCE_TLS_ONLY", "true")
             buildConfigField("boolean", "USE_REMOTE_ADAPTATION", "true")
-            buildConfigField("String", "DEMO_EMAIL", "\"$demoEmail\"")
-            buildConfigField("String", "DEMO_PASSWORD", "\"$demoPassword\"")
+            buildConfigField("boolean", "DEMO_ACCOUNTS_ENABLED", "$demoAccounts")
         }
     }
     compileOptions {

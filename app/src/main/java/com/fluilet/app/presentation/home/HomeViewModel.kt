@@ -21,7 +21,13 @@ import com.fluilet.app.domain.usecase.LogoutUseCase
 import com.fluilet.app.domain.usecase.SetNlpLevelUseCase
 import com.fluilet.app.domain.usecase.ClaimDailyMissionUseCase
 import com.fluilet.app.domain.usecase.SeedDemoDataUseCase
+import com.fluilet.app.domain.demo.DemoChildren
 import com.fluilet.app.domain.demo.DemoData
+import com.fluilet.app.domain.gamification.FluiBotStage
+import com.fluilet.app.domain.usecase.DemoAccounts
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.ReadingSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +39,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** Lo que muestra la tarjeta de cada niño en el selector superior. */
+data class ChildSummary(val gems: Int, val xp: Int, val stage: Int, val stageName: String, val level: Int?) {
+    companion object {
+        fun of(progress: EducationalProgress, level: Int? = null): ChildSummary {
+            val stage = FluiBotStage.forXp(progress.currentXp)
+            return ChildSummary(progress.totalGems, progress.currentXp, stage.number, stage.displayName, level ?: progress.recommendedLevel)
+        }
+    }
+}
 
 data class HomeUiState(
     val role: UserRole = UserRole.TUTOR,
@@ -51,7 +67,11 @@ data class HomeUiState(
     /** Lecturas de "🎓 Cargar Datos Demo" del perfil seleccionado (solo en RAM). */
     val demoLessons: List<AdaptationResult> = emptyList(),
     val isDemoLoading: Boolean = false,
-    val demoNote: String? = null
+    val demoNote: String? = null,
+    /** Etapa de FluiBot y gemas por niño (id del perfil) para las tarjetas del selector. */
+    val childSummaries: Map<String, ChildSummary> = emptyMap(),
+    /** Los datos mostrados son el respaldo local de la demostración (el servidor no respondió). */
+    val offlineDemo: Boolean = false
 ) {
     val selectedChild: ChildProfile? get() = children.firstOrNull { it.id == selectedChildId }
 
@@ -79,12 +99,16 @@ private data class HomeLocal(
     val demoProgress: EducationalProgress? = null,
     val demoLessons: List<AdaptationResult> = emptyList(),
     val isDemoLoading: Boolean = false,
-    val demoNote: String? = null
+    val demoNote: String? = null,
+    val childSummaries: Map<String, ChildSummary> = emptyMap(),
+    /** Id del perfil al que pertenece `progress` (para refrescar su tarjeta sin parpadeos). */
+    val progressOwner: String? = null,
+    val offlineDemo: Boolean = false
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    sessionManager: SessionManager,
+    private val sessionManager: SessionManager,
     holder: ActiveReadingHolder,
     private val auth: AuthRepository,
     private val getChildren: GetChildrenUseCase,
@@ -116,7 +140,9 @@ class HomeViewModel @Inject constructor(
             errorMessage = l.errorMessage,
             demoLessons = if (l.demoOwner != null && l.demoOwner == ownerOf(l, session)) l.demoLessons else emptyList(),
             isDemoLoading = l.isDemoLoading,
-            demoNote = l.demoNote
+            demoNote = l.demoNote,
+            childSummaries = withSelectedSummary(l),
+            offlineDemo = l.offlineDemo
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -133,10 +159,14 @@ class HomeViewModel @Inject constructor(
                     .onSuccess { list ->
                         local.update { l ->
                             val keep = l.selectedChildId?.takeIf { id -> list.any { it.id == id } }
-                            l.copy(children = list, selectedChildId = keep ?: list.firstOrNull()?.id, isLoading = false)
+                            l.copy(children = list, selectedChildId = keep ?: list.firstOrNull()?.id, isLoading = false, offlineDemo = false)
                         }
+                        loadSummaries(list)
                     }
-                    .onFailure { e -> local.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
+                    .onFailure { e ->
+                        if (isDemoTutor()) useLocalDemoChildren() // el servidor no respondió: respaldo idéntico con los 4 niños
+                        else local.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) }
+                    }
             } else {
                 local.update { it.copy(isLoading = false) }
             }
@@ -150,7 +180,7 @@ class HomeViewModel @Inject constructor(
     fun refreshPin() = local.update { it.copy(pinConfigured = isPinConfigured()) }
 
     fun select(childId: String) {
-        local.update { it.copy(selectedChildId = childId, progress = EducationalProgress.empty(it.children.firstOrNull { c -> c.id == childId }?.nlpLevel?.value ?: 2), progressNote = null) }
+        local.update { it.copy(selectedChildId = childId, progress = EducationalProgress.empty(it.children.firstOrNull { c -> c.id == childId }?.nlpLevel?.value ?: 2), progressNote = null, progressOwner = null) }
         viewModelScope.launch { loadProgress() }
     }
 
@@ -167,15 +197,24 @@ class HomeViewModel @Inject constructor(
             return
         }
         val baseline = child?.nlpLevel?.value ?: 2
+        if (child != null && local.value.offlineDemo && DemoChildren.isDemoId(child.id)) {
+            DemoChildren.progress(child.id)?.let { p ->
+                local.update { it.copy(progress = p, progressNote = null, progressOwner = child.id) }
+                return
+            }
+        }
         getProgress(child?.id, baseline)
             .onSuccess { progress ->
                 local.update { l ->
                     // Si el servidor aún no tiene los datos demo (respaldo local), se conservan mientras sean más completos.
                     val demo = l.demoProgress?.takeIf { l.demoOwner == (child?.id ?: ADULT_DEMO_OWNER) && progress.lessons.size < it.lessons.size }
-                    l.copy(progress = demo ?: progress, progressNote = null)
+                    l.copy(progress = demo ?: progress, progressNote = null, progressOwner = child?.id ?: ADULT_DEMO_OWNER)
                 }
             }
             .onFailure {
+                if (child != null && DemoChildren.isDemoId(child.id)) {
+                    DemoChildren.progress(child.id)?.let { p -> local.update { it.copy(progress = p, progressNote = null, progressOwner = child.id) }; return }
+                }
                 local.update {
                     it.copy(
                         progress = EducationalProgress.empty(baseline),
@@ -183,6 +222,39 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             }
+    }
+
+    /** Etapa y gemas de cada niño (tarjetas del selector): una consulta de progreso por perfil, en paralelo. */
+    private suspend fun loadSummaries(list: List<ChildProfile>) = coroutineScope {
+        list.map { child ->
+            async { child.id to getProgress(child.id, child.nlpLevel.value).getOrNull()?.let { ChildSummary.of(it, child.nlpLevel.value) } }
+        }.awaitAll().forEach { (id, summary) ->
+            if (summary != null) local.update { it.copy(childSummaries = it.childSummaries + (id to summary)) }
+        }
+    }
+
+    private fun isDemoTutor(): Boolean = sessionManager.email.equals(DemoAccounts.TUTOR_EMAIL, ignoreCase = true)
+
+    /** Sin servidor, `tutor@fluilet.com` conserva a Sofía, Mateo, Diego y Valentina con sus fases y saldos. */
+    private fun useLocalDemoChildren() {
+        val profiles = DemoChildren.profiles()
+        local.update { l ->
+            l.copy(
+                children = profiles,
+                selectedChildId = l.selectedChildId?.takeIf { id -> profiles.any { it.id == id } } ?: profiles.first().id,
+                isLoading = false, offlineDemo = true,
+                childSummaries = profiles.associate { p ->
+                    p.id to ChildSummary.of(DemoChildren.progress(p.id)!!, p.nlpLevel.value)
+                }
+            )
+        }
+    }
+
+    /** La tarjeta del niño seleccionado refleja su progreso más reciente (demo, reclamos, recarga). */
+    private fun withSelectedSummary(l: HomeLocal): Map<String, ChildSummary> {
+        val id = l.selectedChildId ?: return l.childSummaries
+        if (l.progressOwner != id) return l.childSummaries
+        return l.childSummaries + (id to ChildSummary.of(l.progress, l.children.firstOrNull { it.id == id }?.nlpLevel?.value))
     }
 
     fun onNlpLevel(level: NlpLevel) {
@@ -238,7 +310,7 @@ class HomeViewModel @Inject constructor(
         val fallback = DemoData.progress(today)
         local.update {
             it.copy(
-                progress = fallback, progressNote = null, errorMessage = null,
+                progress = fallback, progressNote = null, errorMessage = null, progressOwner = owner,
                 demoOwner = owner, demoProgress = fallback, demoLessons = fallback.demoLessons,
                 demoNote = "Datos demo locales cargados.", isDemoLoading = child != null
             )
@@ -250,7 +322,7 @@ class HomeViewModel @Inject constructor(
                     local.update { l ->
                         if (l.demoOwner != owner) l.copy(isDemoLoading = false)
                         else l.copy(
-                            progress = server, demoProgress = server,
+                            progress = server, demoProgress = server, progressOwner = owner,
                             demoLessons = server.demoLessons.ifEmpty { l.demoLessons },
                             demoNote = "Datos demo cargados desde el servidor.", isDemoLoading = false
                         )
@@ -286,7 +358,7 @@ class HomeViewModel @Inject constructor(
         val child = uiState.value.selectedChild ?: run { onBackendUnavailable(); return }
         viewModelScope.launch {
             claimDailyMission(child.id, missionId)
-                .onSuccess { p -> local.update { it.copy(progress = p, progressNote = null) } }
+                .onSuccess { p -> local.update { it.copy(progress = p, progressNote = null, progressOwner = child.id) } }
                 .onFailure { e ->
                     // Solo si el backend no está disponible se usa el respaldo local; cualquier otro error se muestra.
                     when (e.toAppError()) {

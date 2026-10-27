@@ -69,6 +69,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.fluilet.app.presentation.brand.FluiletBrand
 import com.fluilet.app.presentation.brand.FluiletIsotypeLogo
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -119,24 +123,6 @@ internal fun ChildrenSection(
     onNlpLevel: (NlpLevel) -> Unit
 ) {
     SectionCard(stringResource(R.string.home_children_title)) {
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.children.forEach { child ->
-                SelectableChip(
-                    selected = child.id == state.selectedChildId,
-                    onClick = { onSelect(child.id) },
-                    label = { Text(child.name, style = MaterialTheme.typography.labelLarge) },
-                    modifier = Modifier.height(48.dp)
-                )
-            }
-            SelectableChip(
-                selected = false,
-                onClick = onNew,
-                label = { Text(stringResource(R.string.home_new_child), style = MaterialTheme.typography.labelLarge) },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                modifier = Modifier.height(48.dp)
-            )
-        }
-
         val child = state.selectedChild
         if (child == null) {
             Text(stringResource(R.string.home_children_empty), style = MaterialTheme.typography.bodyMedium)
@@ -175,18 +161,73 @@ fun NlpLevelSlider(level: NlpLevel, onCommit: (NlpLevel) -> Unit) {
 
 
 
-/** Selector compacto de perfil para los apartados que dependen del niño (FluiBot, Colección, Estadísticas). */
+/**
+ * Selector de perfiles en la parte superior del panel del tutor: una tarjeta por niño con su nombre, edad, nivel
+ * (1-5), etapa de FluiBot y gemas 💎, más la tarjeta para crear un niño nuevo. Al tocar una, los 4 apartados
+ * (Lecturas, Mi FluiBot, Colección y Estadísticas) cambian a los datos de ese niño.
+ */
 @Composable
-internal fun ProfileSelector(state: HomeUiState, onSelect: (String) -> Unit) {
-    if (!state.isTutor || state.children.isEmpty()) return
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+internal fun ChildCardsRow(state: HomeUiState, onSelect: (String) -> Unit, onNew: () -> Unit) {
+    if (!state.isTutor) return
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         state.children.forEach { child ->
-            SelectableChip(
+            ChildCard(
+                child = child,
+                summary = state.childSummaries[child.id],
                 selected = child.id == state.selectedChildId,
-                onClick = { onSelect(child.id) },
-                label = { Text(child.name, style = MaterialTheme.typography.labelLarge) },
-                modifier = Modifier.height(48.dp)
+                onClick = { onSelect(child.id) }
             )
+        }
+        NewChildCard(onNew)
+    }
+}
+
+@Composable
+private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boolean, onClick: () -> Unit) {
+    val level = summary?.level ?: child.nlpLevel.value
+    val description = buildString {
+        append("${child.name}, ${child.ageYears()} años, nivel $level")
+        summary?.let { append(", etapa ${it.stage}, ${it.gems} gemas") }
+        append(if (selected) ", seleccionado" else "")
+    }
+    Card(
+        onClick = onClick,
+        modifier = Modifier.width(176.dp).semantics(mergeDescendants = true) { contentDescription = description },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(if (selected) 3.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(child.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1)
+                if (selected) CheckMark()
+            }
+            Text(
+                stringResource(R.string.child_card_age, child.ageYears()) + (child.ageGroup?.let { " · $it" } ?: ""),
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(stringResource(R.string.child_card_level, level), style = MaterialTheme.typography.labelLarge)
+            Text(
+                summary?.let { stringResource(R.string.child_card_stage, it.stage) } ?: stringResource(R.string.child_card_loading),
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(summary?.let { "💎 ${it.gems}" } ?: "💎 …", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun NewChildCard(onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.width(120.dp).height(IntrinsicSize.Max).semantics { contentDescription = "Crear un niño nuevo" },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Icon(Icons.Filled.Add, contentDescription = null)
+            Text(stringResource(R.string.home_new_child), style = MaterialTheme.typography.labelLarge)
         }
     }
 }

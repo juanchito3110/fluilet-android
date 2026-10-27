@@ -87,6 +87,20 @@ class SessionManager @Inject constructor(
         }
     }
 
+    /**
+     * Arranque en frío: la app siempre vuelve a pedir Iniciar Sesión, como si se abriera por primera vez.
+     * Descarta tokens, rol y correo guardados; el PIN parental del tutor se conserva.
+     */
+    fun discardPersistedSession() {
+        synchronized(lock) {
+            store.remove(KEY_ACCESS, KEY_REFRESH, KEY_ROLE, KEY_EMAIL)
+            cachedAccess = null
+            cachedRefresh = null
+            loaded = true
+            _state.value = SessionState.LoggedOut
+        }
+    }
+
     private fun ensureLoaded() {
         if (loaded) return
         cachedAccess = store.getString(KEY_ACCESS)

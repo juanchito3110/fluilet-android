@@ -8,7 +8,12 @@ package com.fluilet.app.domain.model
 enum class UserRole(val wireValue: String) {
     TUTOR("tutor"),
     ADULTO_INDEPENDIENTE("adulto_independiente"),
-    NINO("nino");
+    NINO("nino"),
+
+    /** Administrador maestro (`master_admin`, `is_master_admin=true`): abre el Sistema de Control Maestro. */
+    MASTER_ADMIN("master_admin");
+
+    val isMasterAdmin: Boolean get() = this == MASTER_ADMIN
 
     /** El niño no tiene credenciales: opera como perfil activo protegido por el PIN del tutor. */
     val isChildView: Boolean get() = this == NINO
@@ -24,6 +29,7 @@ enum class UserRole(val wireValue: String) {
                 "tutor", "padre", "docente", "parent" -> TUTOR
                 "adulto_independiente", "adulto", "independent_adult" -> ADULTO_INDEPENDIENTE
                 "nino", "child" -> NINO
+                "master_admin", "master", "admin" -> MASTER_ADMIN
                 else -> null
             }
         }

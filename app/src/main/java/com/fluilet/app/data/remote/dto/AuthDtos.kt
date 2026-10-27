@@ -11,7 +11,9 @@ data class TokenDto(
     @SerializedName("access_token") val accessToken: String,
     @SerializedName("refresh_token") val refreshToken: String? = null,
     @SerializedName("token_type") val tokenType: String? = null,
-    @SerializedName("role") val role: String? = null
+    @SerializedName("role") val role: String? = null,
+    /** `is_master_admin` del login (backend >= bac5798): solo `admin@fluilet.com`. */
+    @SerializedName("is_master_admin") val isMasterAdmin: Boolean? = null
 )
 
 data class RefreshRequestDto(

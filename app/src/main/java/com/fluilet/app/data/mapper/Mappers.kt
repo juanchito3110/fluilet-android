@@ -26,11 +26,13 @@ fun ChildDto.toDomain(): ChildProfile = ChildProfile(
     name = name,
     birthDate = runCatching { LocalDate.parse(birthDate) }.getOrDefault(LocalDate.now()),
     difficulty = DifficultyType.fromWire(difficulty),
-    nlpLevel = NlpLevel.fromValue(nlpLevel),
+    // `current_level` (nivel vigente tras un ajuste del maestro) manda sobre el del perfil.
+    nlpLevel = NlpLevel.fromValue(currentLevel ?: nlpLevel),
     palette = AccessiblePalette.fromBackend(palette),
     fontSizeSp = (fontSize ?: ReadingSettings.DEFAULT_FONT_SIZE.toInt()).toFloat(),
     lineSpacing = (lineSpacing ?: ReadingSettings.DEFAULT_LINE_SPACING.toDouble()).toFloat(),
-    isActive = isActive
+    isActive = isActive,
+    ageGroup = ageGroup
 )
 
 fun ChildDraft.toCreateDto(): ChildCreateDto = ChildCreateDto(

@@ -79,6 +79,43 @@ object DemoData {
         return Gamification.enrich(base, ServerGamification(BASE_GEMS, XP, STREAK_DAYS, null, null), today, zone)
     }
 
+    /**
+     * Progreso de una de las 4 fases de la cuenta del tutor (`docs/demo-accounts.md`): [lessonCount] lecturas
+     * terminadas en días consecutivos hasta hoy, con los saldos exactos de gemas, XP y racha de esa fase.
+     */
+    fun phaseProgress(
+        lessonCount: Int, gems: Int, xp: Int, streakDays: Int, level: Int,
+        today: LocalDate = LocalDate.now(), zone: ZoneId = ZoneId.systemDefault()
+    ): EducationalProgress {
+        val rows = practice.take(lessonCount.coerceIn(0, practice.size))
+        val lessons = rows.mapIndexed { index, p ->
+            LessonProgress(
+                lessonNumber = index + 1, readingId = "demo-phase-${index + 1}",
+                recordedAt = today.minusDays((rows.size - 1 - index).toLong()).atTime(LocalTime.NOON).atZone(zone).toInstant(),
+                category = p.category, level = p.level.coerceAtMost(level), completed = true, completionPercent = 100,
+                comprehensionScore = p.comprehension, durationSeconds = p.seconds,
+                originalScore = p.originalScore, adaptedScore = p.adaptedScore, questionsCorrect = p.correct
+            )
+        }
+        val unlocked = listOf(
+            lessons.isNotEmpty(),
+            lessons.any { it.comprehensionScore == 100 },
+            lessons.size >= 3,
+            lessons.map { it.category }.toSet().size >= 2,
+            lessons.any { it.level >= 3 }
+        )
+        val base = EducationalProgress(
+            totalLessons = lessons.size, completedLessons = lessons.size, incompleteLessons = 0,
+            completionRatePercent = if (lessons.isEmpty()) 0.0 else 100.0,
+            totalReadingSeconds = lessons.sumOf { it.durationSeconds },
+            averageComprehension = lessons.mapNotNull { it.comprehensionScore }.takeIf { it.isNotEmpty() }?.average() ?: 0.0,
+            recommendedLevel = level.coerceIn(1, 5), lessons = lessons,
+            badges = BadgeCatalog.all.mapIndexed { i, b -> EducationalBadge(b.code, b.title, b.description, unlocked[i]) },
+            isEstimated = true, demoData = true
+        )
+        return Gamification.enrich(base, ServerGamification(gems, xp, streakDays, null, null), today, zone)
+    }
+
     private class Entry(
         val title: String, val topic: String, val category: String, val level: Int, val original: String,
         val funFact: String, val vocabulary: List<VocabularyEntry>, val questions: List<ComprehensionQuestion>

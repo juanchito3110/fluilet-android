@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.fluilet.app.domain.model.SessionState
 import com.fluilet.app.domain.model.UserRole
+import com.fluilet.app.presentation.admin.MasterAdminScreen
 import com.fluilet.app.presentation.auth.AuthScreen
 import com.fluilet.app.presentation.brand.FluiletSplashScreen
 import com.fluilet.app.presentation.child.ChildFormScreen
@@ -34,13 +35,20 @@ object Routes {
     const val INTRO_PREVIEW = "intro_preview"
     const val AUTH_PREVIEW = "auth_preview"
     const val HOME = "home"
+
+    /** Sistema de Control Maestro (`admin@fluilet.com`). */
+    const val ADMIN = "admin"
     const val READER = "reader"
     const val CHILD_FORM = "child_form?childId={childId}"
 
     fun childForm(childId: String? = null) = if (childId == null) "child_form" else "child_form?childId=$childId"
 
     /** Tutor y adulto independiente entran al panel; la vista de niño (NINO) va directo a la lectura. */
-    fun homeFor(role: UserRole) = if (role.isChildView) READER else HOME
+    fun homeFor(role: UserRole) = when {
+        role.isMasterAdmin -> ADMIN
+        role.isChildView -> READER
+        else -> HOME
+    }
 
     /**
      * A dónde redirigir según la sesión (`null` = quedarse). La intro siempre se ve primero; las vistas previas
@@ -103,6 +111,8 @@ fun AppNavigation(
                 if (!navController.popBackStack(Routes.HOME, inclusive = false)) navController.popBackStack()
             })
         }
+
+        composable(Routes.ADMIN) { MasterAdminScreen() }
 
         composable(Routes.HOME) {
             HomeScreen(

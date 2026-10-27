@@ -25,6 +25,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.fluilet.app.presentation.brand.FluiletFullLogo
+import com.fluilet.app.domain.usecase.QuickAccess
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -93,10 +94,10 @@ fun AuthScreen(
     onClose: (() -> Unit)? = null,
     loginViewModel: LoginViewModel = hiltViewModel(),
     registerViewModel: RegisterViewModel = hiltViewModel(),
-    demoViewModel: DemoModeViewModel = hiltViewModel()
+    quickViewModel: QuickAccessViewModel = hiltViewModel()
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
-    val demo by demoViewModel.state.collectAsStateWithLifecycle()
+    val quick by quickViewModel.state.collectAsStateWithLifecycle()
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -119,20 +120,39 @@ fun AuthScreen(
                 AuthTab.REGISTER -> RegisterForm(registerViewModel)
             }
 
-            if (demo.enabled) {
-                OutlinedButton(
-                    onClick = demoViewModel::enter,
-                    enabled = !demo.isLoading,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Text(
-                        if (demo.isLoading) stringResource(R.string.auth_demo_loading) else stringResource(R.string.auth_demo),
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-                ErrorMessage(demo.errorMessage)
+            if (quick.enabled) {
+                Text(stringResource(R.string.auth_quick_title), style = MaterialTheme.typography.titleSmall)
+                QuickAccessButton(
+                    label = stringResource(R.string.auth_quick_tutor),
+                    hint = stringResource(R.string.auth_quick_tutor_hint),
+                    loading = quick.loading == QuickAccess.TUTOR,
+                    enabled = !quick.isLoading,
+                    onClick = { quickViewModel.enter(QuickAccess.TUTOR) }
+                )
+                QuickAccessButton(
+                    label = stringResource(R.string.auth_quick_master),
+                    hint = stringResource(R.string.auth_quick_master_hint),
+                    loading = quick.loading == QuickAccess.MASTER,
+                    enabled = !quick.isLoading,
+                    onClick = { quickViewModel.enter(QuickAccess.MASTER) }
+                )
+                ErrorMessage(quick.errorMessage)
             }
+        }
+    }
+}
+
+@Composable
+private fun QuickAccessButton(label: String, hint: String, loading: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+            Text(if (loading) stringResource(R.string.auth_quick_loading) else label, style = MaterialTheme.typography.labelLarge)
+            Text(hint, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -190,6 +210,19 @@ private fun RegisterForm(viewModel: RegisterViewModel) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             RoleChip(UserRole.TUTOR, R.string.auth_role_tutor, state.role, viewModel::onRole)
             RoleChip(UserRole.ADULTO_INDEPENDIENTE, R.string.auth_role_adult, state.role, viewModel::onRole)
+        }
+        if (state.needsPin) {
+            OutlinedTextField(
+                value = state.pin,
+                onValueChange = viewModel::onPin,
+                label = { Text(stringResource(R.string.auth_pin)) },
+                singleLine = true,
+                isError = state.pinHint != null,
+                supportingText = { Text(state.pinHint ?: stringResource(R.string.auth_pin_rules)) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+                modifier = Modifier.fillMaxWidth()
+            )
         }
         ErrorMessage(state.errorMessage)
         PrimaryButton(stringResource(R.string.auth_register), viewModel::submit, enabled = state.canSubmit, loading = state.isLoading)

@@ -5,20 +5,17 @@ import com.fluilet.app.domain.demo.DemoData
 import com.fluilet.app.domain.gamification.DailyMissions
 import com.fluilet.app.domain.gamification.FluiBotStage
 import com.fluilet.app.domain.model.AuthSession
-import com.fluilet.app.domain.model.ChildDraft
-import com.fluilet.app.domain.model.RegistrationData
 import com.fluilet.app.domain.model.TechnicalSheet
-import com.fluilet.app.domain.model.User
 import com.fluilet.app.domain.model.UserRole
 import com.fluilet.app.domain.repository.AuthRepository
-import com.fluilet.app.domain.repository.ChildRepository
+import com.fluilet.app.domain.usecase.DemoAccounts
 import com.fluilet.app.domain.usecase.DemoConfig
-import com.fluilet.app.domain.usecase.EnterDemoModeUseCase
-import com.fluilet.app.presentation.auth.DemoModeViewModel
-import com.fluilet.app.testutil.sampleChild
+import com.fluilet.app.domain.usecase.QuickAccess
+import com.fluilet.app.domain.usecase.QuickAccessUseCase
+import com.fluilet.app.presentation.auth.QuickAccessViewModel
+import com.fluilet.app.testutil.FakeTutorPin
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.coVerifyOrder
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,7 +33,7 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-/** "🚀 Entrar en Modo Demo" y el respaldo local de "🎓 Cargar Datos Demo". */
+/** Accesos rápidos de la demostración (tutor y maestro) y el respaldo local de "🎓 Cargar Datos Demo". */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DemoModeTest {
 
@@ -44,86 +41,70 @@ class DemoModeTest {
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    private val config = DemoConfig("profesor.demo@fluilet.app", "FluiletDemo#2026")
     private val auth = mockk<AuthRepository>()
-    private val children = mockk<ChildRepository>()
-    private val session = AuthSession("a", "r", UserRole.TUTOR, config.email)
-    private val user = User("1", config.email, "Profesor Demo", UserRole.TUTOR, true, false)
+    private val pin = FakeTutorPin(configured = false)
 
-    private fun useCase(cfg: DemoConfig = config) = EnterDemoModeUseCase(cfg, auth, children)
+    private fun session(role: UserRole, email: String) = AuthSession("a", "r", role, email)
+    private fun useCase(config: DemoConfig = DemoConfig(true)) = QuickAccessUseCase(config, auth, pin)
 
-    // --- Modo Demo (un toque) ---------------------------------------------------------------------
+    // --- Credenciales públicas del backend (docs/demo-accounts.md) -------------------------------
 
-    @Test fun existingDemoAccountJustLogsInAndKeepsItsProfiles() = runTest(dispatcher) {
-        coEvery { auth.login(config.email, config.password) } returns Result.success(session)
-        coEvery { children.list() } returns Result.success(listOf(sampleChild()))
-
-        assertTrue(useCase()().isSuccess)
-
-        coVerify(exactly = 0) { auth.register(any()) }
-        coVerify(exactly = 0) { children.create(any()) }
+    @Test fun demoCredentialsAreTheOnesPublishedByTheBackend() {
+        assertEquals("tutor@fluilet.com", DemoAccounts.TUTOR_EMAIL)
+        assertEquals("Tutor2026!", DemoAccounts.TUTOR_PASSWORD)
+        assertEquals("1234", DemoAccounts.TUTOR_PIN)
+        assertEquals("admin@fluilet.com", DemoAccounts.ADMIN_EMAIL)
+        assertEquals("Master2026!", DemoAccounts.ADMIN_PASSWORD)
     }
 
-    @Test fun firstTimeCreatesTheTutorAccountLogsInAndCreatesAnEightYearOldProfile() = runTest(dispatcher) {
-        coEvery { auth.login(config.email, config.password) } returnsMany
-            listOf(Result.failure(AppError.Unauthorized()), Result.success(session))
-        coEvery { auth.register(any()) } returns Result.success(user)
-        coEvery { children.list() } returns Result.success(emptyList())
-        val draft = io.mockk.slot<ChildDraft>()
-        coEvery { children.create(capture(draft)) } returns Result.success(sampleChild())
+    @Test fun theTutorQuickAccessIsTheNormalLoginAndLeavesThePinReady() = runTest(dispatcher) {
+        coEvery { auth.login(DemoAccounts.TUTOR_EMAIL, DemoAccounts.TUTOR_PASSWORD) } returns
+            Result.success(session(UserRole.TUTOR, DemoAccounts.TUTOR_EMAIL))
 
-        val today = LocalDate.of(2026, 10, 26)
-        assertTrue(useCase()(today).isSuccess)
+        val result = useCase()(QuickAccess.TUTOR)
 
-        coVerifyOrder {
-            auth.login(config.email, config.password)
-            auth.register(RegistrationData(config.email, "Profesor Demo", config.password, UserRole.TUTOR))
-            auth.login(config.email, config.password)
-            children.list()
-            children.create(any())
-        }
-        assertEquals("Mateo", draft.captured.name)
-        assertEquals(8, java.time.Period.between(draft.captured.birthDate, today).years)
+        assertEquals(UserRole.TUTOR, result.getOrNull())
+        assertTrue(pin.isConfigured())
+        assertEquals("1234", pin.lastDemoPin)
+        coVerify(exactly = 1) { auth.login(any(), any()) }
+        coVerify(exactly = 0) { auth.register(any()) } // no se crean cuentas: las provisiona el backend
     }
 
-    @Test fun aFailedProfileCreationNeverBlocksTheLogin() = runTest(dispatcher) {
-        coEvery { auth.login(any(), any()) } returns Result.success(session)
-        coEvery { children.list() } returns Result.success(emptyList())
-        coEvery { children.create(any()) } returns Result.failure(AppError.NoConnection())
-        assertTrue(useCase()().isSuccess)
+    @Test fun theMasterQuickAccessLogsInWithTheAdminAccountAndTouchesNoPin() = runTest(dispatcher) {
+        coEvery { auth.login(DemoAccounts.ADMIN_EMAIL, DemoAccounts.ADMIN_PASSWORD) } returns
+            Result.success(session(UserRole.MASTER_ADMIN, DemoAccounts.ADMIN_EMAIL))
+
+        val result = useCase()(QuickAccess.MASTER)
+
+        assertEquals(UserRole.MASTER_ADMIN, result.getOrNull())
+        assertFalse(pin.isConfigured())
     }
 
-    @Test fun aRegistrationConflictOrNetworkErrorIsReportedAndNothingElseRuns() = runTest(dispatcher) {
+    @Test fun aFailedLoginIsReportedAndNoPinIsStored() = runTest(dispatcher) {
         coEvery { auth.login(any(), any()) } returns Result.failure(AppError.Unauthorized())
-        coEvery { auth.register(any()) } returns Result.failure(AppError.Conflict("Ese correo ya existe."))
-        val result = useCase()()
-        assertTrue(result.exceptionOrNull() is AppError.Conflict)
-        coVerify(exactly = 0) { children.list() }
-
-        coEvery { auth.login(any(), any()) } returns Result.failure(AppError.NoConnection())
-        assertTrue(useCase()().exceptionOrNull() is AppError.NoConnection)
+        assertTrue(useCase()(QuickAccess.TUTOR).exceptionOrNull() is AppError.Unauthorized)
+        assertFalse(pin.isConfigured())
     }
 
-    @Test fun demoIsDisabledWithoutCredentialsAndTheButtonStaysHidden() = runTest(dispatcher) {
-        assertFalse(DemoConfig.DISABLED.enabled)
-        assertTrue(useCase(DemoConfig.DISABLED)().exceptionOrNull() is AppError.Unsupported)
-        assertFalse(DemoModeViewModel(DemoConfig.DISABLED, useCase(DemoConfig.DISABLED)).state.value.enabled)
+    @Test fun quickAccessIsDisabledWithoutTheFlagAndTheButtonsStayHidden() = runTest(dispatcher) {
+        assertTrue(useCase(DemoConfig.DISABLED)(QuickAccess.MASTER).exceptionOrNull() is AppError.Unsupported)
+        assertFalse(QuickAccessViewModel(DemoConfig.DISABLED, useCase(DemoConfig.DISABLED)).state.value.enabled)
         coVerify(exactly = 0) { auth.login(any(), any()) }
     }
 
-    @Test fun theDemoButtonLogsInInOneTapAndSurfacesErrors() = runTest(dispatcher) {
-        coEvery { auth.login(any(), any()) } returns Result.success(session)
-        coEvery { children.list() } returns Result.success(listOf(sampleChild()))
-        val vm = DemoModeViewModel(config, useCase())
+    @Test fun theQuickAccessButtonsEnterInOneTapAndSurfaceErrors() = runTest(dispatcher) {
+        coEvery { auth.login(any(), any()) } returns Result.success(session(UserRole.TUTOR, DemoAccounts.TUTOR_EMAIL))
+        val vm = QuickAccessViewModel(DemoConfig(true), useCase())
         assertTrue(vm.state.value.enabled)
-        vm.enter()
+
+        vm.enter(QuickAccess.TUTOR)
         assertFalse(vm.state.value.isLoading)
         assertEquals(null, vm.state.value.errorMessage)
-        coVerify(exactly = 1) { auth.login(config.email, config.password) }
 
         coEvery { auth.login(any(), any()) } returns Result.failure(AppError.NoConnection())
-        vm.enter()
+        vm.enter(QuickAccess.MASTER)
         assertTrue(vm.state.value.errorMessage!!.contains("conexión"))
+        coVerify(exactly = 1) { auth.login(DemoAccounts.ADMIN_EMAIL, DemoAccounts.ADMIN_PASSWORD) }
     }
 
     // --- Respaldo local de los datos demo --------------------------------------------------------

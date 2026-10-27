@@ -29,6 +29,7 @@ import javax.inject.Singleton
 abstract class RepositoryModule {
 
     @Binds abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
+    @Binds abstract fun bindAdminRepository(impl: com.fluilet.app.data.repository.AdminRepositoryImpl): com.fluilet.app.domain.repository.AdminRepository
     @Binds abstract fun bindChildRepository(impl: ChildRepositoryImpl): ChildRepository
     @Binds abstract fun bindReaderSettings(impl: InMemoryReaderSettingsRepository): ReaderSettingsRepository
     @Binds abstract fun bindTutorPin(impl: TutorPinManager): TutorPinRepository

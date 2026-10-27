@@ -72,16 +72,25 @@ class FakeReadingSessionRepository : com.fluilet.app.domain.repository.ReadingSe
         return Result.success(Unit)
     }
 
+    /** Resumen distinto por perfil (los 4 niños del tutor); si no hay entrada se usa [educational]. */
+    val educationalByChild = mutableMapOf<String?, com.fluilet.app.domain.model.EducationalProgress>()
+
     override suspend fun educationalProgress(childId: String?, baselineLevel: Int): Result<com.fluilet.app.domain.model.EducationalProgress> {
         progressRequests += childId to baselineLevel
-        return if (progressFails) Result.failure(com.fluilet.app.core.network.AppError.NoConnection()) else Result.success(educational)
+        return if (progressFails) Result.failure(com.fluilet.app.core.network.AppError.NoConnection()) else Result.success(educationalByChild[childId] ?: educational)
     }
 }
 
 class FakeChildRepository(var children: List<com.fluilet.app.domain.model.ChildProfile> = emptyList()) :
     com.fluilet.app.domain.repository.ChildRepository {
     var listCalls = 0
-    override suspend fun list(): Result<List<com.fluilet.app.domain.model.ChildProfile>> { listCalls++; return Result.success(children) }
+
+    /** Si no es `null`, `list()` falla con este error (servidor caído). */
+    var listError: Throwable? = null
+    override suspend fun list(): Result<List<com.fluilet.app.domain.model.ChildProfile>> {
+        listCalls++
+        return listError?.let { Result.failure(it) } ?: Result.success(children)
+    }
     override suspend fun create(draft: com.fluilet.app.domain.model.ChildDraft) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
     override suspend fun update(id: String, draft: com.fluilet.app.domain.model.ChildDraft) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
     override suspend fun updateNlpLevel(id: String, level: com.fluilet.app.domain.model.NlpLevel) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
@@ -93,7 +102,10 @@ class FakeTutorPin(private var configured: Boolean = false) : com.fluilet.app.do
     override fun verify(pin: String) = com.fluilet.app.domain.model.PinResult.NotConfigured
     override fun setInitialPin(pin: String): Result<Unit> { configured = true; return Result.success(Unit) }
     override fun changePin(currentPin: String, newPin: String) = com.fluilet.app.domain.model.PinResult.NotConfigured
-    override fun resetAfterReauthentication(newPin: String): Result<Unit> = Result.success(Unit)
+    var lastResetPin: String? = null
+    var lastDemoPin: String? = null
+    override fun resetAfterReauthentication(newPin: String): Result<Unit> { lastResetPin = newPin; configured = true; return Result.success(Unit) }
+    override fun configureDemoPin(pin: String): Result<Unit> { lastDemoPin = pin; configured = true; return Result.success(Unit) }
 }
 
 fun sampleQuestions() = listOf(
