@@ -17,6 +17,7 @@ import com.fluilet.app.domain.model.ReadingProgress
 import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.session.ActiveReadingHolder
 import com.fluilet.app.domain.usecase.GetEducationalProgressUseCase
+import com.fluilet.app.domain.usecase.FetchAdaptationUseCase
 import com.fluilet.app.domain.usecase.StartReadingSessionUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingProgressUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingSettingsUseCase
@@ -42,6 +43,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -67,6 +69,7 @@ class ReaderViewModelTest {
     private var mono = 0L
     private val focus = FocusSessionController(launcher, { mono }, { Instant.parse("2026-10-19T10:00:00Z") })
     private val repo = FakeReadingSessionRepository()
+    private val adaptations = com.fluilet.app.testutil.FakeAdaptationRepository()
     private val holder = ActiveReadingHolder()
     private val engine = FakeSpeechEngine()
     private val tts = TtsManager { engine }
@@ -89,7 +92,7 @@ class ReaderViewModelTest {
         holder.set(ActiveReading(childId, "Lector", ReadingSettings(), adaptation))
         return ReaderViewModel(
             holder, tts, focus, UpdateReadingSettingsUseCase(),
-            StartReadingSessionUseCase(repo), UpdateReadingProgressUseCase(repo), GetEducationalProgressUseCase(repo), appScope
+            StartReadingSessionUseCase(repo), UpdateReadingProgressUseCase(repo), GetEducationalProgressUseCase(repo), FetchAdaptationUseCase(adaptations), appScope
         ).also(created::add)
     }
 
@@ -761,5 +764,73 @@ class ReaderViewModelTest {
         val session = probe.state().session
         assertTrue(session.completed)
         assertEquals(1, session.correctAnswers)
+    }
+
+    // --- Comparador para TODAS las lecturas + Ficha Técnica NLP ---------------------------------
+
+    @Test fun anOlderLessonWithoutOriginalFetchesItFromTheServerOnlyOnce() = readerTest {
+        adaptations.fetchResult = Result.success(sampleAdaptation().copy(originalText = "Texto original recuperado."))
+        val vm = viewModel(childId = null, adaptation = sampleAdaptation(2, documentId = "doc-1"))
+        val probe = observe(vm)
+        vm.start()
+        assertNull(probe.state().originalText)
+
+        vm.toggleOriginal()
+
+        assertEquals(listOf("doc-1"), adaptations.fetchRequests)
+        assertEquals("Texto original recuperado.", probe.state().originalText)
+        assertFalse(probe.state().originalLoading)
+        vm.toggleOriginal()
+        vm.toggleOriginal()
+        assertEquals("no vuelve a pedirlo", 1, adaptations.fetchRequests.size)
+    }
+
+    @Test fun theAdaptationIdIsPreferredOverTheDocumentIdWhenFetching() = readerTest {
+        val vm = viewModel(childId = null, adaptation = sampleAdaptation(2, documentId = "doc-1").copy(adaptationId = "ad-7"))
+        observe(vm)
+        vm.start()
+        vm.toggleOriginal()
+        assertEquals(listOf("ad-7"), adaptations.fetchRequests)
+    }
+
+    @Test fun aLessonThatAlreadyCarriesItsOriginalNeverCallsTheServer() = readerTest {
+        val vm = viewModel(childId = null, adaptation = richAdaptation())
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleOriginal()
+        assertTrue(adaptations.fetchRequests.isEmpty())
+        assertEquals("Texto original pegado por el tutor.", probe.state().originalText)
+    }
+
+    @Test fun ifTheServerCannotReturnTheOriginalTheComparisonStillShowsTheMetrics() = readerTest {
+        val vm = viewModel(childId = null, adaptation = sampleAdaptation(2, documentId = "doc-1"))
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleOriginal()
+        assertNull(probe.state().originalText)
+        assertFalse(probe.state().originalLoading)
+        assertTrue(probe.state().showOriginal)
+        assertNotNull(probe.state().technicalSheet)
+    }
+
+    @Test fun aGeneratedLessonLikeBiologiaMarinaGetsTheFichaTecnicaWithItsSource() = readerTest {
+        val generated = sampleAdaptation(2, category = "animales_naturaleza", level = 2).copy(
+            title = "Biología Marina", topic = "Biología Marina", targetLevel = 2,
+            originalText = "Texto enciclopédico original sobre biología marina.",
+            source = com.fluilet.app.domain.model.LessonSourceInfo("wikipedia", "Biología marina", "https://es.wikipedia.org/wiki/Biolog%C3%ADa_marina")
+        )
+        val vm = viewModel(childId = "child-1", adaptation = generated)
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleOriginal()
+
+        val sheet = probe.state().technicalSheet!!
+        assertEquals(37.1, sheet.originalScore, 0.001)
+        assertEquals(77.1, sheet.adaptedScore, 0.001)
+        assertEquals(2, sheet.targetLevel)
+        assertTrue(sheet.headline.endsWith("Adaptado al Nivel 2"))
+        assertEquals("Texto enciclopédico original sobre biología marina.", probe.state().originalText)
+        assertTrue(probe.state().reading!!.adaptation.source!!.isWikipedia)
+        assertTrue("sigue dentro del Modo Enfoque", probe.state().lockActive)
     }
 }

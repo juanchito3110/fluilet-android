@@ -37,6 +37,8 @@ internal fun ReadingsTab(
     onReadingSaved: () -> Unit,
     onPin: () -> Unit,
     onNewReadingStart: () -> Unit,
+    onLoadDemo: () -> Unit,
+    onOpenDemoLesson: (com.fluilet.app.domain.model.AdaptationResult) -> Unit,
     readingViewModel: NewReadingViewModel = hiltViewModel()
 ) {
     // El creador de lecturas siempre trabaja para el perfil seleccionado en la parte superior.
@@ -55,6 +57,9 @@ internal fun ReadingsTab(
                 onNlpLevel = onNlpLevel
             )
         }
+
+        DemoDataCard(state, onLoadDemo)
+        DemoLessonsCard(state.demoLessons, onOpenDemoLesson)
 
         val reading = state.readingForSelection
         if (reading != null) {

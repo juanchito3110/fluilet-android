@@ -61,6 +61,12 @@ class RemoteReadingSessionRepository @Inject constructor(
         }.map { }
     }
 
+    override suspend fun seedDemo(childId: String): Result<EducationalProgress> =
+        apiCall { api.seedDemo(childId) }.mapCatching { it.toDomain() }
+
+    override suspend fun claimMission(childId: String, missionId: String): Result<EducationalProgress> =
+        apiCall { api.claimDailyMission(childId, missionId) }.mapCatching { it.toDomain() }
+
     /**
      * Intenta el endpoint de progreso; si falla (servidor anterior, red, error) calcula el resumen a
      * partir de la lista de lecturas, y solo si eso también falla devuelve el error al llamador.

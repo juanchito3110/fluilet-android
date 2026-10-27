@@ -150,7 +150,8 @@ class FluiBotViewModel @Inject constructor(
     fun claimMission(missionId: String) {
         val current = input ?: return
         val ui = currentMissions(current).firstOrNull { it.mission.id == missionId } ?: return
-        if (!ui.canClaim) return
+        // Una misión del servidor se confirma con su endpoint (HomeViewModel): aquí nunca se paga dos veces.
+        if (!ui.canClaim || ui.mission.fromServer) return
         inventory = inventory.claimMission(ui.mission, ui.claimKey)
         inventories.save(current.ownerKey, inventory)
         message = "¡Misión cumplida! +${ui.mission.rewardGems} 💎"
@@ -174,7 +175,8 @@ class FluiBotViewModel @Inject constructor(
         val missions = input.progress.serverMissions ?: DailyMissions.compute(input.progress.lessons, day, zone, input.session)
         return missions.map { m ->
             val key = DailyMissions.claimKey(day, m.id)
-            MissionUi(m, key, key in inventory.claimedMissions)
+            // Las del servidor ya vienen abonadas en `total_gems`: manda su `claimed`, nunca el inventario local.
+            MissionUi(m, key, if (m.fromServer) m.claimed else key in inventory.claimedMissions)
         }
     }
 

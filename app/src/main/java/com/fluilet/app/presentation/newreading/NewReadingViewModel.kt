@@ -191,7 +191,7 @@ class NewReadingViewModel @Inject constructor(
                 .onSuccess { result ->
                     // El original solo se conserva en RAM (texto pegado o .txt) para la vista "Original vs. Adaptado".
                     val original = originalTextOf(source)
-                    _state.update { it.copy(isAdapting = false, result = result.copy(originalText = original)) }
+                    _state.update { it.copy(isAdapting = false, result = result.copy(originalText = result.originalText ?: original)) }
                 }
                 .onFailure { e -> _state.update { it.copy(isAdapting = false, errorMessage = e.toAppError().userMessage) } }
         }

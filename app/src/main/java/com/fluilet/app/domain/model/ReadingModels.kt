@@ -20,8 +20,24 @@ data class ReadabilityMetrics(
     val originalSyllableCount: Int = 0,
     val originalSentenceCount: Int = 0,
     /** Texto original ya muy legible: el servidor lo adapta solo de forma conservadora. */
-    val maintenanceException: Boolean = false
-)
+    val maintenanceException: Boolean = false,
+    /** Longitud media de oración (palabras por oración) que calcula el servidor; 0 = se deriva de los conteos. */
+    val originalAvgWordsPerSentence: Double = 0.0,
+    val adaptedAvgWordsPerSentence: Double = 0.0
+) {
+    val originalWordsPerSentence: Double
+        get() = if (originalAvgWordsPerSentence > 0) originalAvgWordsPerSentence
+        else if (originalSentenceCount > 0) originalWordCount.toDouble() / originalSentenceCount else 0.0
+
+    val adaptedWordsPerSentence: Double
+        get() = if (adaptedAvgWordsPerSentence > 0) adaptedAvgWordsPerSentence
+        else if (sentenceCount > 0) adaptedWordCount.toDouble() / sentenceCount else 0.0
+}
+
+/** Fuente de una lección generada (`source` del backend): Wikipedia en español o el banco local. */
+data class LessonSourceInfo(val provider: String, val title: String, val url: String, val license: String? = null) {
+    val isWikipedia: Boolean get() = provider.equals("wikipedia", ignoreCase = true)
+}
 
 data class AdaptationResult(
     val title: String,
@@ -46,7 +62,14 @@ data class AdaptationResult(
     /** Tema libre con el que se generó la lección (solo para el dato curioso local). */
     val topic: String? = null,
     /** Texto original, SOLO en RAM y solo si se pegó o subió un .txt: permite la vista "Original vs. Adaptado". */
-    val originalText: String? = null
+    val originalText: String? = null,
+    /** Id de la adaptación retenida en el servidor (`id`): permite recuperarla con `GET /adaptations/{id}`. */
+    val adaptationId: String? = null,
+    /** Nivel pedido (`target_level`) y fuente de la lección generada. */
+    val targetLevel: Int? = null,
+    val source: LessonSourceInfo? = null,
+    /** `meets_readability_target` del servidor; `null` si no lo envía. */
+    val meetsTarget: Boolean? = null
 ) {
     /** Dato curioso: el del servidor o uno local según tema/categoría. */
     val effectiveFunFact: String? get() = LessonFacts.forLesson(funFact, topic, category)

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.fluilet.app.core.network.toAppError
 import com.fluilet.app.domain.model.RegistrationData
 import com.fluilet.app.domain.model.UserRole
+import com.fluilet.app.domain.usecase.DemoConfig
+import com.fluilet.app.domain.usecase.EnterDemoModeUseCase
 import com.fluilet.app.domain.usecase.LoginUseCase
 import com.fluilet.app.domain.usecase.RegisterUseCase
 import com.fluilet.app.domain.validation.Validators
@@ -90,6 +92,34 @@ class RegisterViewModel @Inject constructor(
                         .onFailure { e -> _state.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
                         .onSuccess { _state.update { it.copy(isLoading = false, password = "") } }
                 }
+        }
+    }
+}
+
+data class DemoUiState(
+    val enabled: Boolean = false,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+/** "🚀 Entrar en Modo Demo (Revisión Profesor)": un toque, sin escribir correo ni contraseña. */
+@HiltViewModel
+class DemoModeViewModel @Inject constructor(
+    config: DemoConfig,
+    private val enterDemo: EnterDemoModeUseCase
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(DemoUiState(enabled = config.enabled))
+    val state: StateFlow<DemoUiState> = _state.asStateFlow()
+
+    fun enter() {
+        val current = _state.value
+        if (!current.enabled || current.isLoading) return
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            enterDemo()
+                .onFailure { e -> _state.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
+                .onSuccess { _state.update { it.copy(isLoading = false) } }
         }
     }
 }

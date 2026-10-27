@@ -21,7 +21,11 @@ data class EducationalProgressDto(
     @SerializedName("mascot") val mascot: FluiBotStateDto? = null,
     @SerializedName("pedagogical_summary") val pedagogicalSummary: PedagogicalSummaryDto? = null,
     @SerializedName(value = "collectible_cards", alternate = ["collectibles", "cards"]) val collectibleCards: List<CollectibleCardDto>? = null,
-    @SerializedName(value = "daily_missions", alternate = ["missions"]) val dailyMissions: List<DailyMissionDto>? = null
+    @SerializedName(value = "daily_missions", alternate = ["missions"]) val dailyMissions: List<DailyMissionDto>? = null,
+    // Contrato de revisión académica: racha vigente y lecturas demo de `POST /profiles/{id}/seed-demo`.
+    @SerializedName("current_streak_days") val currentStreakDays: Int? = null,
+    @SerializedName("demo_data") val demoData: Boolean? = null,
+    @SerializedName("demo_lessons") val demoLessons: List<AdaptationReadDto>? = null
 )
 
 data class DailyMissionDto(
@@ -30,7 +34,9 @@ data class DailyMissionDto(
     @SerializedName("description") val description: String? = null,
     @SerializedName(value = "progress", alternate = ["current"]) val progress: Int? = null,
     @SerializedName("target") val target: Int? = null,
-    @SerializedName(value = "reward_gems", alternate = ["reward"]) val rewardGems: Int? = null
+    @SerializedName(value = "reward_gems", alternate = ["reward"]) val rewardGems: Int? = null,
+    @SerializedName("completed") val completed: Boolean? = null,
+    @SerializedName("claimed") val claimed: Boolean? = null
 )
 
 data class FluiBotStateDto(

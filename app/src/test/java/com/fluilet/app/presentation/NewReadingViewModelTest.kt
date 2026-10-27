@@ -237,4 +237,14 @@ class NewReadingViewModelTest {
         assertEquals("", s.text)
         assertNull(s.result)
     }
+
+    @Test fun theServersRetainedOriginalWinsOverTheLocalCopy() {
+        adaptation.adaptResult = sampleAdaptation().copy(originalText = "ORIGINAL DEL SERVIDOR", adaptationId = "ad-1")
+        val vm = viewModel()
+        vm.onMode(InputMode.PASTE)
+        vm.onText(List(MIN_TEST_WORDS) { "palabra" }.joinToString(" ") + ".")
+        vm.adapt()
+        assertEquals("ORIGINAL DEL SERVIDOR", vm.state.value.result!!.originalText)
+        assertEquals("ad-1", vm.state.value.result!!.adaptationId)
+    }
 }

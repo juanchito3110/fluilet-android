@@ -41,15 +41,22 @@
     <string name="quiz_feedback_wrong_title">¡Casi! Sigue intentándolo.</string>
     <string name="reader_compare">🔄 Adaptado vs. Original</string>
     <string name="compare_title">Adaptado vs. Original</string>
-    <string name="compare_score">Legibilidad (Szigriszt-Pazos): %1$.0f → %2$.0f</string>
-    <string name="compare_delta">Cambio: %1$+.0f puntos (más alto = más fácil de leer)</string>
-    <string name="compare_words">Palabras: %1$d en el original · %2$d en el adaptado</string>
-    <string name="compare_original_label">📄 Texto original</string>
+    <string name="compare_original_label">📄 Texto Original (Fuente Enciclopédica)</string>
     <string name="compare_original_unavailable">Esta lección no tiene un texto original que mostrar (se generó o vino de un PDF). Por privacidad, el texto no se guarda en el dispositivo.</string>
-    <string name="compare_adapted_label">✨ Texto adaptado (este bloque)</string>
+    <string name="compare_adapted_label">✨ Texto Adaptado por Fluilet (este bloque)</string>
     <string name="funfact_title">🧠 ¿Sabías que...?</string>
     <string name="glossary_title">🔍 Palabras clave de esta lectura</string>
     <string name="glossary_close">Cerrar</string>
     <string name="glossary_example">Ejemplo: %1$s</string>
     <string name="glossary_listen">🔊 Escuchar palabra</string>
+    <string name="compare_original_loading">Buscando el texto original en el servidor…</string>
+    <string name="compare_source">Fuente: %1$s — %2$s</string>
+    <string name="techsheet_title">🔬 Ficha Técnica del Motor NLP</string>
+    <string name="techsheet_original">Original</string>
+    <string name="techsheet_adapted">Adaptado</string>
+    <string name="techsheet_words">%1$d palabras</string>
+    <string name="techsheet_per_sentence">%1$.1f palabras por oración</string>
+    <string name="techsheet_delta">Índice Szigriszt-Pazos: %1$+.1f puntos (más alto = más fácil)</string>
+    <string name="techsheet_ok">Objetivo de legibilidad alcanzado.</string>
+    <string name="techsheet_best_effort">Mejor adaptación posible: el servidor no inventa puntajes.</string>
 </resources>

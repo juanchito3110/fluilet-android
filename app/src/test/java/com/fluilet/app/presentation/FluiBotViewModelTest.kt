@@ -250,4 +250,39 @@ class FluiBotViewModelTest {
         vm.bind("child-1", progress, session = com.fluilet.app.domain.gamification.SessionContribution(true, 2, 310))
         assertTrue(vm.state.value.missions.all { it.canClaim })
     }
+
+    // --- Misiones del servidor (backend f6f09d9): ya abonadas, sin pago local duplicado ---------
+
+    private fun serverMission(claimed: Boolean, done: Boolean = true) = com.fluilet.app.domain.gamification.DailyMission(
+        "mission_read_lesson", "Explorador del Día", "d", if (done) 1 else 0, 1, 25, fromServer = true, claimed = claimed
+    )
+
+    @Test fun aServerMissionAlreadyClaimedByTheBackendShowsAsClaimedAndPaysNothingLocally() {
+        withClock()
+        vm.bind("child-1", progress.copy(serverMissions = listOf(serverMission(claimed = true))))
+        val ui = vm.state.value.missions.single()
+        assertTrue(ui.claimed)
+        assertFalse(ui.canClaim)
+        vm.claimMission("mission_read_lesson")
+        assertEquals(130, vm.state.value.gems) // las gemas de la misión ya están en `total_gems`
+    }
+
+    @Test fun anUnclaimedServerMissionIsNeverPaidByTheDeviceItIsConfirmedWithTheEndpoint() {
+        withClock()
+        vm.bind("child-1", progress.copy(serverMissions = listOf(serverMission(claimed = false))))
+        assertTrue(vm.state.value.missions.single().canClaim)
+        vm.claimMission("mission_read_lesson")
+        assertEquals(130, vm.state.value.gems)
+        assertFalse(vm.state.value.missions.single().claimed)
+    }
+
+    @Test fun theGemCounterFollowsTheServersTotalAfterTheMissionIsConfirmed() {
+        withClock()
+        vm.bind("child-1", progress.copy(serverMissions = listOf(serverMission(claimed = false))))
+        vm.buy(Accessory.CORBATIN_LED) // 30 gastadas
+        // El resumen que devuelve `.../claim` trae el abono (+25) y la misión reclamada.
+        vm.bind("child-1", progress.copy(totalGems = 155, serverMissions = listOf(serverMission(claimed = true))))
+        assertEquals(125, vm.state.value.gems) // 155 - 30 gastadas
+        assertTrue(vm.state.value.missions.single().claimed)
+    }
 }

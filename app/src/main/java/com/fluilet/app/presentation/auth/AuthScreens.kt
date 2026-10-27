@@ -18,7 +18,13 @@ import com.fluilet.app.presentation.common.CheckMark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.fluilet.app.presentation.brand.FluiletFullLogo
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,87 +80,119 @@ private fun PasswordField(
     )
 }
 
+/** Pestañas de la pantalla de acceso. */
+enum class AuthTab { LOGIN, REGISTER }
+
+/**
+ * Iniciar Sesión / Crear Cuenta: logo completo de Fluilet arriba, pestañas claras y el acceso rápido al
+ * Modo Demo. [onClose] solo existe al abrirla desde "✨ Ver Intro / Cuenta" (vista previa sin cerrar sesión).
+ */
 @Composable
-fun LoginScreen(onRegister: () -> Unit, viewModel: LoginViewModel = hiltViewModel()) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+fun AuthScreen(
+    initialTab: AuthTab = AuthTab.LOGIN,
+    onClose: (() -> Unit)? = null,
+    loginViewModel: LoginViewModel = hiltViewModel(),
+    registerViewModel: RegisterViewModel = hiltViewModel(),
+    demoViewModel: DemoModeViewModel = hiltViewModel()
+) {
+    var tab by rememberSaveable { mutableStateOf(initialTab) }
+    val demo by demoViewModel.state.collectAsStateWithLifecycle()
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
+            if (onClose != null) {
+                TextButton(onClick = onClose) { Text(stringResource(R.string.auth_back_to_panel)) }
+            }
+            FluiletFullLogo(Modifier.fillMaxWidth().padding(top = 8.dp))
             Text(stringResource(R.string.auth_login_subtitle), style = MaterialTheme.typography.bodyLarge)
 
-            OutlinedTextField(
-                value = state.email,
-                onValueChange = viewModel::onEmail,
-                label = { Text(stringResource(R.string.auth_email)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth()
-            )
-            PasswordField(state.password, viewModel::onPassword, stringResource(R.string.auth_password), ImeAction.Done, viewModel::submit)
-            ErrorMessage(state.errorMessage)
+            TabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
+                Tab(selected = tab == AuthTab.LOGIN, onClick = { tab = AuthTab.LOGIN }, text = { Text(stringResource(R.string.auth_tab_login), style = MaterialTheme.typography.titleSmall) })
+                Tab(selected = tab == AuthTab.REGISTER, onClick = { tab = AuthTab.REGISTER }, text = { Text(stringResource(R.string.auth_tab_register), style = MaterialTheme.typography.titleSmall) })
+            }
 
-            PrimaryButton(stringResource(R.string.auth_login), viewModel::submit, enabled = state.canSubmit, loading = state.isLoading)
-            TextButton(onClick = onRegister, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.auth_go_register))
+            when (tab) {
+                AuthTab.LOGIN -> LoginForm(loginViewModel)
+                AuthTab.REGISTER -> RegisterForm(registerViewModel)
+            }
+
+            if (demo.enabled) {
+                OutlinedButton(
+                    onClick = demoViewModel::enter,
+                    enabled = !demo.isLoading,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(
+                        if (demo.isLoading) stringResource(R.string.auth_demo_loading) else stringResource(R.string.auth_demo),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+                ErrorMessage(demo.errorMessage)
             }
         }
     }
 }
 
 @Composable
-fun RegisterScreen(onBack: () -> Unit, viewModel: RegisterViewModel = hiltViewModel()) {
+private fun LoginForm(viewModel: LoginViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        OutlinedTextField(
+            value = state.email,
+            onValueChange = viewModel::onEmail,
+            label = { Text(stringResource(R.string.auth_email)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+            modifier = Modifier.fillMaxWidth()
+        )
+        PasswordField(state.password, viewModel::onPassword, stringResource(R.string.auth_password), ImeAction.Done, viewModel::submit)
+        ErrorMessage(state.errorMessage)
+        PrimaryButton(stringResource(R.string.auth_login), viewModel::submit, enabled = state.canSubmit, loading = state.isLoading)
+    }
+}
 
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(stringResource(R.string.auth_register_title), style = MaterialTheme.typography.headlineMedium)
-            Text(stringResource(R.string.auth_register_subtitle), style = MaterialTheme.typography.bodyLarge)
+@Composable
+private fun RegisterForm(viewModel: RegisterViewModel) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(stringResource(R.string.auth_register_subtitle), style = MaterialTheme.typography.bodyMedium)
+        OutlinedTextField(
+            value = state.fullName,
+            onValueChange = viewModel::onName,
+            label = { Text(stringResource(R.string.auth_full_name)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = state.email,
+            onValueChange = viewModel::onEmail,
+            label = { Text(stringResource(R.string.auth_email)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+            modifier = Modifier.fillMaxWidth()
+        )
+        PasswordField(
+            value = state.password,
+            onChange = viewModel::onPassword,
+            label = stringResource(R.string.auth_password),
+            imeAction = ImeAction.Done,
+            onDone = viewModel::submit,
+            isError = state.passwordHint != null,
+            supportingText = state.passwordHint ?: stringResource(R.string.auth_password_rules)
+        )
 
-            OutlinedTextField(
-                value = state.fullName,
-                onValueChange = viewModel::onName,
-                label = { Text(stringResource(R.string.auth_full_name)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = state.email,
-                onValueChange = viewModel::onEmail,
-                label = { Text(stringResource(R.string.auth_email)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth()
-            )
-            PasswordField(
-                value = state.password,
-                onChange = viewModel::onPassword,
-                label = stringResource(R.string.auth_password),
-                imeAction = ImeAction.Done,
-                onDone = viewModel::submit,
-                isError = state.passwordHint != null,
-                supportingText = state.passwordHint ?: stringResource(R.string.auth_password_rules)
-            )
-
-            Text(stringResource(R.string.auth_role_label), style = MaterialTheme.typography.titleSmall)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                RoleChip(UserRole.TUTOR, R.string.auth_role_tutor, state.role, viewModel::onRole)
-                RoleChip(UserRole.ADULTO_INDEPENDIENTE, R.string.auth_role_adult, state.role, viewModel::onRole)
-            }
-            ErrorMessage(state.errorMessage)
-
-            PrimaryButton(stringResource(R.string.auth_register), viewModel::submit, enabled = state.canSubmit, loading = state.isLoading)
-            TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.auth_go_login))
-            }
+        Text(stringResource(R.string.auth_role_label), style = MaterialTheme.typography.titleSmall)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            RoleChip(UserRole.TUTOR, R.string.auth_role_tutor, state.role, viewModel::onRole)
+            RoleChip(UserRole.ADULTO_INDEPENDIENTE, R.string.auth_role_adult, state.role, viewModel::onRole)
         }
+        ErrorMessage(state.errorMessage)
+        PrimaryButton(stringResource(R.string.auth_register), viewModel::submit, enabled = state.canSubmit, loading = state.isLoading)
     }
 }
 

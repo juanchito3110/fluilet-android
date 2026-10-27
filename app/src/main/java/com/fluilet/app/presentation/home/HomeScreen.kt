@@ -47,6 +47,7 @@ fun HomeScreen(
     onNewChild: () -> Unit,
     onEditChild: (String) -> Unit,
     onStartReading: () -> Unit,
+    onShowIntro: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
     botViewModel: FluiBotViewModel = hiltViewModel()
 ) {
@@ -84,7 +85,7 @@ fun HomeScreen(
                 Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Header(state, onLogout = viewModel::logout)
+                Header(state, onLogout = viewModel::logout, onShowIntro = onShowIntro)
                 ErrorMessage(state.errorMessage)
                 if (state.selectedTab != HomeTab.LECTURAS) ProfileSelector(state, viewModel::select)
 
@@ -103,7 +104,12 @@ fun HomeScreen(
                         onReadingSaved = viewModel::refresh,
                         onPin = { pinDialog = if (state.pinConfigured) PinDialog.CHANGE else PinDialog.SETUP },
                         // "Empezar ahora" ya pasó por la configuración de PIN dentro del creador de lecturas.
-                        onNewReadingStart = onStartReading
+                        onNewReadingStart = onStartReading,
+                        onLoadDemo = viewModel::loadDemoData,
+                        onOpenDemoLesson = { lesson ->
+                            viewModel.openDemoLesson(lesson)
+                            if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+                        }
                     )
                     HomeTab.FLUIBOT -> FluiBotTab(
                         bot = bot,
@@ -116,9 +122,16 @@ fun HomeScreen(
                     HomeTab.COLECCION -> CollectionTab(
                         bot = bot,
                         progress = state.progress,
-                        onClaim = botViewModel::claimMission
+                        // Las misiones del servidor se confirman con su endpoint (ya abonadas); las locales suman al instante.
+                        onClaim = { id ->
+                            if (state.progress.serverMissions?.any { it.id == id } == true) viewModel.claimServerMission(id)
+                            else botViewModel.claimMission(id)
+                        }
                     )
-                    HomeTab.ESTADISTICAS -> ProgressDashboard(state.progress, state.progressNote)
+                    HomeTab.ESTADISTICAS -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        DemoDataCard(state, viewModel::loadDemoData)
+                        ProgressDashboard(state.progress, state.progressNote)
+                    }
                 }
             }
         }

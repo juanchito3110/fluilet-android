@@ -69,6 +69,11 @@ interface FluiletApi {
     @POST("api/v1/adaptations/generate")
     suspend fun generateLesson(@Body body: LessonGenerateDto): AdaptationReadDto
 
+    /** Recupera una adaptación retenida (por su `id` o por el `document.id`, que devuelve la última versión). */
+    @Headers("$READ_TIMEOUT_HEADER: $ADAPTATION_READ_TIMEOUT_SECONDS")
+    @GET("api/v1/adaptations/{id}")
+    suspend fun adaptation(@Path("id") id: String): AdaptationReadDto
+
     @GET("api/v1/documents")
     suspend fun documents(@Query("offset") offset: Int = 0): List<DocumentDto>
 
@@ -86,6 +91,18 @@ interface FluiletApi {
     /** Resumen educativo del perfil (tutor). Un servidor anterior devuelve una lista: el cliente cae al cálculo local. */
     @GET("api/v1/children/{id}/progress")
     suspend fun childEducationalProgress(@Path("id") childId: String): EducationalProgressDto
+
+    /**
+     * Datos de demostración (solo el tutor propietario): 7 días de práctica y seis lecturas reales retenidas.
+     * Es idempotente; el servidor mide las seis adaptaciones, así que puede tardar.
+     */
+    @Headers("$READ_TIMEOUT_HEADER: $ADAPTATION_READ_TIMEOUT_SECONDS")
+    @POST("api/v1/profiles/{id}/seed-demo")
+    suspend fun seedDemo(@Path("id") profileId: String): EducationalProgressDto
+
+    /** Confirma una misión diaria (el servidor ya la abonó al completarla: no hay segundo pago). */
+    @POST("api/v1/profiles/{id}/daily-missions/{missionId}/claim")
+    suspend fun claimDailyMission(@Path("id") profileId: String, @Path("missionId") missionId: String): EducationalProgressDto
 
     /** Resumen educativo del adulto independiente. */
     @GET("api/v1/readings/progress")

@@ -62,7 +62,37 @@ data class AdaptationReadDto(
     @SerializedName("child_age_years") val childAgeYears: Int? = null,
     // Opcionales (aún no publicados por el backend): sin ellos la app usa dato curioso y glosario locales.
     @SerializedName("fun_fact") val funFact: String? = null,
-    @SerializedName("key_vocabulary") val keyVocabulary: List<VocabularyDto>? = null
+    @SerializedName("key_vocabulary") val keyVocabulary: List<VocabularyDto>? = null,
+    // Contrato de revisión académica (backend >= f6f09d9): adaptación retenida con su original y métricas exactas.
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("original_text") val originalText: String? = null,
+    @SerializedName("original_readability_score") val originalReadabilityScore: Double? = null,
+    @SerializedName("readability_score") val readabilityScore: Double? = null,
+    @SerializedName("metrics") val metrics: ComparisonMetricsDto? = null,
+    @SerializedName("target_level") val targetLevel: Int? = null,
+    @SerializedName("meets_readability_target") val meetsReadabilityTarget: Boolean? = null,
+    @SerializedName("source") val source: LessonSourceDto? = null,
+    @SerializedName("resolved_topic") val resolvedTopic: String? = null
+)
+
+/** `metrics` de la respuesta: puntajes Szigriszt-Pazos sin redondear y conteos de ambos textos. */
+data class ComparisonMetricsDto(
+    @SerializedName("original_szigriszt_pazos") val originalSzigriszt: Double? = null,
+    @SerializedName("adapted_szigriszt_pazos") val adaptedSzigriszt: Double? = null,
+    @SerializedName("score_delta") val scoreDelta: Double? = null,
+    @SerializedName("original_word_count") val originalWordCount: Int? = null,
+    @SerializedName("adapted_word_count") val adaptedWordCount: Int? = null,
+    @SerializedName("original_sentence_count") val originalSentenceCount: Int? = null,
+    @SerializedName("adapted_sentence_count") val adaptedSentenceCount: Int? = null,
+    @SerializedName("original_average_words_per_sentence") val originalAvgWordsPerSentence: Double? = null,
+    @SerializedName("adapted_average_words_per_sentence") val adaptedAvgWordsPerSentence: Double? = null
+)
+
+data class LessonSourceDto(
+    @SerializedName("provider") val provider: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("url") val url: String? = null,
+    @SerializedName("license") val license: String? = null
 )
 
 data class VocabularyDto(

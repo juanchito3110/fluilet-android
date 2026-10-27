@@ -6,4 +6,7 @@
     <string name="focus_channel_description">Mantiene activa la sesión de lectura y el Modo Enfoque.</string>
     <string name="focus_notification_title">Sesión de lectura en curso</string>
     <string name="focus_notification_text">Tiempo de lectura: %1$02d:%2$02d</string>
+
+    <!-- Intro / marca -->
+    <string name="splash_start">Comenzar</string>
 </resources>

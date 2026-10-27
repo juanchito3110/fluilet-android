@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.fluilet.app.R
+import com.fluilet.app.domain.model.TechnicalSheet
 import com.fluilet.app.presentation.common.SelectableChip
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
 
@@ -51,10 +52,12 @@ internal fun FunFactCard(fact: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** 🔄 Vista "Adaptado vs. Original": cambio de legibilidad Szigriszt-Pazos y, si existe, el texto original. */
+/**
+ * 🔄 Vista "Adaptado vs. Original": la Ficha Técnica del Motor NLP y, debajo, el texto original (fuente
+ * enciclopédica) frente al texto adaptado por Fluilet. Disponible en TODAS las lecturas.
+ */
 @Composable
 internal fun ComparisonCard(state: ReaderUiState, modifier: Modifier = Modifier) {
-    val metrics = state.reading?.adaptation?.metrics
     val settings = state.settings
     val bodyStyle = TextStyle(
         fontFamily = OpenDyslexicFontFamily,
@@ -63,6 +66,7 @@ internal fun ComparisonCard(state: ReaderUiState, modifier: Modifier = Modifier)
         letterSpacing = settings.letterSpacingEm.em,
         color = MaterialTheme.colorScheme.onBackground
     )
+    val adaptation = state.reading?.adaptation
     Card(
         modifier = modifier.fillMaxSize(),
         shape = RoundedCornerShape(24.dp),
@@ -73,36 +77,78 @@ internal fun ComparisonCard(state: ReaderUiState, modifier: Modifier = Modifier)
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(stringResource(R.string.compare_title), style = MaterialTheme.typography.titleLarge)
-            if (metrics != null) {
+            state.technicalSheet?.let { TechnicalSheetCard(it) }
+            adaptation?.source?.let { src ->
                 Text(
-                    stringResource(R.string.compare_score, metrics.originalSzigrisztScore, metrics.adaptedSzigrisztScore),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.semantics {
-                        contentDescription = "Legibilidad Szigriszt-Pazos: de ${metrics.originalSzigrisztScore.toInt()} a ${metrics.adaptedSzigrisztScore.toInt()}"
-                    }
-                )
-                Text(
-                    stringResource(R.string.compare_delta, metrics.scoreDelta),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    stringResource(R.string.compare_words, metrics.originalWordCount, metrics.adaptedWordCount),
+                    stringResource(R.string.compare_source, if (src.isWikipedia) "Wikipedia" else "Banco Fluilet", src.title),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+
             Text(stringResource(R.string.compare_original_label), style = MaterialTheme.typography.titleMedium)
             val original = state.originalText
-            if (original.isNullOrBlank()) {
-                Text(stringResource(R.string.compare_original_unavailable), style = MaterialTheme.typography.bodyMedium)
-            } else {
-                Text(
+            when {
+                !original.isNullOrBlank() -> Text(
                     if (original.length > MAX_ORIGINAL_CHARS) original.take(MAX_ORIGINAL_CHARS) + "…" else original,
                     style = bodyStyle
                 )
+                state.originalLoading -> Text(stringResource(R.string.compare_original_loading), style = MaterialTheme.typography.bodyMedium)
+                else -> Text(stringResource(R.string.compare_original_unavailable), style = MaterialTheme.typography.bodyMedium)
             }
             Text(stringResource(R.string.compare_adapted_label), style = MaterialTheme.typography.titleMedium)
             Text(state.currentText, style = bodyStyle)
+        }
+    }
+}
+
+/** 🔬 Ficha Técnica del Motor NLP: Szigriszt-Pazos original vs. adaptado lado a lado, palabras y longitud media de oración. */
+@Composable
+internal fun TechnicalSheetCard(sheet: TechnicalSheet, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.techsheet_title), style = MaterialTheme.typography.titleMedium)
+            Text(sheet.headline, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SheetColumn(
+                    stringResource(R.string.techsheet_original), sheet.originalScore, sheet.originalLabel,
+                    sheet.originalWords, sheet.originalWordsPerSentence, Modifier.weight(1f)
+                )
+                SheetColumn(
+                    stringResource(R.string.techsheet_adapted), sheet.adaptedScore, sheet.adaptedLabel,
+                    sheet.adaptedWords, sheet.adaptedWordsPerSentence, Modifier.weight(1f)
+                )
+            }
+            Text(
+                stringResource(R.string.techsheet_delta, sheet.delta),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.semantics { contentDescription = "Cambio de legibilidad: ${sheet.delta.toInt()} puntos" }
+            )
+            Text(
+                stringResource(if (sheet.bestEffort) R.string.techsheet_best_effort else R.string.techsheet_ok),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun SheetColumn(title: String, score: Double, label: String, words: Int, perSentence: Double, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.semantics(mergeDescendants = true) { },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.labelLarge)
+            Text("%.1f".format(java.util.Locale.US, score), style = MaterialTheme.typography.headlineSmall)
+            Text(label, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.techsheet_words, words), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.techsheet_per_sentence, perSentence), style = MaterialTheme.typography.bodySmall)
         }
     }
 }

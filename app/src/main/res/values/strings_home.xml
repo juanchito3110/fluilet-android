@@ -35,4 +35,13 @@
     <string name="stats_streak">Racha</string>
     <string name="stats_lessons">Lecciones</string>
     <string name="stats_days">%1$d días</string>
+    <string name="home_show_intro">✨ Ver Intro / Cuenta</string>
+    <string name="demo_hint">Para la revisión: llena las gráficas, FluiBot y las lecturas con 7 días de práctica de ejemplo (la comprensión es simulada).</string>
+    <string name="demo_load">🎓 Cargar Datos Demo</string>
+    <string name="demo_loading">Cargando datos demo…</string>
+    <string name="demo_lessons_title">📚 Lecturas demo</string>
+    <string name="demo_lessons_hint">Cada una trae su texto original, la adaptación, un dato curioso y su glosario.</string>
+    <string name="demo_lesson_level">Nivel %1$d</string>
+    <string name="demo_lesson_extras">%1$d palabras clave · con texto original para comparar</string>
+    <string name="demo_lesson_open">Leer esta lección</string>
 </resources>

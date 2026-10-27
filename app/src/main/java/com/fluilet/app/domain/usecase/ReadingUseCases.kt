@@ -51,6 +51,22 @@ class GetEducationalProgressUseCase @Inject constructor(private val repository: 
         repository.educationalProgress(childId, baselineLevel)
 }
 
+/** "🎓 Cargar Datos Demo" contra el backend (el respaldo local lo aplica quien lo invoca). */
+class SeedDemoDataUseCase @Inject constructor(private val repository: ReadingSessionRepository) {
+    suspend operator fun invoke(childId: String): Result<EducationalProgress> = repository.seedDemo(childId)
+}
+
+/** Confirma una misión diaria del servidor; devuelve el resumen actualizado (gemas incluidas). */
+class ClaimDailyMissionUseCase @Inject constructor(private val repository: ReadingSessionRepository) {
+    suspend operator fun invoke(childId: String, missionId: String): Result<EducationalProgress> =
+        repository.claimMission(childId, missionId)
+}
+
+/** Recupera una adaptación retenida: da el texto original a lecturas antiguas que no lo traían. */
+class FetchAdaptationUseCase @Inject constructor(private val repository: AdaptationRepository) {
+    suspend operator fun invoke(id: String): Result<AdaptationResult> = repository.fetch(id)
+}
+
 class GenerateLessonUseCase @Inject constructor(private val repository: AdaptationRepository) {
     suspend operator fun invoke(request: LessonRequest, childId: String?): Result<AdaptationResult> {
         val topic = request.cleanTopic

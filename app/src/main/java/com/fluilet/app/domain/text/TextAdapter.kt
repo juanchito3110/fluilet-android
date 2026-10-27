@@ -91,7 +91,9 @@ object TextAdapter {
                 originalWordCount = origWords,
                 adaptedWordCount = adWords,
                 syllableCount = adSyl,
-                sentenceCount = adSent
+                sentenceCount = adSent,
+                originalSyllableCount = origSyl,
+                originalSentenceCount = origSent
             )
         )
     }

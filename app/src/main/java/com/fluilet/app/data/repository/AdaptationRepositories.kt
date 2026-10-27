@@ -50,6 +50,9 @@ class RemoteAdaptationRepository @Inject constructor(
         }.mapCatching { it.toDomain(title, nlpLevel) }
     }
 
+    override suspend fun fetch(id: String): Result<AdaptationResult> =
+        apiCall { api.adaptation(id) }.mapCatching { it.toDomain("Lectura", NlpLevel.NIVEL_3) }
+
     /** `POST /adaptations/generate`: el servidor elige un texto del banco y lo adapta al nivel pedido. */
     override suspend fun generate(request: LessonRequest, childId: String?): Result<AdaptationResult> =
         apiCall {

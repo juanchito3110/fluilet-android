@@ -15,6 +15,7 @@ import com.fluilet.app.domain.gamification.PedagogicalSummary
 import com.fluilet.app.domain.gamification.ServerGamification
 import com.fluilet.app.domain.model.BadgeCatalog
 import com.fluilet.app.domain.model.LessonCategory
+import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.EducationalBadge
 import com.fluilet.app.domain.model.EducationalProgress
 import com.fluilet.app.domain.model.LessonProgress
@@ -25,9 +26,17 @@ private fun parseInstant(raw: String?): Instant? = raw?.let { runCatching { Inst
 
 /** Tolera campos ausentes: las cinco insignias siempre existen (bloqueadas si el servidor no las envía). */
 fun EducationalProgressDto.toDomain(): EducationalProgress {
-    val base = toBase()
+    val base = toBase().copy(
+        demoData = demoData ?: false,
+        // Las lecturas demo vienen completas (original + adaptación + dato curioso + glosario); las malformadas se descartan.
+        demoLessons = demoLessons.orEmpty().mapNotNull { dto ->
+            runCatching { dto.toDomain(DEMO_FALLBACK_TITLE, NlpLevel.NIVEL_3) }.getOrNull()
+        }
+    )
     return Gamification.enrich(base, serverGamification())
 }
+
+private const val DEMO_FALLBACK_TITLE = "Lectura demo"
 
 /** Solo si el servidor envió algún valor de juego; el resto lo calcula la app. */
 private fun EducationalProgressDto.serverGamification(): ServerGamification? {
@@ -35,8 +44,10 @@ private fun EducationalProgressDto.serverGamification(): ServerGamification? {
     val cards = collectibleCards?.mapNotNull { it.toDomain() }
     val xp = totalXp ?: mascot?.currentXp
     val missions = dailyMissions?.mapNotNull { it.toDomain() }
-    if (totalGems == null && xp == null && streakDays == null && summary == null && cards.isNullOrEmpty() && missions.isNullOrEmpty()) return null
-    return ServerGamification(totalGems?.coerceAtLeast(0), xp?.coerceAtLeast(0), streakDays?.coerceAtLeast(0), summary, cards, missions)
+    if (totalGems == null && xp == null && streakDays == null && currentStreakDays == null && summary == null && cards.isNullOrEmpty() && missions.isNullOrEmpty()) return null
+    // `current_streak_days` (días consecutivos hasta hoy o ayer) manda sobre `streak_days` (días distintos).
+    val streak = currentStreakDays ?: streakDays
+    return ServerGamification(totalGems?.coerceAtLeast(0), xp?.coerceAtLeast(0), streak?.coerceAtLeast(0), summary, cards, missions)
 }
 
 /** Descarta misiones sin identificador o sin meta; las que falten se tratan como "las calcula la app". */
@@ -49,7 +60,9 @@ private fun DailyMissionDto.toDomain(): DailyMission? {
         description = description.orEmpty(),
         current = (progress ?: 0).coerceIn(0, goal),
         target = goal,
-        rewardGems = (rewardGems ?: 0).coerceAtLeast(0)
+        rewardGems = (rewardGems ?: 0).coerceAtLeast(0),
+        fromServer = true,
+        claimed = claimed ?: false
     )
 }
 

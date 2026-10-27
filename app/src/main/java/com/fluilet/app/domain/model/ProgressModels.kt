@@ -56,7 +56,11 @@ data class EducationalProgress(
     val cards: List<CollectibleCard> = Gamification.cardsFor(emptyList()),
     val gamificationFromServer: Boolean = false,
     /** Misiones del día que calculó el servidor (`daily_missions`); `null` => se calculan en el dispositivo. */
-    val serverMissions: List<DailyMission>? = null
+    val serverMissions: List<DailyMission>? = null,
+    /** `demo_data`: el servidor marcó este historial como datos de demostración (no es una medición real). */
+    val demoData: Boolean = false,
+    /** Lecturas demo completas (original, adaptación, dato curioso y glosario) que devuelve `seed-demo`. Solo en RAM. */
+    val demoLessons: List<AdaptationResult> = emptyList()
 ) {
     val hasLessons: Boolean get() = totalLessons > 0
 

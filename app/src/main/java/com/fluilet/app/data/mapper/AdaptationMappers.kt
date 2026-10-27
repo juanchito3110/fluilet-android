@@ -4,6 +4,8 @@ import com.fluilet.app.core.network.AppError
 import com.fluilet.app.data.remote.dto.AdaptationReadDto
 import com.fluilet.app.data.remote.dto.ComprehensionQuestionDto
 import com.fluilet.app.data.remote.dto.DocumentDto
+import com.fluilet.app.data.remote.dto.LessonSourceDto
+import com.fluilet.app.domain.model.LessonSourceInfo
 import com.fluilet.app.data.remote.dto.VocabularyDto
 import com.fluilet.app.domain.text.VocabularyEntry
 import com.fluilet.app.domain.model.AdaptationResult
@@ -31,6 +33,37 @@ fun DocumentDto.toMetrics(): ReadabilityMetrics {
 }
 
 /**
+ * Métricas de la respuesta: prefiere el objeto `metrics` (puntajes sin redondear de ambos textos) y, si el
+ * servidor es anterior, cae a los campos del documento y a los puntajes de nivel superior.
+ */
+fun AdaptationReadDto.toMetrics(): ReadabilityMetrics {
+    val base = document.toMetrics()
+    val m = metrics
+    if (m == null) {
+        val original = originalReadabilityScore?.takeIf { base.originalSzigrisztScore == 0.0 } ?: base.originalSzigrisztScore
+        val adapted = readabilityScore?.takeIf { base.adaptedSzigrisztScore == 0.0 } ?: base.adaptedSzigrisztScore
+        return base.copy(
+            originalSzigrisztScore = original,
+            adaptedSzigrisztScore = adapted,
+            scoreDelta = if (original != base.originalSzigrisztScore || adapted != base.adaptedSzigrisztScore) adapted - original else base.scoreDelta
+        )
+    }
+    val original = m.originalSzigriszt ?: originalReadabilityScore ?: base.originalSzigrisztScore
+    val adapted = m.adaptedSzigriszt ?: readabilityScore ?: base.adaptedSzigrisztScore
+    return base.copy(
+        originalSzigrisztScore = original,
+        adaptedSzigrisztScore = adapted,
+        scoreDelta = m.scoreDelta ?: (adapted - original),
+        originalWordCount = m.originalWordCount ?: base.originalWordCount,
+        adaptedWordCount = m.adaptedWordCount ?: base.adaptedWordCount,
+        originalSentenceCount = m.originalSentenceCount ?: base.originalSentenceCount,
+        sentenceCount = m.adaptedSentenceCount ?: base.sentenceCount,
+        originalAvgWordsPerSentence = m.originalAvgWordsPerSentence ?: 0.0,
+        adaptedAvgWordsPerSentence = m.adaptedAvgWordsPerSentence ?: 0.0
+    )
+}
+
+/**
  * El texto adaptado se parte en tarjetas en el cliente; el servidor solo entrega métricas por bloque.
  * Los campos de lección son opcionales: sin ellos se usan el título/nivel locales y no hay mini-reto.
  */
@@ -42,7 +75,7 @@ fun AdaptationReadDto.toDomain(title: String, level: NlpLevel): AdaptationResult
     return AdaptationResult(
         title = this.title?.takeIf { it.isNotBlank() } ?: title,
         chunks = chunks,
-        metrics = document.toMetrics(),
+        metrics = toMetrics(),
         documentId = document.id,
         category = category ?: document.category,
         simplificationLevel = simplificationLevel ?: document.simplificationLevel ?: level.value,
@@ -51,8 +84,22 @@ fun AdaptationReadDto.toDomain(title: String, level: NlpLevel): AdaptationResult
         questionAgeGroup = questionAgeGroup,
         childAgeYears = childAgeYears,
         funFact = funFact?.trim()?.takeIf { it.isNotEmpty() },
-        keyVocabulary = keyVocabulary.orEmpty().mapNotNull { it.toDomain() }
+        keyVocabulary = keyVocabulary.orEmpty().mapNotNull { it.toDomain() },
+        // El original que el servidor retiene (`original_text`): solo se mantiene en RAM para la comparación.
+        originalText = originalText?.takeIf { it.isNotBlank() },
+        adaptationId = id?.takeIf { it.isNotBlank() },
+        targetLevel = targetLevel,
+        source = source?.toDomain(),
+        meetsTarget = meetsReadabilityTarget,
+        topic = resolvedTopic?.takeIf { it.isNotBlank() }
     )
+}
+
+private fun LessonSourceDto.toDomain(): LessonSourceInfo? {
+    val t = title?.trim().orEmpty()
+    val u = url?.trim().orEmpty()
+    if (t.isEmpty() && u.isEmpty()) return null
+    return LessonSourceInfo(provider.orEmpty().ifBlank { "local" }, t, u, license?.takeIf { it.isNotBlank() })
 }
 
 /** Una palabra clave necesita palabra y definición; el ejemplo es opcional. */

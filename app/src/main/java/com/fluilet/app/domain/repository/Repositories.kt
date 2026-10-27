@@ -43,6 +43,10 @@ interface AdaptationRepository {
 
     /** Genera una lección por categoría/tema (banco del servidor) ya adaptada al nivel pedido. */
     suspend fun generate(request: LessonRequest, childId: String?): Result<AdaptationResult>
+
+    /** Recupera una adaptación retenida (incluido su original) por id de adaptación o de documento. */
+    suspend fun fetch(id: String): Result<AdaptationResult> =
+        Result.failure(com.fluilet.app.core.network.AppError.Unsupported("Esta versión no recupera adaptaciones guardadas."))
 }
 
 /**
@@ -61,6 +65,14 @@ interface ReadingSessionRepository {
      * del perfil (o 2 para un adulto) cuando aún no hay lecciones completadas.
      */
     suspend fun educationalProgress(childId: String?, baselineLevel: Int): Result<EducationalProgress>
+
+    /** `POST /profiles/{id}/seed-demo`: historial de 7 días y seis lecturas demo (solo tutor). */
+    suspend fun seedDemo(childId: String): Result<EducationalProgress> =
+        Result.failure(com.fluilet.app.core.network.AppError.Unsupported("Los datos demo requieren el servidor."))
+
+    /** `POST /profiles/{id}/daily-missions/{id}/claim`: devuelve el resumen con las gemas ya abonadas. */
+    suspend fun claimMission(childId: String, missionId: String): Result<EducationalProgress> =
+        Result.failure(com.fluilet.app.core.network.AppError.Unsupported("Las misiones se confirman en el servidor."))
 }
 
 interface ReaderSettingsRepository {

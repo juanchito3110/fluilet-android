@@ -24,6 +24,8 @@ import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.session.ActiveReadingHolder
 import com.fluilet.app.domain.text.SentenceSpans
 import com.fluilet.app.domain.usecase.GetEducationalProgressUseCase
+import com.fluilet.app.domain.usecase.FetchAdaptationUseCase
+import com.fluilet.app.domain.model.TechnicalSheet
 import com.fluilet.app.domain.usecase.StartReadingSessionUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingProgressUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingSettingsUseCase
@@ -80,13 +82,19 @@ data class ReaderUiState(
     val selectedWord: VocabularyEntry? = null,
     /** Palabras clave de la lectura (servidor o glosario local). */
     val vocabulary: List<VocabularyEntry> = emptyList(),
-    val labTab: LabTab = LabTab.DEFAULT
+    val labTab: LabTab = LabTab.DEFAULT,
+    /** Original recuperado con `GET /adaptations/{id}` para lecturas anteriores que no lo traían. */
+    val fetchedOriginal: String? = null,
+    val originalLoading: Boolean = false
 ) {
     /** "¿Sabías que...?": dato del servidor o local según tema/categoría; se muestra al final del texto. */
     val funFact: String? get() = reading?.adaptation?.effectiveFunFact
 
-    /** Texto original (solo en RAM, solo si se pegó o subió un .txt); `null` si no está disponible. */
-    val originalText: String? get() = reading?.adaptation?.originalText
+    /** Texto original (solo en RAM): el que trae la lección (`original_text`) o el recuperado del servidor al pedir la comparación. */
+    val originalText: String? get() = reading?.adaptation?.originalText?.takeIf { it.isNotBlank() } ?: fetchedOriginal
+
+    /** Ficha Técnica del Motor NLP de esta lección (métricas reales Szigriszt-Pazos). */
+    val technicalSheet: TechnicalSheet? get() = reading?.adaptation?.let(TechnicalSheet::of)
 
     /** Aporte de esta sesión a las misiones del día. */
     val session: SessionContribution
@@ -136,7 +144,9 @@ private data class Local(
     val chestOpened: Boolean = false,
     val showOriginal: Boolean = false,
     val selectedWord: String? = null,
-    val labTab: LabTab = LabTab.DEFAULT
+    val labTab: LabTab = LabTab.DEFAULT,
+    val fetchedOriginal: String? = null,
+    val originalLoading: Boolean = false
 )
 
 @HiltViewModel
@@ -148,6 +158,7 @@ class ReaderViewModel @Inject constructor(
     private val startSession: StartReadingSessionUseCase,
     private val updateProgress: UpdateReadingProgressUseCase,
     private val getProgress: GetEducationalProgressUseCase,
+    private val fetchAdaptation: FetchAdaptationUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
@@ -181,7 +192,9 @@ class ReaderViewModel @Inject constructor(
             showOriginal = l.showOriginal,
             vocabulary = words,
             selectedWord = words.firstOrNull { it.word == l.selectedWord },
-            labTab = l.labTab
+            labTab = l.labTab,
+            fetchedOriginal = l.fetchedOriginal,
+            originalLoading = l.originalLoading
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderUiState())
 
@@ -266,7 +279,25 @@ class ReaderViewModel @Inject constructor(
 
     // --- Original vs. Adaptado y Glosario Mágico -------------------------------------------------
 
-    fun toggleOriginal() = local.update { it.copy(showOriginal = !it.showOriginal) }
+    fun toggleOriginal() {
+        val turningOn = !local.value.showOriginal
+        local.update { it.copy(showOriginal = turningOn) }
+        if (turningOn) loadOriginalIfMissing()
+    }
+
+    /** Lecturas anteriores sin `original_text`: se pide al servidor la adaptación retenida (por su id o el del documento). */
+    private fun loadOriginalIfMissing() {
+        val adaptation = holder.current.value?.adaptation ?: return
+        val l = local.value
+        if (!adaptation.originalText.isNullOrBlank() || l.fetchedOriginal != null || l.originalLoading) return
+        val id = adaptation.adaptationId ?: adaptation.documentId ?: return
+        local.update { it.copy(originalLoading = true) }
+        viewModelScope.launch {
+            fetchAdaptation(id)
+                .onSuccess { r -> local.update { it.copy(fetchedOriginal = r.originalText?.takeIf { t -> t.isNotBlank() }, originalLoading = false) } }
+                .onFailure { local.update { it.copy(originalLoading = false) } }
+        }
+    }
 
     /** Un toque en una palabra clave muestra su definición; otro toque en la misma la cierra. */
     fun selectWord(word: String) = local.update { it.copy(selectedWord = if (it.selectedWord == word) null else word) }

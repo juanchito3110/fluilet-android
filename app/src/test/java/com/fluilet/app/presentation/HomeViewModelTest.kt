@@ -1,6 +1,7 @@
 package com.fluilet.app.presentation
 
 import com.fluilet.app.core.auth.SessionManager
+import com.fluilet.app.domain.demo.DemoData
 import com.fluilet.app.domain.model.ActiveReading
 import com.fluilet.app.domain.model.AuthSession
 import com.fluilet.app.domain.model.ReadingSettings
@@ -15,6 +16,8 @@ import com.fluilet.app.domain.usecase.GetChildrenUseCase
 import com.fluilet.app.domain.usecase.GetEducationalProgressUseCase
 import com.fluilet.app.domain.usecase.IsTutorPinConfiguredUseCase
 import com.fluilet.app.domain.usecase.LogoutUseCase
+import com.fluilet.app.domain.usecase.SeedDemoDataUseCase
+import com.fluilet.app.domain.usecase.ClaimDailyMissionUseCase
 import com.fluilet.app.domain.usecase.SetNlpLevelUseCase
 import com.fluilet.app.presentation.home.HomeUiState
 import com.fluilet.app.presentation.home.HomeViewModel
@@ -78,7 +81,7 @@ class HomeViewModelTest {
             session, holder, auth,
             GetChildrenUseCase(children), SetNlpLevelUseCase(children), DeleteChildUseCase(children),
             GetEducationalProgressUseCase(sessions), IsTutorPinConfiguredUseCase(FakeTutorPin(pinConfigured)),
-            LogoutUseCase(auth), holder
+            LogoutUseCase(auth), holder, SeedDemoDataUseCase(sessions), ClaimDailyMissionUseCase(sessions)
         )
     }
 
@@ -228,5 +231,139 @@ class HomeViewModelTest {
         vm.selectTab(com.fluilet.app.presentation.home.HomeTab.ESTADISTICAS)
         vm.refresh() // volver de otra pantalla no pierde el apartado
         assertEquals(com.fluilet.app.presentation.home.HomeTab.ESTADISTICAS, state().selectedTab)
+    }
+
+    // --- 🎓 Cargar Datos Demo y misiones del servidor -----------------------------------------
+
+    private fun demoChildren() { children.children = listOf(sampleChild("child-1", "Mateo")) }
+
+    @Test fun demoButtonAppliesTheLocalDataAtOnceAndThenReplacesItWithTheServers() = runTest(dispatcher) {
+        demoChildren()
+        val server = DemoData.progress().copy(totalGems = 715, demoLessons = DemoData.lessons().take(2))
+        sessions.seedResult = Result.success(server)
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+
+        vm.loadDemoData()
+
+        assertEquals(listOf("child-1"), sessions.seedRequests)
+        assertEquals(715, state().progress.totalGems)
+        assertEquals(7, state().progress.lessons.size)
+        assertEquals(2, state().demoLessons.size)
+        assertEquals("Datos demo cargados desde el servidor.", state().demoNote)
+        assertFalse(state().isDemoLoading)
+    }
+
+    @Test fun withoutTheServerTheLocalDemoFillsEverythingAndSaysSo() = runTest(dispatcher) {
+        demoChildren()
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+
+        vm.loadDemoData() // el servidor falla (FakeReadingSessionRepository.seedResult por omisión)
+
+        assertEquals(DemoData.BASE_GEMS, state().progress.totalGems)
+        assertTrue(state().progress.totalGems >= 260)
+        assertEquals(900, state().progress.currentXp)
+        assertEquals(7, state().progress.streakDays)
+        assertEquals(listOf("Real Madrid", "Biología Marina", "Agujeros Negros"), state().demoLessons.map { it.title })
+        assertTrue(state().demoNote!!.contains("locales"))
+        assertFalse(state().isDemoLoading)
+    }
+
+    @Test fun refreshingKeepsTheLocalDemoWhileTheServerStillHasFewerLessons() = runTest(dispatcher) {
+        demoChildren()
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        vm.loadDemoData()
+
+        sessions.educational = progress(completed = 0, total = 0)
+        vm.refresh()
+
+        assertEquals(7, state().progress.lessons.size)
+        // Cuando el servidor ya tiene la práctica real, manda el servidor.
+        sessions.educational = DemoData.progress().copy(totalGems = 999)
+        vm.refresh()
+        assertEquals(999, state().progress.totalGems)
+    }
+
+    @Test fun demoLessonsBelongToTheProfileTheyWereLoadedFor() = runTest(dispatcher) {
+        children.children = listOf(sampleChild("child-1", "Mateo"), sampleChild("child-2", "Lucía"))
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        vm.loadDemoData()
+        assertEquals(3, state().demoLessons.size)
+
+        vm.select("child-2")
+        assertTrue(state().demoLessons.isEmpty())
+        vm.select("child-1")
+        assertEquals(3, state().demoLessons.size)
+    }
+
+    @Test fun aTutorWithoutProfilesIsAskedToCreateOneFirst() = runTest(dispatcher) {
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        vm.loadDemoData()
+        assertTrue(state().errorMessage!!.contains("perfil"))
+        assertTrue(sessions.seedRequests.isEmpty())
+        assertTrue(state().demoLessons.isEmpty())
+    }
+
+    @Test fun anIndependentAdultGetsTheLocalDemoWithoutCallingTheTutorOnlyEndpoint() = runTest(dispatcher) {
+        val vm = viewModel(UserRole.ADULTO_INDEPENDIENTE)
+        val state = observe(vm)
+        vm.refresh()
+        vm.loadDemoData()
+        assertTrue(sessions.seedRequests.isEmpty())
+        assertEquals(7, state().progress.lessons.size)
+        assertEquals(3, state().demoLessons.size)
+    }
+
+    @Test fun openingADemoLessonLeavesItReadyWithTheProfilesSettings() = runTest(dispatcher) {
+        demoChildren()
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        vm.loadDemoData()
+
+        vm.openDemoLesson(state().demoLessons.first())
+
+        val reading = holder.current.value!!
+        assertEquals("Real Madrid", reading.adaptation.title)
+        assertEquals("child-1", reading.childId)
+        assertEquals("Mateo", reading.readerName)
+        assertEquals(20f, reading.settings.fontSizeSp, 0.0001f)
+        assertNotNull(reading.adaptation.originalText)
+        assertNotNull(state().readingForSelection)
+    }
+
+    @Test fun confirmingAServerMissionRefreshesTheGemCounterFromTheBackendsSummary() = runTest(dispatcher) {
+        demoChildren()
+        val mission = com.fluilet.app.domain.gamification.DailyMission("mission_quiz_master", "Mente Brillante", "d", 1, 1, 30, fromServer = true, claimed = true)
+        sessions.claimResult = Result.success(DemoData.progress().copy(totalGems = 755, serverMissions = listOf(mission)))
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+
+        vm.claimServerMission("mission_quiz_master")
+
+        assertEquals(listOf("child-1" to "mission_quiz_master"), sessions.claimRequests)
+        assertEquals(755, state().progress.totalGems)
+        assertTrue(state().progress.serverMissions!!.single().claimed)
+    }
+
+    @Test fun aFailedClaimShowsTheErrorAndKeepsTheProgress() = runTest(dispatcher) {
+        demoChildren()
+        sessions.educational = progress()
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        vm.claimServerMission("mission_x")
+        assertTrue(state().errorMessage!!.contains("conexión"))
+        assertEquals(2, state().progress.completedLessons)
     }
 }

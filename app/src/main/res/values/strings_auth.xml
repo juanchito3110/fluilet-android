@@ -5,9 +5,6 @@
     <string name="auth_show_password">Mostrar contraseña</string>
     <string name="auth_hide_password">Ocultar contraseña</string>
     <string name="auth_login">Iniciar sesión</string>
-    <string name="auth_go_register">¿No tienes cuenta? Crear cuenta</string>
-    <string name="auth_go_login">¿Ya tienes cuenta? Iniciar sesión</string>
-    <string name="auth_register_title">Crear cuenta</string>
     <string name="auth_register_subtitle">Las cuentas son para tutores (padres, docentes o especialistas) y adultos que leen por sí mismos. Los niños usan un perfil creado por su tutor.</string>
     <string name="auth_full_name">Nombre completo</string>
     <string name="auth_password_rules">10 a 72 caracteres con mayúscula, minúscula, número y símbolo; sin espacios.</string>
@@ -15,4 +12,9 @@
     <string name="auth_role_tutor">Tutor (padre, docente o especialista)</string>
     <string name="auth_role_adult">Adulto independiente</string>
     <string name="auth_register">Crear cuenta</string>
+    <string name="auth_tab_login">Iniciar Sesión</string>
+    <string name="auth_tab_register">Crear Cuenta</string>
+    <string name="auth_demo">🚀 Entrar en Modo Demo (Revisión Profesor)</string>
+    <string name="auth_demo_loading">Preparando el Modo Demo…</string>
+    <string name="auth_back_to_panel">← Volver al panel</string>
 </resources>

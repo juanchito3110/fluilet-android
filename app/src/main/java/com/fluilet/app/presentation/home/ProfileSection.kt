@@ -61,26 +61,50 @@ import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.SectionCard
 import com.fluilet.app.presentation.parentalgate.GateMode
 import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.fluilet.app.presentation.brand.FluiletBrand
+import com.fluilet.app.presentation.brand.FluiletIsotypeLogo
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/**
+ * Encabezado oficial: isotipo + "Fluilet" + eslogan, el saludo y el acceso "✨ Ver Intro / Cuenta" para repetir
+ * la animación del logo y la pantalla de Iniciar Sesión / Crear Cuenta en cualquier momento.
+ */
 @Composable
-internal fun Header(state: HomeUiState, onLogout: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                if (state.userName.isBlank()) stringResource(R.string.home_hello_plain)
-                else stringResource(R.string.home_hello, state.userName),
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Text(
-                stringResource(if (state.isTutor) R.string.home_role_tutor else R.string.home_role_adult),
-                style = MaterialTheme.typography.bodyMedium
-            )
+internal fun Header(state: HomeUiState, onLogout: () -> Unit, onShowIntro: () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FluiletIsotypeLogo(Modifier.size(44.dp))
+            Column(Modifier.weight(1f)) {
+                Text(FluiletBrand.NAME, color = FluiletBrand.Purple, fontWeight = FontWeight.Bold, fontFamily = FontFamily.SansSerif, fontSize = 24.sp)
+                Text(FluiletBrand.SLOGAN, color = FluiletBrand.SloganPurple, fontFamily = FontFamily.SansSerif, fontSize = 13.sp)
+            }
+            IconButton(onClick = onLogout) {
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = stringResource(R.string.home_logout))
+            }
         }
-        IconButton(onClick = onLogout) {
-            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = stringResource(R.string.home_logout))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (state.userName.isBlank()) stringResource(R.string.home_hello_plain)
+                    else stringResource(R.string.home_hello, state.userName),
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    stringResource(if (state.isTutor) R.string.home_role_tutor else R.string.home_role_adult),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            TextButton(onClick = onShowIntro, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.home_show_intro), style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }

@@ -44,6 +44,24 @@ class FakeReadingSessionRepository : com.fluilet.app.domain.repository.ReadingSe
     var educational: com.fluilet.app.domain.model.EducationalProgress = com.fluilet.app.domain.model.EducationalProgress.empty()
     var progressFails = false
 
+    /** `POST /profiles/{id}/seed-demo` y `.../claim`: se registran las llamadas y se devuelve lo configurado. */
+    val seedRequests = mutableListOf<String>()
+    var seedResult: Result<com.fluilet.app.domain.model.EducationalProgress> =
+        Result.failure(com.fluilet.app.core.network.AppError.NoConnection())
+    val claimRequests = mutableListOf<Pair<String, String>>()
+    var claimResult: Result<com.fluilet.app.domain.model.EducationalProgress> =
+        Result.failure(com.fluilet.app.core.network.AppError.NoConnection())
+
+    override suspend fun seedDemo(childId: String): Result<com.fluilet.app.domain.model.EducationalProgress> {
+        seedRequests += childId
+        return seedResult
+    }
+
+    override suspend fun claimMission(childId: String, missionId: String): Result<com.fluilet.app.domain.model.EducationalProgress> {
+        claimRequests += childId to missionId
+        return claimResult
+    }
+
     override suspend fun start(childId: String?, adaptation: com.fluilet.app.domain.model.AdaptationResult): Result<String?> {
         starts += childId to adaptation
         return Result.success("reading-${starts.size}")
@@ -109,9 +127,20 @@ fun sampleChild(id: String = "child-1", name: String = "Mateo") = com.fluilet.ap
 
 class FakeAdaptationRepository : com.fluilet.app.domain.repository.AdaptationRepository {
     val generateRequests = mutableListOf<Pair<com.fluilet.app.domain.model.LessonRequest, String?>>()
+    /** Resultado de `adapt`; por omisión una adaptación de ejemplo sin texto original del servidor. */
+    var adaptResult: com.fluilet.app.domain.model.AdaptationResult? = null
     var generateResult: Result<com.fluilet.app.domain.model.AdaptationResult> = Result.success(sampleAdaptation(withQuiz = true))
     override suspend fun adapt(source: com.fluilet.app.domain.model.AdaptationSource, nlpLevel: com.fluilet.app.domain.model.NlpLevel, childId: String?) =
-        Result.success(sampleAdaptation())
+        Result.success(adaptResult ?: sampleAdaptation())
+    val fetchRequests = mutableListOf<String>()
+    var fetchResult: Result<com.fluilet.app.domain.model.AdaptationResult> =
+        Result.failure(com.fluilet.app.core.network.AppError.NotFound())
+
+    override suspend fun fetch(id: String): Result<com.fluilet.app.domain.model.AdaptationResult> {
+        fetchRequests += id
+        return fetchResult
+    }
+
     override suspend fun generate(request: com.fluilet.app.domain.model.LessonRequest, childId: String?): Result<com.fluilet.app.domain.model.AdaptationResult> {
         generateRequests += request to childId
         return generateResult

@@ -11,7 +11,11 @@ data class DailyMission(
     val description: String,
     val current: Int,
     val target: Int,
-    val rewardGems: Int
+    val rewardGems: Int,
+    /** Misión calculada por el servidor: sus gemas ya se abonan en `total_gems` (no se pagan dos veces en el cliente). */
+    val fromServer: Boolean = false,
+    /** `claimed` del servidor: el backend abona cada misión completada una sola vez. */
+    val claimed: Boolean = false
 ) {
     val completed: Boolean get() = current >= target
     val fraction: Float get() = if (target <= 0) 1f else (current.toFloat() / target).coerceIn(0f, 1f)
