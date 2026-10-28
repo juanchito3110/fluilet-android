@@ -5,6 +5,14 @@
 
     <string name="home_hello">Hola, %1$s</string>
     <string name="home_hello_plain">Hola</string>
+    <string name="home_hero_hello">¡Hola, %1$s! 👋</string>
+    <string name="home_hero_hello_plain">¡Hola! 👋</string>
+    <string name="home_hero_subtitle">Toca a FluiBot: está listo para leer contigo.</string>
+    <plurals name="home_hero_streak">
+        <item quantity="one">%1$d día</item>
+        <item quantity="many">%1$d días</item>
+        <item quantity="other">%1$d días</item>
+    </plurals>
     <string name="home_role_tutor">Panel del tutor</string>
     <string name="home_role_adult">Lector independiente</string>
     <string name="home_logout">Cerrar sesión</string>

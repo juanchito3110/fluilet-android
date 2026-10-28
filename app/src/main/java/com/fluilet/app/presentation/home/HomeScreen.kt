@@ -1,5 +1,15 @@
 package com.fluilet.app.presentation.home
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,60 +98,85 @@ fun HomeScreen(
             ) {
                 Header(state, onLogout = viewModel::logout, onShowIntro = onShowIntro)
                 ErrorMessage(state.errorMessage)
-                ChildCardsRow(state, onSelect = viewModel::select, onNew = onNewChild)
+                ChildCardsRow(
+                    state,
+                    onSelect = viewModel::select,
+                    onNew = onNewChild,
+                    currentEquipped = bot.equipped,
+                    equippedFor = botViewModel::equippedFor
+                )
                 if (state.offlineDemo) Text(stringResource(R.string.child_offline_demo), style = MaterialTheme.typography.bodySmall)
+                AnimatedVisibility(
+                    visible = state.selectedTab == HomeTab.LECTURAS,
+                    enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                    exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                ) {
+                    HomeHeroCard(state, bot, onCelebrate = botViewModel::celebrate)
+                }
 
-                when (state.selectedTab) {
-                    HomeTab.LECTURAS -> ReadingsTab(
-                        state = state,
-                        onSelect = viewModel::select,
-                        onNewChild = onNewChild,
-                        onEditChild = onEditChild,
-                        onDeleteChild = { confirmDelete = it },
-                        onNlpLevel = viewModel::onNlpLevel,
-                        onStartReading = {
-                            // El Modo Enfoque con niño exige tener un PIN de tutor antes de empezar.
-                            if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
-                        },
-                        onReadingSaved = viewModel::refresh,
-                        onPin = { pinDialog = if (state.pinConfigured) PinDialog.CHANGE else PinDialog.SETUP },
-                        // "Empezar ahora" ya pasó por la configuración de PIN dentro del creador de lecturas.
-                        onNewReadingStart = onStartReading,
-                        onLoadDemo = viewModel::loadDemoData,
-                        onOpenDemoLesson = { lesson ->
-                            viewModel.openDemoLesson(lesson)
-                            if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
-                        },
-                        onOpenLibraryLesson = { item ->
-                            viewModel.openLibraryLesson(item) {
-                                val now = viewModel.uiState.value
-                                if (now.isTutor && !now.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+                // Cambio de apartado con un fundido y un leve deslizamiento.
+                AnimatedContent(
+                    targetState = state.selectedTab,
+                    transitionSpec = {
+                        val forward = targetState.ordinal > initialState.ordinal
+                        (fadeIn(tween(280)) + slideInHorizontally(tween(280)) { if (forward) it / 10 else -it / 10 })
+                            .togetherWith(fadeOut(tween(160)))
+                            .using(SizeTransform(clip = false))
+                    },
+                    label = "homeTab"
+                ) { tab ->
+                    when (tab) {
+                        HomeTab.LECTURAS -> ReadingsTab(
+                            state = state,
+                            onSelect = viewModel::select,
+                            onNewChild = onNewChild,
+                            onEditChild = onEditChild,
+                            onDeleteChild = { confirmDelete = it },
+                            onNlpLevel = viewModel::onNlpLevel,
+                            onStartReading = {
+                                // El Modo Enfoque con niño exige tener un PIN de tutor antes de empezar.
+                                if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+                            },
+                            onReadingSaved = viewModel::refresh,
+                            onPin = { pinDialog = if (state.pinConfigured) PinDialog.CHANGE else PinDialog.SETUP },
+                            // "Empezar ahora" ya pasó por la configuración de PIN dentro del creador de lecturas.
+                            onNewReadingStart = onStartReading,
+                            onLoadDemo = viewModel::loadDemoData,
+                            onOpenDemoLesson = { lesson ->
+                                viewModel.openDemoLesson(lesson)
+                                if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+                            },
+                            onOpenLibraryLesson = { item ->
+                                viewModel.openLibraryLesson(item) {
+                                    val now = viewModel.uiState.value
+                                    if (now.isTutor && !now.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+                                }
                             }
-                        }
-                    )
-                    HomeTab.FLUIBOT -> FluiBotTab(
-                        bot = bot,
-                        onCelebrate = botViewModel::celebrate,
-                        onBuyAccessory = botViewModel::buy,
-                        onToggleAccessory = botViewModel::toggleEquip,
-                        onBuyScenario = botViewModel::buyScenario,
-                        onEquipScenario = botViewModel::equipScenario
-                    )
-                    HomeTab.COLECCION -> CollectionTab(
-                        bot = bot,
-                        progress = state.progress,
-                        // Las misiones del servidor se confirman con su endpoint (ya abonadas); las locales suman al instante.
-                        onClaim = { id ->
-                            if (state.progress.serverMissions?.any { it.id == id } == true) {
-                                viewModel.claimServerMission(id, onBackendUnavailable = { botViewModel.claimMissionOffline(id) })
+                        )
+                        HomeTab.FLUIBOT -> FluiBotTab(
+                            bot = bot,
+                            onCelebrate = botViewModel::celebrate,
+                            onBuyAccessory = botViewModel::buy,
+                            onToggleAccessory = botViewModel::toggleEquip,
+                            onBuyScenario = botViewModel::buyScenario,
+                            onEquipScenario = botViewModel::equipScenario
+                        )
+                        HomeTab.COLECCION -> CollectionTab(
+                            bot = bot,
+                            progress = state.progress,
+                            // Las misiones del servidor se confirman con su endpoint (ya abonadas); las locales suman al instante.
+                            onClaim = { id ->
+                                if (state.progress.serverMissions?.any { it.id == id } == true) {
+                                    viewModel.claimServerMission(id, onBackendUnavailable = { botViewModel.claimMissionOffline(id) })
+                                }
+                                else botViewModel.claimMission(id)
                             }
-                            else botViewModel.claimMission(id)
+                        )
+                        HomeTab.ESTADISTICAS -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            DemoDataCard(state, viewModel::loadDemoData)
+                            ProgressDashboard(state.progress, state.progressNote)
+                            state.modelAudit?.let { ModelAuditCard(it) }
                         }
-                    )
-                    HomeTab.ESTADISTICAS -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        DemoDataCard(state, viewModel::loadDemoData)
-                        ProgressDashboard(state.progress, state.progressNote)
-                        state.modelAudit?.let { ModelAuditCard(it) }
                     }
                 }
             }

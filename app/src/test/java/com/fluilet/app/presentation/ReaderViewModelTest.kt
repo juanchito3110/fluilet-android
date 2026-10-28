@@ -22,6 +22,7 @@ import com.fluilet.app.domain.usecase.GetModelAuditUseCase
 import com.fluilet.app.domain.usecase.StartReadingSessionUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingProgressUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingSettingsUseCase
+import com.fluilet.app.presentation.fluibot.FluiBotMood
 import com.fluilet.app.presentation.reader.ReaderEvent
 import com.fluilet.app.presentation.reader.ReaderUiState
 import com.fluilet.app.presentation.reader.ReaderViewModel
@@ -264,6 +265,46 @@ class ReaderViewModelTest {
         assertTrue(probe.state().showQuiz)
         assertEquals("q1", probe.state().quiz!!.current!!.id)
         assertTrue("no se cierra sola", probe.events.isEmpty())
+    }
+
+    @Test fun fluiBotThinksDuringTheMiniChallengeAndCelebratesWhenItIsPassed() = readerTest {
+        val vm = viewModel(childId = null, withQuiz = true)
+        val probe = observe(vm)
+        vm.start()
+        assertTrue(probe.state().botMood in setOf(FluiBotMood.READING, FluiBotMood.THINKING))
+
+        vm.finishReading()
+        assertEquals("piensa mientras responde", FluiBotMood.THINKING, probe.state().botMood)
+        assertFalse(probe.state().quizSucceeded)
+
+        vm.answerQuiz(0) // correcta
+        vm.nextQuestion()
+        vm.answerQuiz(0)
+        assertTrue("reto superado con al menos un acierto", probe.state().quizSucceeded)
+        assertEquals(FluiBotMood.CELEBRATING, probe.state().botMood)
+
+        vm.finishQuiz()
+        assertEquals("en el laboratorio saluda hasta abrir el cofre", FluiBotMood.HAPPY, probe.state().botMood)
+        vm.claimChest()
+        assertEquals(FluiBotMood.CELEBRATING, probe.state().botMood)
+    }
+
+    @Test fun fluiBotReadsConcentratedAndThinksWhileTheOriginalLoads() {
+        val reading = ReaderUiState(tts = com.fluilet.app.core.tts.TtsState(status = com.fluilet.app.core.tts.TtsStatus.Idle))
+        assertEquals(FluiBotMood.READING, reading.botMood)
+        assertEquals(FluiBotMood.THINKING, reading.copy(originalLoading = true).botMood)
+        assertEquals(FluiBotMood.THINKING, reading.copy(tts = com.fluilet.app.core.tts.TtsState(status = com.fluilet.app.core.tts.TtsStatus.Initializing)).botMood)
+    }
+
+    @Test fun aMiniChallengeWithoutCorrectAnswersIsNotCelebrated() = readerTest {
+        val vm = viewModel(childId = null, withQuiz = true)
+        val probe = observe(vm)
+        vm.start()
+        vm.finishReading()
+        vm.answerQuiz(1); vm.nextQuestion(); vm.answerQuiz(0) // ambas incorrectas
+        assertTrue(probe.state().quiz!!.isComplete)
+        assertFalse(probe.state().quizSucceeded)
+        assertEquals(FluiBotMood.THINKING, probe.state().botMood)
     }
 
     @Test fun adultQuizFlowGivesFeedbackScoresAndReportsItInTheFinalProgress() = readerTest {

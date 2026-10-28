@@ -117,11 +117,18 @@ class FluiBotViewModel @Inject constructor(
 
     fun toggleEquip(accessory: Accessory) {
         val current = input ?: return
+        val before = inventory
         inventory = inventory.toggleEquipped(accessory)
         inventories.save(current.ownerKey, inventory)
         message = null
+        // Al ponerse un accesorio, FluiBot lo celebra en la vista previa (al quitarlo, no).
+        if (accessory.id in inventory.equipped && accessory.id !in before.equipped) celebration++
         publish()
     }
+
+    /** Accesorios puestos de cualquier perfil (miniaturas del selector de perfiles). */
+    fun equippedFor(ownerKey: String): Set<String> =
+        if (ownerKey == input?.ownerKey) inventory.equipped else inventories.load(ownerKey).equipped
 
     fun buyScenario(scenario: Scenario) {
         val current = input ?: return

@@ -3,6 +3,8 @@ package com.fluilet.app.presentation.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,7 +68,7 @@ object Routes {
     }
 }
 
-private const val TRANSITION_MS = 250
+private const val TRANSITION_MS = 300
 private val optionalChildArg = navArgument("childId") {
     type = NavType.StringType
     nullable = true
@@ -93,10 +95,11 @@ fun AppNavigation(
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
-        enterTransition = { fadeIn(tween(TRANSITION_MS)) },
-        exitTransition = { fadeOut(tween(TRANSITION_MS)) },
-        popEnterTransition = { fadeIn(tween(TRANSITION_MS)) },
-        popExitTransition = { fadeOut(tween(TRANSITION_MS)) }
+        // Fundido con un leve deslizamiento horizontal (hacia la izquierda al avanzar y a la derecha al volver).
+        enterTransition = { fadeIn(tween(TRANSITION_MS)) + slideInHorizontally(tween(TRANSITION_MS)) { it / 8 } },
+        exitTransition = { fadeOut(tween(TRANSITION_MS)) + slideOutHorizontally(tween(TRANSITION_MS)) { -it / 8 } },
+        popEnterTransition = { fadeIn(tween(TRANSITION_MS)) + slideInHorizontally(tween(TRANSITION_MS)) { -it / 8 } },
+        popExitTransition = { fadeOut(tween(TRANSITION_MS)) + slideOutHorizontally(tween(TRANSITION_MS)) { it / 8 } }
     ) {
         composable(Routes.SPLASH) { FluiletSplashScreen(onFinished = { splashDone = true }) }
         composable(Routes.AUTH) { AuthScreen() }

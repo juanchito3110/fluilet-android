@@ -116,9 +116,15 @@ object DemoData {
         return Gamification.enrich(base, ServerGamification(gems, xp, streakDays, null, null), today, zone)
     }
 
+    /**
+     * [simple]: paráfrasis sencilla revisada de cada oración del original, en el mismo orden (como los planes
+     * alineados del catálogo del backend). El motor local mezcla oraciones originales y sencillas para calibrar
+     * las 5 variantes de la lectura en su banda sin conexión.
+     */
     private class Entry(
         val title: String, val topic: String, val category: String, val level: Int, val original: String,
-        val funFact: String, val vocabulary: List<VocabularyEntry>, val questions: List<ComprehensionQuestion>
+        val funFact: String, val vocabulary: List<VocabularyEntry>, val questions: List<ComprehensionQuestion>,
+        val simple: List<String>
     )
 
     private val entries = listOf(
@@ -135,6 +141,15 @@ object DemoData {
             questions = listOf(
                 ComprehensionQuestion("q1", "¿En qué ciudad tiene su sede el Real Madrid?", listOf("Barcelona", "Madrid", "Sevilla"), 1, "Mira la primera oración.", "El club tiene su sede en Madrid, España."),
                 ComprehensionQuestion("q2", "¿De qué color viste tradicionalmente el club?", listOf("Rojo", "Azul", "Blanco"), 2, "Piensa en el apodo «los blancos».", "El club viste de blanco y por eso lo llaman «los blancos».")
+            ),
+            simple = listOf(
+                "El Real Madrid es un club de fútbol. Su casa está en Madrid, en España. Nació en el año 1902. " +
+                    "Desde ese año ganó muchos títulos. Ganó muchas veces la Liga de España. También ganó muchas veces " +
+                    "la Copa de Europa. Hoy esa copa se llama Liga de Campeones.",
+                "Su estadio se llama Santiago Bernabéu. Está en el centro de Madrid. Caben más de ochenta mil personas. " +
+                    "Fans de todo el mundo van a ver sus partidos. Allí jugaron estrellas del fútbol de muchos países.",
+                "El club viste de blanco. Por eso lo llaman «los blancos». Su escudo tiene una corona real. " +
+                    "La corona recuerda un título de honor. Se lo dio el rey Alfonso XIII."
             )
         ),
         Entry(
@@ -150,6 +165,16 @@ object DemoData {
             questions = listOf(
                 ComprehensionQuestion("q1", "¿Qué estudia la biología marina?", listOf("Los seres vivos del mar", "Las rocas de la montaña", "Las nubes del cielo"), 0, "Piensa en la primera oración.", "La biología marina estudia los organismos que viven en los mares y océanos."),
                 ComprehensionQuestion("q2", "¿Qué animal es el más grande que ha existido?", listOf("El tiburón blanco", "La ballena azul", "El delfín"), 1, "Busca el animal de mayor tamaño.", "Las ballenas azules son los animales más grandes que han existido en la Tierra.")
+            ),
+            simple = listOf(
+                "La biología marina es una ciencia. Estudia los seres vivos del mar. También mira cómo viven juntos " +
+                    "y con lo que los rodea.",
+                "Los océanos cubren más de dos tercios del planeta. En ellos vive una gran variedad de seres. " +
+                    "Hay algas muy pequeñas llamadas fitoplancton. Ellas hacen buena parte del oxígeno que respiramos. " +
+                    "También hay ballenas azules. Son los animales más grandes que han vivido en la Tierra.",
+                "Los científicos del mar visitan arrecifes de coral. También van a fosas muy hondas y a costas de roca. " +
+                    "Quieren saber cómo comen, nacen y viven los seres del mar. También quieren cuidar a las especies " +
+                    "en peligro. La contaminación y el cambio del clima las ponen en peligro."
             )
         ),
         Entry(
@@ -165,6 +190,15 @@ object DemoData {
             questions = listOf(
                 ComprehensionQuestion("q1", "¿Qué no puede escapar de un agujero negro?", listOf("El sonido", "La luz", "El agua"), 1, "Lee la primera oración con calma.", "Ni siquiera la luz puede escapar de un agujero negro."),
                 ComprehensionQuestion("q2", "¿Cómo se forma normalmente un agujero negro?", listOf("Cuando una estrella muy grande colapsa", "Cuando la Luna se enfría", "Cuando llueve en el espacio"), 0, "Busca qué le pasa a la estrella masiva.", "Se forma cuando una estrella muy masiva agota su combustible y colapsa.")
+            ),
+            simple = listOf(
+                "Un agujero negro es una zona del espacio. Allí la gravedad es muy fuerte. Nada puede salir de él, " +
+                    "ni la luz. Tiene un borde que no se ve. Ese borde se llama horizonte de sucesos.",
+                "Casi siempre nace de una estrella muy grande. La estrella gasta todo su combustible. Luego se hunde " +
+                    "por su propio peso. Así junta mucha materia en un lugar muy pequeño.",
+                "No lo podemos ver de forma directa. Pero los astrónomos saben dónde está. Miran cómo se mueven " +
+                    "las estrellas de al lado. También estudian el brillo del gas caliente que cae en él.",
+                "En el centro de la Vía Láctea hay un agujero negro gigante. Los científicos lo llaman Sagitario A*."
             )
         )
     )
@@ -180,7 +214,7 @@ object DemoData {
         entries.firstOrNull { it.category == category }?.let { lesson(it, level) }
 
     private fun lesson(e: Entry, level: NlpLevel): AdaptationResult =
-        TextAdapter.adapt(e.title, e.original, level).copy(
+        TextAdapter.adapt(e.title, e.original, level, glossary = e.vocabulary, aligned = e.simple).copy(
             category = e.category,
             simplificationLevel = level.value,
             targetLevel = level.value,

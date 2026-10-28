@@ -15,6 +15,7 @@
     <string name="album_fun_fact_title">Dato curioso educativo</string>
     <string name="album_locked_hint">Completa una lección de esta categoría para desbloquear la carta.</string>
     <string name="fluibot_name">FluiBot</string>
+    <string name="fluibot_live_preview">Vista previa en vivo · tócalo</string>
     <string name="fluibot_buy_short">Comprar</string>
     <string name="fluibot_not_enough_short">Faltan 💎</string>
     <string name="fluibot_remove">Quitar</string>

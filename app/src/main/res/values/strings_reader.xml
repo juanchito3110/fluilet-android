@@ -55,6 +55,8 @@
     <string name="compare_progression_partial">Esta lectura no logra una progresión estricta entre los 5 niveles.</string>
     <string name="compare_band_in">✅ %1$s · dentro de la banda del Nivel %2$d (%3$s)</string>
     <string name="compare_band_out">⚠️ %1$s · fuera de la banda del Nivel %2$d (%3$s)</string>
+    <string name="compare_band_bar">Barra de legibilidad: %1$s puntos; la banda del nivel va de %2$s; el original tiene %3$s.</string>
+    <string name="compare_band_bar_legend">Banda del nivel: %1$s · ● original</string>
     <string name="compare_ficha_title">🔬 Ficha Técnica del Motor NLP Szigriszt-Pazos</string>
     <string name="compare_index_label">Índice Szigriszt-Pazos</string>
     <string name="compare_index_values">Original: %1$s ➔ Adaptado (Nivel %2$d): %3$s</string>

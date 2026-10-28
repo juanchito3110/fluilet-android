@@ -1,6 +1,7 @@
 package com.fluilet.app.presentation.reader
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +36,7 @@ import com.fluilet.app.R
 import com.fluilet.app.domain.gamification.CardChange
 import com.fluilet.app.domain.gamification.FluiBotStage
 import com.fluilet.app.domain.gamification.SessionLoot
+import com.fluilet.app.presentation.common.CelebrationBurst
 import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.fluibot.AlbumSection
@@ -124,6 +126,14 @@ fun RewardLab(
 
 @Composable
 private fun ChestSection(state: ReaderUiState, loot: SessionLoot, stageBefore: FluiBotStage, onClaim: () -> Unit) {
+    Box {
+        ChestCard(state, loot, stageBefore, onClaim)
+        CelebrationBurst(trigger = if (state.chestOpened) 1 else 0, modifier = Modifier.matchParentSize(), originY = 0.4f)
+    }
+}
+
+@Composable
+private fun ChestCard(state: ReaderUiState, loot: SessionLoot, stageBefore: FluiBotStage, onClaim: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),

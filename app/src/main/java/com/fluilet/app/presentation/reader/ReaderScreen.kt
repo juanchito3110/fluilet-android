@@ -9,6 +9,9 @@ import android.speech.tts.TextToSpeech
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -101,6 +104,11 @@ import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.formatDuration
+import com.fluilet.app.presentation.common.CelebrationBurst
+import com.fluilet.app.domain.gamification.FluiBotStage
+import com.fluilet.app.presentation.fluibot.FluiBotCanvas
+import com.fluilet.app.presentation.fluibot.FluiBotUiState
+import com.fluilet.app.presentation.fluibot.FluiBotViewModel
 import com.fluilet.app.presentation.parentalgate.GateMode
 import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
 import com.fluilet.app.presentation.theme.FluiletTheme
@@ -169,14 +177,24 @@ private fun EmptyReader(onBack: () -> Unit) {
 }
 
 @Composable
-private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel) {
+private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel, botViewModel: FluiBotViewModel = hiltViewModel()) {
+    val bot by botViewModel.state.collectAsStateWithLifecycle()
+    // FluiBot acompaña la lectura con los accesorios del niño. En el laboratorio lo enlaza RewardLab con el botín.
+    LaunchedEffect(state.ownerKey, state.baseline, state.showLab) {
+        if (!state.showLab) botViewModel.bind(state.ownerKey, state.baseline)
+    }
     Column(
         Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        ReaderTopBar(state, vm)
+        ReaderTopBar(state, vm, bot, onBotTap = botViewModel::celebrate)
+        val progress by animateFloatAsState(
+            state.progressFraction,
+            spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow),
+            label = "readingProgress"
+        )
         LinearProgressIndicator(
-            progress = { state.progressFraction },
+            progress = { progress },
             modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp))
                 .semantics { contentDescription = "Progreso de lectura ${(state.progressFraction * 100).toInt()} por ciento" }
         )
@@ -195,6 +213,8 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel) {
                         onFinish = vm::finishQuiz
                     )
                 }
+                // Mini-reto superado: explosión de confeti y estrellas sobre la tarjeta.
+                CelebrationBurst(trigger = if (state.quizSucceeded) 1 else 0, modifier = Modifier.matchParentSize(), originY = 0.3f)
             }
         } else if (state.showLab) {
             // Laboratorio y Rincón de Recompensas, dentro del Modo Enfoque: solo el tutor (PIN) puede salir.
@@ -214,8 +234,17 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel) {
 }
 
 @Composable
-private fun ReaderTopBar(state: ReaderUiState, vm: ReaderViewModel) {
+private fun ReaderTopBar(state: ReaderUiState, vm: ReaderViewModel, bot: FluiBotUiState, onBotTap: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        FluiBotCanvas(
+            stage = FluiBotStage.forXp(state.baseline.currentXp),
+            equipped = bot.equipped,
+            celebrationTick = bot.celebrationTick,
+            onTap = onBotTap,
+            mood = state.botMood,
+            modifier = Modifier.size(60.dp)
+        )
+        Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 stringResource(R.string.reader_block_of, state.chunkIndex + 1, state.chunkCount),

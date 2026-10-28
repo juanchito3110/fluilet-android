@@ -52,7 +52,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fluilet.app.R
+import com.fluilet.app.domain.gamification.FluiBotStage
 import com.fluilet.app.domain.model.ChildProfile
+import com.fluilet.app.presentation.fluibot.FluiBotCanvas
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.FullScreenLoading
@@ -167,14 +169,23 @@ fun NlpLevelSlider(level: NlpLevel, onCommit: (NlpLevel) -> Unit) {
  * (Lecturas, Mi FluiBot, Colección y Estadísticas) cambian a los datos de ese niño.
  */
 @Composable
-internal fun ChildCardsRow(state: HomeUiState, onSelect: (String) -> Unit, onNew: () -> Unit) {
+internal fun ChildCardsRow(
+    state: HomeUiState,
+    onSelect: (String) -> Unit,
+    onNew: () -> Unit,
+    currentEquipped: Set<String> = emptySet(),
+    equippedFor: (String) -> Set<String> = { emptySet() }
+) {
     if (!state.isTutor) return
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         state.children.forEach { child ->
+            // Los accesorios del perfil seleccionado se actualizan en vivo al equiparlos en la tienda.
+            val equipped = remember(child.id, currentEquipped) { equippedFor(child.id) }
             ChildCard(
                 child = child,
                 summary = state.childSummaries[child.id],
                 selected = child.id == state.selectedChildId,
+                equipped = equipped,
                 onClick = { onSelect(child.id) }
             )
         }
@@ -183,7 +194,7 @@ internal fun ChildCardsRow(state: HomeUiState, onSelect: (String) -> Unit, onNew
 }
 
 @Composable
-private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boolean, onClick: () -> Unit) {
+private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boolean, equipped: Set<String>, onClick: () -> Unit) {
     val level = summary?.level ?: child.nlpLevel.value
     val description = buildString {
         append("${child.name}, ${child.ageYears()} años, nivel $level")
@@ -198,6 +209,14 @@ private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boo
         border = BorderStroke(if (selected) 3.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            // FluiBot del niño en su etapa y con sus accesorios; el del perfil seleccionado está animado.
+            FluiBotCanvas(
+                stage = FluiBotStage.entries.firstOrNull { it.number == summary?.stage } ?: FluiBotStage.NUCLEO,
+                equipped = equipped,
+                animated = selected,
+                interactive = false,
+                modifier = Modifier.fillMaxWidth().height(76.dp)
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(child.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1)
                 if (selected) CheckMark()

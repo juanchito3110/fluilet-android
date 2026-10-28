@@ -185,6 +185,19 @@ class NetworkTest {
         assertTrue(TlsConfig.connectionSpecs(enforceTlsOnly = false).contains(ConnectionSpec.CLEARTEXT))
     }
 
+    @Test fun debugAndHttpTestBuildsAcceptTls12And13ToReachANewDroplet() {
+        val tls = TlsConfig.connectionSpecs(enforceTlsOnly = false).first { it.isTls }
+        assertTrue(tls.tlsVersions!!.containsAll(listOf(TlsVersion.TLS_1_2, TlsVersion.TLS_1_3)))
+    }
+
+    @Test fun theApiBaseUrlIsAValidRetrofitBaseUrlWithItsHost() {
+        // Por defecto (sin FLUILET_API_BASE_URL) la compilación debug apunta al backend local visto desde el emulador.
+        val url = java.net.URI(com.fluilet.app.BuildConfig.API_BASE_URL)
+        assertTrue(com.fluilet.app.BuildConfig.API_BASE_URL.endsWith("/"))
+        assertTrue(url.scheme == "http" || url.scheme == "https")
+        assertEquals(url.host, com.fluilet.app.BuildConfig.API_HOST)
+    }
+
     @Test fun certificatePinnerOnlyWhenPinsAreConfigured() {
         assertNull(TlsConfig.certificatePinner("api.fluilet.com", ""))
         val pin = "sha256/" + "A".repeat(43) + "="

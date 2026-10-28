@@ -14,19 +14,20 @@ import org.junit.Test
 
 class FluiBotWorkshopTest {
 
-    @Test fun catalogHasExactlyTheTenAccessoriesWithTheirPrices() {
+    @Test fun catalogHasExactlyTheTwelveAccessoriesWithTheirPrices() {
         assertEquals(
-            listOf("antena_prisma", "visor_holografico", "corbatin_led", "auriculares_sonicos", "emblema_estelar",
-                "jetpack_plasma", "mini_dron", "capa_fotonica", "alas_cyber", "corona_cuantica"),
+            listOf("antena_prisma", "visor_holografico", "corbatin_led", "sombrero_explorador", "auriculares_sonicos", "emblema_estelar",
+                "jetpack_plasma", "mini_dron", "aura_particulas", "capa_fotonica", "alas_cyber", "corona_cuantica"),
             Accessory.entries.map { it.id }
         )
-        assertEquals(listOf(15, 25, 30, 40, 50, 60, 75, 90, 100, 120), Accessory.entries.map { it.cost })
+        assertEquals(listOf(15, 25, 30, 35, 40, 50, 60, 75, 80, 90, 100, 120), Accessory.entries.map { it.cost })
         assertEquals(
-            listOf("Antena Prisma Neón", "Visor Holográfico", "Corbatín LED de Gala", "Auriculares Sónicos", "Emblema Estelar",
-                "Jetpack de Plasma", "Mini-Dron Satélite", "Capa Fotónica", "Alas Cyber-Halcón", "Corona Cuántica Dorada"),
+            listOf("Antena Prisma Neón", "Visor Holográfico", "Corbatín LED de Gala", "Sombrero de Explorador", "Auriculares Sónicos",
+                "Emblema Estelar", "Jetpack de Plasma", "Mini-Dron Satélite", "Aura de Partículas", "Capa Fotónica", "Alas Cyber-Halcón",
+                "Corona Cuántica Dorada"),
             Accessory.entries.map { it.displayName }
         )
-        assertEquals(605, Accessory.totalCost)
+        assertEquals(720, Accessory.totalCost)
         assertEquals(Accessory.MINI_DRON, Accessory.fromId("mini_dron"))
         assertNull(Accessory.fromId("inexistente"))
     }

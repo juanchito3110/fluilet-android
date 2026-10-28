@@ -1,5 +1,9 @@
 package com.fluilet.app.presentation.home
 
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import com.fluilet.app.presentation.common.SpringProgressBar
 import androidx.compose.foundation.BorderStroke
 import com.fluilet.app.domain.gamification.PedagogicalSummary
 import androidx.compose.foundation.layout.Arrangement
@@ -112,9 +116,15 @@ private fun SummaryLine(label: String, value: String) {
 private fun SummaryTiles(progress: EducationalProgress) {
     val hasScores = progress.averageComprehension > 0.0
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Racha y lecturas cuentan hacia arriba; la barra de lecturas completadas se llena con resorte.
+        val streak by animateIntAsState(progress.streakDays, tween(900), label = "streak")
+        val completed by animateIntAsState(progress.completedLessons, tween(900), label = "completed")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SummaryTile("🔥", stringResource(R.string.stats_streak), stringResource(R.string.stats_days, progress.streakDays), Modifier.weight(1f))
-            SummaryTile("📖", stringResource(R.string.stats_lessons), "${progress.completedLessons}/${progress.totalLessons}", Modifier.weight(1f))
+            SummaryTile("🔥", stringResource(R.string.stats_streak), stringResource(R.string.stats_days, streak), Modifier.weight(1f))
+            SummaryTile(
+                "📖", stringResource(R.string.stats_lessons), "$completed/${progress.totalLessons}", Modifier.weight(1f),
+                fraction = if (progress.totalLessons > 0) progress.completedLessons.toFloat() / progress.totalLessons else 0f
+            )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SummaryTile("⏱️", stringResource(R.string.progress_time_title), formatReadingTime(progress.totalReadingSeconds), Modifier.weight(1f))
@@ -128,7 +138,7 @@ private fun SummaryTiles(progress: EducationalProgress) {
 }
 
 @Composable
-private fun SummaryTile(emoji: String, label: String, value: String, modifier: Modifier = Modifier) {
+private fun SummaryTile(emoji: String, label: String, value: String, modifier: Modifier = Modifier, fraction: Float? = null) {
     Card(
         modifier = modifier.semantics(mergeDescendants = true) { contentDescription = "$label: $value" },
         shape = RoundedCornerShape(20.dp),
@@ -138,6 +148,7 @@ private fun SummaryTile(emoji: String, label: String, value: String, modifier: M
             Text(emoji, style = MaterialTheme.typography.headlineSmall)
             Text(value, style = MaterialTheme.typography.titleLarge)
             Text(label, style = MaterialTheme.typography.labelMedium)
+            fraction?.let { SpringProgressBar(it, height = 8.dp) }
         }
     }
 }

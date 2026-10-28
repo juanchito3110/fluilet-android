@@ -7,19 +7,47 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Configuración de red por entorno. Se puede sobreescribir desde gradle.properties o -P:
-//   fluilet.apiBaseUrl=https://api.midominio.com/
-//   fluilet.certPins=sha256/AAAA...=,sha256/BBBB...=
-// Los valores por defecto de release son PLACEHOLDERS: con ellos el pinning falla cerrado
-// (ninguna conexión TLS de release prosperará hasta reemplazarlos por los hashes SPKI reales).
-val releaseApiBaseUrl = providers.gradleProperty("fluilet.apiBaseUrl")
-    .orElse("https://api.fluilet.example.com/").get()
-val releaseApiHost = URI(releaseApiBaseUrl).host
+// Configuración de red por entorno.
+//
+// URL del backend: UN solo parámetro apunta el APK a otro servidor (p. ej. un Droplet de DigitalOcean), sin editar Kotlin:
+//   ./gradlew assembleDebug -PFLUILET_API_BASE_URL=http://203.0.113.10:8000     (IP directa, HTTP)
+//   ./gradlew assembleDebug -PFLUILET_API_BASE_URL=https://api.midominio.com     (dominio con TLS)
+//   FLUILET_API_BASE_URL=https://api.midominio.com ./gradlew assembleRelease
+// Prioridad: -P o gradle.properties > variable de entorno > fluilet.apiBaseUrl (nombre anterior) > valor por defecto
+// (debug: http://10.0.2.2:8000/, el backend local visto desde el emulador; release: el placeholder de abajo).
+// Con una URL http:// fuera del emulador se usa network_security_config_http.xml (HTTP en claro permitido).
+//
+// Release con https además necesita los pines SPKI reales (fluilet.certPins=sha256/AAAA...=,sha256/BBBB...=). Los
+// valores por defecto son PLACEHOLDERS: con ellos el pinning falla cerrado y ninguna conexión TLS de release prospera.
+data class ApiEndpoint(val baseUrl: String, val host: String, val cleartext: Boolean)
+
+fun apiEndpoint(raw: String): ApiEndpoint {
+    val url = raw.trim().let { if (it.endsWith("/")) it else "$it/" }
+    val uri = URI(url)
+    require(uri.scheme == "http" || uri.scheme == "https") { "FLUILET_API_BASE_URL debe empezar por http:// o https:// (recibido: $raw)" }
+    val host = requireNotNull(uri.host) { "FLUILET_API_BASE_URL no tiene un host válido (recibido: $raw)" }
+    return ApiEndpoint(url, host, uri.scheme == "http")
+}
+
+val apiBaseUrlOverride: String? = providers.gradleProperty("FLUILET_API_BASE_URL")
+    .orElse(providers.environmentVariable("FLUILET_API_BASE_URL"))
+    .orElse(providers.gradleProperty("fluilet.apiBaseUrl"))
+    .orNull?.trim()?.takeIf { it.isNotEmpty() }
+val debugApi = apiEndpoint(apiBaseUrlOverride ?: "http://10.0.2.2:8000/")
+val releaseApi = apiEndpoint(apiBaseUrlOverride ?: "https://api.fluilet.example.com/")
 val releaseCertPins = providers.gradleProperty("fluilet.certPins")
     .orElse(
         "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=," + // TODO: pin SPKI del certificado hoja (DigitalOcean)
             "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="  // TODO: pin SPKI de respaldo (intermedio / siguiente llave)
     ).get()
+
+// Hosts con HTTP que ya admite la configuración de red de debug (emulador y `adb reverse`).
+val debugCleartextHosts = setOf("10.0.2.2", "127.0.0.1", "localhost")
+
+/** Configuración de red del manifiesto: la estricta salvo que el backend elegido sea HTTP fuera de esos hosts. */
+fun networkSecurityConfig(api: ApiEndpoint, debug: Boolean): String =
+    if (api.cleartext && !(debug && api.host in debugCleartextHosts)) "@xml/network_security_config_http"
+    else "@xml/network_security_config"
 
 android {
     namespace = "com.fluilet.app"
@@ -39,11 +67,12 @@ android {
 
     buildTypes {
         debug {
-            // Emulador Android -> backend local (uvicorn en el host).
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/\"")
-            buildConfigField("String", "API_HOST", "\"10.0.2.2\"")
+            // Por defecto: emulador Android -> backend local (uvicorn en el host). Ver FLUILET_API_BASE_URL arriba.
+            buildConfigField("String", "API_BASE_URL", "\"${debugApi.baseUrl}\"")
+            buildConfigField("String", "API_HOST", "\"${debugApi.host}\"")
             buildConfigField("String", "CERT_PINS", "\"\"")
             buildConfigField("boolean", "ENFORCE_TLS_ONLY", "false")
+            manifestPlaceholders["networkSecurityConfig"] = networkSecurityConfig(debugApi, debug = true)
             // Adaptación y telemetría contra el backend real. false = modo offline explícito (solo desarrollo).
             buildConfigField("boolean", "USE_REMOTE_ADAPTATION", "true")
         }
@@ -51,10 +80,12 @@ android {
             optimization {
                 enable = true
             }
-            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
-            buildConfigField("String", "API_HOST", "\"$releaseApiHost\"")
+            buildConfigField("String", "API_BASE_URL", "\"${releaseApi.baseUrl}\"")
+            buildConfigField("String", "API_HOST", "\"${releaseApi.host}\"")
             buildConfigField("String", "CERT_PINS", "\"$releaseCertPins\"")
-            buildConfigField("boolean", "ENFORCE_TLS_ONLY", "true")
+            // Solo TLS 1.3; una URL http:// (IP de prueba sin dominio) desactiva la restricción para poder conectar.
+            buildConfigField("boolean", "ENFORCE_TLS_ONLY", "${!releaseApi.cleartext}")
+            manifestPlaceholders["networkSecurityConfig"] = networkSecurityConfig(releaseApi, debug = false)
             buildConfigField("boolean", "USE_REMOTE_ADAPTATION", "true")
         }
     }

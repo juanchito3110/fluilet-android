@@ -1,11 +1,44 @@
 package com.fluilet.app.presentation.auth
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import com.fluilet.app.domain.gamification.Accessory
+import com.fluilet.app.domain.gamification.FluiBotStage
+import com.fluilet.app.presentation.brand.FluiletBrand
+import com.fluilet.app.presentation.fluibot.FluiBotCanvas
+import com.fluilet.app.presentation.fluibot.FluiBotMood
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -80,10 +113,10 @@ private fun PasswordField(
 enum class AuthTab { LOGIN, REGISTER }
 
 /**
- * Iniciar Sesión / Crear Cuenta, como en cualquier app de Google Play: logo de Fluilet, pestañas y el formulario
- * estándar (correo, contraseña, iniciar sesión / crear cuenta). No hay atajos ni credenciales precargadas: las
- * cuentas de la demostración se escriben a mano igual que cualquier otra. [onClose] solo existe al abrirla desde
- * "✨ Ver Intro / Cuenta" (vista previa sin cerrar sesión).
+ * Iniciar Sesión / Crear Cuenta, como en cualquier app de Google Play: una cabecera con FluiBot dando la bienvenida
+ * (piensa mientras se verifica la cuenta), el logo de Fluilet, pestañas y el formulario estándar con transiciones
+ * animadas entre ambos. No hay atajos ni credenciales precargadas: las cuentas de la demostración se escriben a mano
+ * igual que cualquier otra. [onClose] solo existe al abrirla desde "✨ Ver Intro / Cuenta" (vista previa sin cerrar sesión).
  */
 @Composable
 fun AuthScreen(
@@ -93,26 +126,78 @@ fun AuthScreen(
     registerViewModel: RegisterViewModel = hiltViewModel()
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
+    val loginState by loginViewModel.state.collectAsStateWithLifecycle()
+    val registerState by registerViewModel.state.collectAsStateWithLifecycle()
+    val loading = if (tab == AuthTab.LOGIN) loginState.isLoading else registerState.isLoading
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (onClose != null) {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.auth_back_to_panel)) }
-            }
-            FluiletFullLogo(Modifier.fillMaxWidth().padding(top = 8.dp))
-            Text(stringResource(R.string.auth_login_subtitle), style = MaterialTheme.typography.bodyLarge)
+        Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().imePadding()) {
+            WelcomeHeader(loading = loading, onClose = onClose)
+            Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                FluiletFullLogo(Modifier.fillMaxWidth())
+                Text(stringResource(R.string.auth_login_subtitle), style = MaterialTheme.typography.bodyLarge)
 
-            TabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
-                Tab(selected = tab == AuthTab.LOGIN, onClick = { tab = AuthTab.LOGIN }, text = { Text(stringResource(R.string.auth_tab_login), style = MaterialTheme.typography.titleSmall) })
-                Tab(selected = tab == AuthTab.REGISTER, onClick = { tab = AuthTab.REGISTER }, text = { Text(stringResource(R.string.auth_tab_register), style = MaterialTheme.typography.titleSmall) })
-            }
+                TabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
+                    Tab(selected = tab == AuthTab.LOGIN, onClick = { tab = AuthTab.LOGIN }, text = { Text(stringResource(R.string.auth_tab_login), style = MaterialTheme.typography.titleSmall) })
+                    Tab(selected = tab == AuthTab.REGISTER, onClick = { tab = AuthTab.REGISTER }, text = { Text(stringResource(R.string.auth_tab_register), style = MaterialTheme.typography.titleSmall) })
+                }
 
-            when (tab) {
-                AuthTab.LOGIN -> LoginForm(loginViewModel)
-                AuthTab.REGISTER -> RegisterForm(registerViewModel)
+                AnimatedContent(
+                    targetState = tab,
+                    transitionSpec = {
+                        val forward = targetState.ordinal > initialState.ordinal
+                        (slideInHorizontally(tween(320)) { if (forward) it / 3 else -it / 3 } + fadeIn(tween(320)))
+                            .togetherWith(slideOutHorizontally(tween(240)) { if (forward) -it / 3 else it / 3 } + fadeOut(tween(200)))
+                            .using(SizeTransform(clip = false))
+                    },
+                    label = "authForm"
+                ) { current ->
+                    when (current) {
+                        AuthTab.LOGIN -> LoginForm(loginViewModel)
+                        AuthTab.REGISTER -> RegisterForm(registerViewModel)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Cabecera con degradado y FluiBot que entra con un rebote, saluda y salta al tocarlo. */
+@Composable
+private fun WelcomeHeader(loading: Boolean, onClose: (() -> Unit)?) {
+    val appeared = remember { MutableTransitionState(false).apply { targetState = true } }
+    Box(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
+            .background(Brush.verticalGradient(listOf(FluiletBrand.Purple, FluiletBrand.SloganPurple, FluiletBrand.Lavender)))
+            .statusBarsPadding()
+            .padding(bottom = 18.dp)
+    ) {
+        if (onClose != null) {
+            TextButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart)) {
+                Text(stringResource(R.string.auth_back_to_panel), color = Color.White)
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(top = if (onClose != null) 40.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            AnimatedVisibility(
+                visibleState = appeared,
+                enter = fadeIn(tween(500)) + scaleIn(spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessLow), initialScale = 0.5f)
+            ) {
+                FluiBotCanvas(
+                    stage = FluiBotStage.GUARDIAN,
+                    equipped = setOf(Accessory.EMBLEMA_ESTELAR.id),
+                    mood = if (loading) FluiBotMood.THINKING else FluiBotMood.HAPPY,
+                    modifier = Modifier.size(196.dp)
+                )
+            }
+            Text(stringResource(R.string.auth_hero_title), style = MaterialTheme.typography.titleLarge, color = Color.White)
+            AnimatedContent(targetState = loading, transitionSpec = { fadeIn(tween(250)).togetherWith(fadeOut(tween(150))) }, label = "heroLine") { busy ->
+                Text(
+                    stringResource(if (busy) R.string.auth_hero_loading else R.string.auth_hero_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                )
             }
         }
     }
@@ -121,12 +206,13 @@ fun AuthScreen(
 @Composable
 private fun LoginForm(viewModel: LoginViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         OutlinedTextField(
             value = state.email,
             onValueChange = viewModel::onEmail,
             label = { Text(stringResource(R.string.auth_email)) },
             singleLine = true,
+            enabled = !state.isLoading,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth()
         )
@@ -139,7 +225,7 @@ private fun LoginForm(viewModel: LoginViewModel) {
 @Composable
 private fun RegisterForm(viewModel: RegisterViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.auth_register_subtitle), style = MaterialTheme.typography.bodyMedium)
         OutlinedTextField(
             value = state.fullName,

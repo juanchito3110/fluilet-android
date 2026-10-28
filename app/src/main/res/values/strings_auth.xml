@@ -17,4 +17,7 @@
     <string name="auth_pin">PIN parental (4 a 6 dígitos)</string>
     <string name="auth_pin_rules">Protege la salida del Modo Enfoque de tus niños. Evita secuencias como 1234.</string>
     <string name="auth_back_to_panel">← Volver al panel</string>
+    <string name="auth_hero_title">¡Hola! Soy FluiBot</string>
+    <string name="auth_hero_subtitle">Te acompaño a leer a tu ritmo.</string>
+    <string name="auth_hero_loading">Estoy verificando tu cuenta…</string>
 </resources>

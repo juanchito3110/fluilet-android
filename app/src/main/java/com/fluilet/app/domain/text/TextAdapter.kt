@@ -4,7 +4,6 @@ import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.LevelPreview
 import com.fluilet.app.domain.model.LexicalReplacement
 import com.fluilet.app.domain.model.NlpLevel
-import com.fluilet.app.domain.model.ReadabilityBand
 import com.fluilet.app.domain.model.ReadabilityMetrics
 import com.fluilet.app.domain.model.TextChunk
 
@@ -12,24 +11,21 @@ import com.fluilet.app.domain.model.TextChunk
  * Motor local de respaldo (reglas, sin IA) para cuando no hay red: divide oraciones largas, sustituye vocabulario
  * por equivalentes más simples y agrupa en bloques digeribles. Igual que el backend, produce las 5 variantes de la
  * lectura (`level_previews`), la ganancia de legibilidad y los reemplazos léxicos, medidos con las MISMAS métricas
- * Szigriszt-Pazos. Cada nivel acorta más las oraciones y aplica un vocabulario más amplio que el siguiente, así que
- * las variantes se diferencian. Trabaja solo en memoria.
+ * Szigriszt-Pazos. Cada nivel usa un vocabulario más amplio que el siguiente y, como paso final, [LevelCalibrator]
+ * ajusta la estructura de cada variante a la banda de su nivel con `Nivel 1 > 2 > 3 > 4 > 5` estricto.
+ * Trabaja solo en memoria.
  */
 object TextAdapter {
 
     const val ENGINE_VERSION = AdaptationResult.LOCAL_ENGINE_VERSION
 
-    /**
-     * [lexiconTier]: −1 sin cambios léxicos; 0 solo conectores; 1, 2 y 3 añaden vocabulario cada vez más cotidiano.
-     */
-    private data class Profile(val maxWordsPerSentence: Int, val maxWordsPerChunk: Int, val lexiconTier: Int)
-
-    private fun profile(level: NlpLevel) = when (level) {
-        NlpLevel.NIVEL_1 -> Profile(8, TextChunker.maxWordsFor(level), 3)
-        NlpLevel.NIVEL_2 -> Profile(11, TextChunker.maxWordsFor(level), 2)
-        NlpLevel.NIVEL_3 -> Profile(15, TextChunker.maxWordsFor(level), 1)
-        NlpLevel.NIVEL_4 -> Profile(21, TextChunker.maxWordsFor(level), 0)
-        NlpLevel.NIVEL_5 -> Profile(30, TextChunker.maxWordsFor(level), -1)
+    /** Vocabulario de cada nivel: −1 sin cambios léxicos; 0 solo conectores; 1, 2 y 3 cada vez más cotidiano. */
+    internal fun lexiconTier(level: NlpLevel): Int = when (level) {
+        NlpLevel.NIVEL_1 -> 3
+        NlpLevel.NIVEL_2 -> 2
+        NlpLevel.NIVEL_3 -> 1
+        NlpLevel.NIVEL_4 -> 0
+        NlpLevel.NIVEL_5 -> -1
     }
 
     /** Conectores y adverbios formales (desde el Nivel 4): lo mínimo que se simplifica sin tocar el contenido. */
@@ -101,8 +97,8 @@ object TextAdapter {
         )
     }
 
-    // Solo conjunciones que introducen una cláusula nueva. "y"/"e" no se usan para cortar: unen
-    // sujetos u objetos y partir ahí cambiaría el sentido de la oración.
+    // Solo conjunciones que introducen una cláusula nueva. "y"/"e" no se usan para cortar salvo ante un verbo
+    // conjugado inequívoco: unen sujetos u objetos y partir ahí cambiaría el sentido de la oración.
     private val CONJUNCTIONS = setOf("pero", "aunque", "porque", "pues", "sino")
     private val DROP_AFTER_COMMA = setOf("y", "e")
 
@@ -129,29 +125,51 @@ object TextAdapter {
     // Nexos de dos palabras que introducen una subordinada: no pueden abrir una oración nueva.
     private val SUBORDINATE_PAIRS = setOf("ya que", "así como", "puesto que", "dado que", "mientras que", "sino que", "de modo que")
 
+    // Pronombres átonos que pueden ir delante del verbo de la segunda cláusula ("... y lo utilizaban para ...").
+    private val CLITICS = setOf("se", "lo", "la", "le", "les", "los", "las", "me", "te", "nos")
+
+    // Terminaciones de verbo conjugado sin ambigüedad con sustantivos: pretérito, imperfecto y futuro.
+    private val FINITE_VERB = Regex("(aba|aban|ábamos|aron|ieron|yeron|ían|ará|erá|irá|arán|erán|irán|ó)$")
+
     private fun isGerund(word: String) = word.endsWith("ando") || word.endsWith("iendo") || word.endsWith("yendo")
     private fun isParticiple(word: String) = Regex("(ad|id)(o|a|os|as)$").containsMatchIn(word) && word.length > 4
+    private fun isFiniteVerb(word: String) = word.length > 3 && FINITE_VERB.containsMatchIn(word)
     private const val MIN_FRAGMENT_WORDS = 4
 
-    /** Una variante de la lectura: sus párrafos/oraciones, el texto completo y los reemplazos aplicados. */
-    private class Variant(val paragraphs: List<List<String>>, val text: String, val replacements: List<LexicalReplacement>)
+    /** Una variante armada por [LevelCalibrator]: su texto, oraciones por párrafo y métricas. */
+    internal class Variant(
+        val paragraphs: List<List<String>>,
+        val text: String,
+        val replacements: List<LexicalReplacement>,
+        val words: Int,
+        val syllables: Int,
+        val sentences: Int
+    ) {
+        val score: Double get() = Szigriszt.score(syllables, words, sentences)
+    }
 
-    fun adapt(title: String, original: String, level: NlpLevel): AdaptationResult {
-        val normalized = normalize(original)
-        val variants = NlpLevel.entries.associateWith { variant(normalized, it) }
-        val chosen = variants.getValue(level)
+    /**
+     * Adapta [original] al [level] pedido y devuelve también las 5 variantes calibradas. [glossary] aporta las
+     * micro-glosas de los niveles iniciales (definiciones de términos que aparecen en el texto, nunca relleno) y
+     * [aligned], la paráfrasis sencilla revisada de cada oración cuando la lectura viene del banco local.
+     */
+    fun adapt(
+        title: String,
+        original: String,
+        level: NlpLevel,
+        glossary: List<VocabularyEntry> = LocalGlossary.find(original),
+        aligned: List<String>? = null
+    ): AdaptationResult {
+        val plan = LevelCalibrator.calibrate(normalize(original), glossary, aligned)
+        val chosen = plan.variants.getValue(level)
 
         val origSyl = SpanishText.syllableCount(original)
         val origWords = SpanishText.wordCount(original)
         val origSent = SpanishText.sentenceCount(original)
-        val adSyl = SpanishText.syllableCount(chosen.text)
-        val adWords = SpanishText.wordCount(chosen.text)
-        val adSent = chosen.paragraphs.sumOf { it.size }
 
         val originalScore = Szigriszt.score(origSyl, origWords, origSent)
-        val adaptedScore = Szigriszt.score(adSyl, adWords, adSent)
-        val previews = variants.map { (lvl, v) -> preview(lvl, v) }
-        val chunks = TextChunker.build(chosen.paragraphs, profile(level).maxWordsPerChunk)
+        val adaptedScore = chosen.score
+        val chunks = TextChunker.build(chosen.paragraphs, TextChunker.maxWordsFor(level))
 
         return AdaptationResult(
             title = title,
@@ -161,9 +179,9 @@ object TextAdapter {
                 adaptedSzigrisztScore = adaptedScore,
                 scoreDelta = Szigriszt.round2(adaptedScore - originalScore),
                 originalWordCount = origWords,
-                adaptedWordCount = adWords,
-                syllableCount = adSyl,
-                sentenceCount = adSent,
+                adaptedWordCount = chosen.words,
+                syllableCount = chosen.syllables,
+                sentenceCount = chosen.sentences,
                 originalSyllableCount = origSyl,
                 originalSentenceCount = origSent
             ),
@@ -172,46 +190,53 @@ object TextAdapter {
             readabilityGain = Szigriszt.round2(adaptedScore - originalScore),
             readabilityLevel = Szigriszt.inflesz(adaptedScore),
             lexicalReplacements = chosen.replacements,
-            levelPreviews = previews,
-            levelProgressionMet = previews.zipWithNext().all { (a, b) -> a.readabilityScore > b.readabilityScore },
+            levelPreviews = plan.previews,
+            levelProgressionMet = plan.progressive,
             engineVersion = ENGINE_VERSION
         )
     }
 
-    /** Las 5 variantes de un texto (Nivel 1 a 5), p. ej. para comparar una lectura que no las trae. */
-    fun levelPreviews(original: String): List<LevelPreview> {
-        val normalized = normalize(original)
-        return NlpLevel.entries.map { preview(it, variant(normalized, it)) }
-    }
+    /** Las 5 variantes calibradas de un texto (Nivel 1 a 5), p. ej. para comparar una lectura que no las trae. */
+    fun levelPreviews(
+        original: String,
+        glossary: List<VocabularyEntry> = LocalGlossary.find(original),
+        aligned: List<String>? = null
+    ): List<LevelPreview> = LevelCalibrator.calibrate(normalize(original), glossary, aligned).previews
 
-    private fun preview(level: NlpLevel, v: Variant): LevelPreview {
-        val words = SpanishText.wordCount(v.text)
-        val sentences = v.paragraphs.sumOf { it.size }
-        val score = Szigriszt.score(SpanishText.syllableCount(v.text), words, sentences)
-        return LevelPreview(
-            level = level.value,
-            adaptedText = v.text,
-            readabilityScore = score,
-            readabilityLevel = Szigriszt.inflesz(score),
-            avgSentenceLength = if (sentences > 0) words.toDouble() / sentences else 0.0,
-            syllablesPerWord = if (words > 0) SpanishText.syllableCount(v.text).toDouble() / words else 0.0,
-            targetMet = ReadabilityBand.forLevel(level.value)?.contains(score) == true,
-            lexicalReplacements = v.replacements,
-            fromServer = false
-        )
-    }
+    /** Oraciones de cada párrafo del texto normalizado (punto de partida de todos los borradores). */
+    internal fun paragraphSentences(normalized: String): List<List<String>> =
+        normalized.split(Regex("\\n{2,}")).map { it.trim() }.filter { it.isNotEmpty() }
+            .map { SpanishText.sentences(it) }.filter { it.isNotEmpty() }
 
-    private fun variant(normalized: String, level: NlpLevel): Variant {
-        val profile = profile(level)
+    /**
+     * Borrador con oraciones de hasta [maxWords] palabras (cortando solo en puntos seguros) y el vocabulario del
+     * nivel [tier]. [memo] reutiliza cortes y reemplazos entre los borradores de una misma calibración.
+     */
+    internal fun draft(source: List<List<String>>, maxWords: Int, tier: Int, memo: DraftMemo): Pair<List<List<String>>, List<LexicalReplacement>> {
         val found = LinkedHashMap<String, LexicalReplacement>()
-        val paragraphs = normalized.split(Regex("\\n{2,}")).map { it.trim() }.filter { it.isNotEmpty() }.map { paragraph ->
-            SpanishText.sentences(paragraph)
-                .flatMap { splitLongSentence(it, profile.maxWordsPerSentence) }
-                .map { sentence -> replaceVocabulary(sentence, profile.lexiconTier, found) }
+        val paragraphs = source.map { sentences ->
+            sentences.flatMap { memo.split(it, maxWords) }
+                .map { fragment ->
+                    val (text, replaced) = memo.replace(fragment, tier)
+                    replaced.forEach { r -> found.putIfAbsent(r.original.lowercase(), r) }
+                    text
+                }
                 .map(::finalizeSentence)
                 .filter { it.isNotEmpty() }
         }.filter { it.isNotEmpty() }
-        return Variant(paragraphs, paragraphs.joinToString("\n\n") { it.joinToString(" ") }, found.values.toList())
+        return paragraphs to found.values.toList()
+    }
+
+    /** Cachés de una calibración: los cortes y reemplazos de una oración no dependen del resto del texto. */
+    internal class DraftMemo {
+        private val splits = HashMap<Pair<String, Int>, List<String>>()
+        private val replaced = HashMap<Pair<String, Int>, Pair<String, List<LexicalReplacement>>>()
+
+        fun split(sentence: String, maxWords: Int): List<String> =
+            splits.getOrPut(sentence to maxWords) { splitLongSentence(sentence, maxWords) }
+
+        fun replace(sentence: String, tier: Int): Pair<String, List<LexicalReplacement>> =
+            replaced.getOrPut(sentence to tier) { replaceVocabulary(sentence, tier) }
     }
 
     /** Colapsa espacios y saltos preservando los párrafos (líneas en blanco). */
@@ -259,11 +284,15 @@ object TextAdapter {
                     next.endsWith("mente") && isParticiple(bare(i + 2)) -> null
                     // Enumeración "coral, fosas abisales y costas rocosas": la lista no se parte.
                     (i + 2..minOf(i + 3, tokens.lastIndex)).any { bare(it) in ENUMERATION_LINKS } -> null
-                    next in DROP_AFTER_COMMA -> Cut(i, 1, 2)
+                    // ", y también para proteger...": sin la "y" quedaría un fragmento sin verbo.
+                    next in DROP_AFTER_COMMA -> if (opensFragment(bare(i + 2), bare(i + 3))) null else Cut(i, 1, 2)
                     next in NO_SENTENCE_START || isGerund(next) || isParticiple(next) -> null
                     else -> Cut(i, 1, 1)
                 }
                 word in CONJUNCTIONS && !tokens[i - 1].endsWith(',') && bare(i - 1) !in NO_SENTENCE_END -> Cut(i, 0, 0)
+                // "... sobre las olas y saludaba a ...": la segunda cláusula tiene su propio verbo conjugado.
+                word in DROP_AFTER_COMMA && !tokens[i - 1].endsWith(',') && bare(i - 1) !in NO_SENTENCE_END &&
+                    tokens[i + 1].first().isLowerCase() && startsWithFiniteVerb(tokens, i + 1, ::bare) -> Cut(i, 0, 1)
                 else -> null
             } ?: continue
 
@@ -280,6 +309,20 @@ object TextAdapter {
         return best
     }
 
+    // Adverbios que pueden ir delante de la palabra que de verdad abre la cláusula ("también para...").
+    private val LEADING_ADVERBS = setOf("también", "además", "luego", "después", "incluso", "sobre")
+
+    private fun opensFragment(first: String, second: String): Boolean =
+        first in NO_SENTENCE_START || isGerund(first) || isParticiple(first) ||
+            (first in LEADING_ADVERBS && (second in NO_SENTENCE_START || isGerund(second)))
+
+    /** La cláusula que empieza en [start] abre con un verbo conjugado inequívoco, quizá tras un pronombre átono. */
+    private fun startsWithFiniteVerb(tokens: List<String>, start: Int, bare: (Int) -> String): Boolean {
+        val first = bare(start)
+        if (isFiniteVerb(first)) return true
+        return first in CLITICS && start + 1 < tokens.size && isFiniteVerb(bare(start + 1))
+    }
+
     /**
      * La coma en [index] cierra un inciso: el tramo desde la coma anterior empieza con un nexo ("ni siquiera la
      * luz,") o es una aposición corta con artículo ("el Santiago Bernabéu,").
@@ -290,14 +333,16 @@ object TextAdapter {
         return first in INSERT_START || isParticiple(first) || (first in APPOSITION_START && index - previousComma <= MAX_APPOSITION_WORDS)
     }
 
-    private fun replaceVocabulary(sentence: String, tier: Int, found: MutableMap<String, LexicalReplacement>): String {
-        val lexicon = LEXICONS[tier] ?: return sentence
-        return LEXICON_REGEX.getValue(tier).replace(sentence) { match ->
+    private fun replaceVocabulary(sentence: String, tier: Int): Pair<String, List<LexicalReplacement>> {
+        val lexicon = LEXICONS[tier] ?: return sentence to emptyList()
+        val found = ArrayList<LexicalReplacement>()
+        val text = LEXICON_REGEX.getValue(tier).replace(sentence) { match ->
             val base = lexicon[match.value.lowercase()] ?: return@replace match.value
             val replacement = if (match.value.first().isUpperCase()) base.replaceFirstChar(Char::uppercaseChar) else base
-            found.getOrPut(match.value.lowercase()) { LexicalReplacement(match.value, replacement) }
+            found += LexicalReplacement(match.value, replacement)
             replacement
         }
+        return text to found
     }
 
     private fun finalizeSentence(sentence: String): String {

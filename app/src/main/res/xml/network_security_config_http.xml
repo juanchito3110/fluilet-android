@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solo para compilaciones apuntadas a un backend HTTP fuera del emulador, p. ej. la IP de un Droplet de
+     DigitalOcean antes de tener dominio y TLS (-PFLUILET_API_BASE_URL=http://IP:8000). app/build.gradle.kts lo elige
+     automáticamente; con una URL https:// se usa siempre network_security_config.xml (sin HTTP en claro). La app solo
+     se conecta a su backend, así que el HTTP en claro no se usa con otros hosts. -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools" tools:ignore="UnusedResources">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

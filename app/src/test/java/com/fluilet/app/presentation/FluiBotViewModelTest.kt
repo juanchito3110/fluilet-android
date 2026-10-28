@@ -36,7 +36,7 @@ class FluiBotViewModelTest {
         assertEquals(0, s.spentGems)
         assertEquals(FluiBotStage.EXPLORADOR, s.bot.stage)
         assertEquals("200 / 350 XP", s.bot.label)
-        assertEquals(10, s.accessories.size)
+        assertEquals(12, s.accessories.size)
         assertTrue(s.equipped.isEmpty())
     }
 
@@ -85,6 +85,26 @@ class FluiBotViewModelTest {
         assertNull(vm.state.value.message)
         vm.toggleEquip(Accessory.ALAS_CYBER)
         assertTrue("alas_cyber" in vm.state.value.equipped)
+    }
+
+    @Test fun equippingAnAccessoryMakesTheLivePreviewCelebrateButRemovingItDoesNot() {
+        vm.buy(Accessory.SOMBRERO_EXPLORADOR) // 35: compra y se lo pone
+        val afterBuy = vm.state.value.celebrationTick
+        vm.toggleEquip(Accessory.SOMBRERO_EXPLORADOR) // quitar
+        assertEquals(afterBuy, vm.state.value.celebrationTick)
+        assertFalse("sombrero_explorador" in vm.state.value.equipped)
+        vm.toggleEquip(Accessory.SOMBRERO_EXPLORADOR) // volver a ponerlo
+        assertEquals(afterBuy + 1, vm.state.value.celebrationTick)
+        assertTrue("sombrero_explorador" in vm.state.value.equipped)
+    }
+
+    @Test fun profileCardsReadEachChildsEquippedAccessories() {
+        vm.buy(Accessory.CORBATIN_LED)
+        val other = FluiBotViewModel(store).apply { bind("child-2", progress.copy(totalGems = 500)) }
+        other.buy(Accessory.AURA_PARTICULAS)
+        assertEquals(setOf("aura_particulas"), vm.equippedFor("child-2"))
+        assertEquals(setOf("corbatin_led"), vm.equippedFor("child-1"))
+        assertTrue(vm.equippedFor("child-sin-taller").isEmpty())
     }
 
     @Test fun equippingSomethingNotOwnedDoesNothing() {

@@ -37,11 +37,16 @@ class TextAdapterTest {
     }
 
     @Test fun lowLevelsReplaceVocabularyHighLevelsKeepIt() {
-        val low = TextAdapter.adapt("t", complex, NlpLevel.NIVEL_1).chunks.joinToString(" ") { it.text }
-        val high = TextAdapter.adapt("t", complex, NlpLevel.NIVEL_5).chunks.joinToString(" ") { it.text }
+        // Un texto cuyo Nivel 5 cabe en su banda con la estructura: el vocabulario original se conserva.
+        val school = "Los alumnos pueden utilizar la biblioteca cada tarde. Allí leen cuentos y revistas de ciencia. " +
+            "La maestra prepara numerosos juegos de palabras. Los niños entienden mejor las historias cuando las leen en voz alta. " +
+            "Al final, cada uno cuenta su parte favorita a sus compañeros."
+        val low = TextAdapter.adapt("t", school, NlpLevel.NIVEL_1).chunks.joinToString(" ") { it.text }
+        val high = TextAdapter.adapt("t", school, NlpLevel.NIVEL_5).chunks.joinToString(" ") { it.text }
         assertFalse(low.contains("utilizar", ignoreCase = true))
         assertTrue(low.contains("usar", ignoreCase = true))
         assertTrue(high.contains("utilizar", ignoreCase = true))
+        assertTrue(high.contains("numerosos", ignoreCase = true))
     }
 
     @Test fun neverStartsFragmentsWithRelativesOrGerunds() {

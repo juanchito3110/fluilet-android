@@ -34,16 +34,14 @@ class RetrainedEngineDomainTest {
     private val science = "Los científicos utilizan numerosos instrumentos complejos para observar el universo, aunque posteriormente " +
         "deben comprender los datos que obtienen mediante cálculos fundamentales que realizan durante varias semanas de trabajo."
 
-    @Test fun theLocalEngineProducesFiveDifferentiatedVariantsThatNeverGetHarder() {
+    @Test fun theLocalEngineProducesFiveDifferentiatedVariantsWithAStrictProgression() {
         val texts = listOf(encyclopedic, science) + DemoData.lessons().map { it.originalText!! }
         texts.forEach { text ->
             val previews = TextAdapter.levelPreviews(text)
             assertEquals(listOf(1, 2, 3, 4, 5), previews.map { it.level })
             assertEquals("5 textos distintos", 5, previews.map { it.adaptedText }.toSet().size)
             val scores = previews.map { it.readabilityScore }
-            // Un sinónimo con las mismas sílabas puede empatar dos niveles vecinos; nunca un nivel más alto es más fácil.
-            assertTrue("Nivel 1 ≥ 2 ≥ 3 ≥ 4 ≥ 5: $scores", scores.zipWithNext().all { (a, b) -> a >= b })
-            assertTrue("Nivel 1 > Nivel 5: $scores", scores.first() > scores.last())
+            assertTrue("Nivel 1 > 2 > 3 > 4 > 5: $scores", scores.zipWithNext().all { (a, b) -> a > b })
             assertTrue(previews.none { it.fromServer })
         }
     }
@@ -79,9 +77,12 @@ class RetrainedEngineDomainTest {
         val previews = TextAdapter.levelPreviews(encyclopedic)
         val counts = previews.map { it.lexicalReplacements.size }
         assertTrue("más reemplazos en los niveles bajos: $counts", counts.zipWithNext().all { (a, b) -> a >= b })
-        assertTrue("el nivel 5 conserva el vocabulario", previews.last().lexicalReplacements.isEmpty())
-        assertTrue(previews.last().adaptedText.contains("utilizar"))
         assertFalse(previews.first().adaptedText.contains("utilizar"))
+
+        // Si la estructura basta para llevar el Nivel 5 a su banda, conserva el vocabulario original.
+        val story = DemoData.lessons().first { it.category == "animales_naturaleza" }
+        assertTrue("el nivel 5 conserva el vocabulario", story.levelPreviews.last().lexicalReplacements.isEmpty())
+        assertTrue(story.levelPreviews.last().adaptedText.contains("establecen"))
     }
 
     @Test fun offlineLessonsComeFromTheLocalBankAtTheRequestedLevel() {

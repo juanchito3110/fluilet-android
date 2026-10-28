@@ -1,5 +1,20 @@
 package com.fluilet.app.presentation.reader
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -135,11 +150,25 @@ internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifi
             val shownAdapted = if (adaptedText.length > MAX_ORIGINAL_CHARS) adaptedText.take(MAX_ORIGINAL_CHARS) + "…" else adaptedText
             val good = SpanStyle(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), fontWeight = FontWeight.Bold)
             val annotatedAdapted = remember(shownAdapted, replaced, good) { highlighted(shownAdapted, replaced.map { it.adapted }, good) }
-            Text(annotatedAdapted, style = bodyStyle)
+            // Al cambiar de nivel, el texto adaptado entra con un fundido y un leve deslizamiento.
+            AnimatedContent(
+                targetState = AdaptedPane(level, annotatedAdapted),
+                contentKey = { it.level },
+                transitionSpec = {
+                    val down = targetState.level > initialState.level
+                    (fadeIn(tween(380)) + slideInVertically(tween(380)) { if (down) it / 10 else -it / 10 })
+                        .togetherWith(fadeOut(tween(180)))
+                        .using(SizeTransform(clip = false))
+                },
+                label = "adaptedText"
+            ) { pane -> Text(pane.text, style = bodyStyle) }
             if (replaced.isNotEmpty()) Text(stringResource(R.string.compare_highlight_hint), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
+
+/** El texto adaptado que muestra el comparador para un nivel. */
+private data class AdaptedPane(val level: Int, val text: AnnotatedString)
 
 /** Resalta las apariciones de [terms] (palabras o frases completas) sin cambiar el texto. */
 private fun highlighted(text: String, terms: List<String>, style: SpanStyle): AnnotatedString = buildAnnotatedString {
@@ -225,9 +254,13 @@ private fun BandLine(c: LevelComparison) {
     )
 }
 
-/** 🔬 Ficha Técnica del Motor NLP Szigriszt-Pazos del nivel elegido. */
+/** 🔬 Ficha Técnica del Motor NLP Szigriszt-Pazos del nivel elegido; sus cifras se animan al cambiar de nivel. */
 @Composable
 private fun FichaTecnicaCard(c: LevelComparison) {
+    val score by animateFloatAsState(c.adaptedScore.toFloat(), tween(650), label = "score")
+    val gainValue by animateFloatAsState(c.gain.toFloat(), tween(650), label = "gain")
+    val wps by animateFloatAsState(c.adaptedWordsPerSentence.toFloat(), tween(650), label = "wps")
+    val spw by animateFloatAsState(c.adaptedSyllablesPerWord.toFloat(), tween(650), label = "spw")
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -239,10 +272,10 @@ private fun FichaTecnicaCard(c: LevelComparison) {
 
             FichaRow(
                 stringResource(R.string.compare_index_label),
-                stringResource(R.string.compare_index_values, oneDecimal(c.originalScore), c.level, oneDecimal(c.adaptedScore))
+                stringResource(R.string.compare_index_values, oneDecimal(c.originalScore), c.level, oneDecimal(score.toDouble()))
             )
-            val gain = if (c.gain >= 0) stringResource(R.string.compare_gain_positive, oneDecimal(c.gain))
-            else stringResource(R.string.compare_gain_negative, oneDecimal(c.gain))
+            val gain = if (gainValue >= 0) stringResource(R.string.compare_gain_positive, oneDecimal(gainValue.toDouble()))
+            else stringResource(R.string.compare_gain_negative, oneDecimal(gainValue.toDouble()))
             Text(
                 gain,
                 style = MaterialTheme.typography.titleSmall,
@@ -250,15 +283,48 @@ private fun FichaTecnicaCard(c: LevelComparison) {
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             )
+            ReadabilityBandBar(c, score)
             FichaRow(
                 stringResource(R.string.compare_wps_label),
-                stringResource(R.string.compare_wps_values, oneDecimal(c.originalWordsPerSentence), oneDecimal(c.adaptedWordsPerSentence))
+                stringResource(R.string.compare_wps_values, oneDecimal(c.originalWordsPerSentence), oneDecimal(wps.toDouble()))
             )
             FichaRow(
                 stringResource(R.string.compare_spw_label),
-                stringResource(R.string.compare_spw_values, twoDecimals(c.originalSyllablesPerWord), twoDecimals(c.adaptedSyllablesPerWord))
+                stringResource(R.string.compare_spw_values, twoDecimals(c.originalSyllablesPerWord), twoDecimals(spw.toDouble()))
             )
             if (!c.fromServer) Text(stringResource(R.string.compare_measured_locally), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/**
+ * Barra visual de legibilidad (0–100): la banda del nivel resaltada, el original como referencia y el puntaje de la
+ * variante, que se desliza con [score] animado.
+ */
+@Composable
+private fun ReadabilityBandBar(c: LevelComparison, score: Float) {
+    val band = c.band ?: return
+    val track = MaterialTheme.colorScheme.outlineVariant
+    val bandColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
+    val marker = MaterialTheme.colorScheme.primary
+    val original = MaterialTheme.colorScheme.onSurfaceVariant
+    val description = stringResource(R.string.compare_band_bar, oneDecimal(c.adaptedScore), band.range, oneDecimal(c.originalScore))
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(34.dp).semantics { contentDescription = description }) {
+            val y = size.height / 2
+            val h = size.height * 0.32f
+            fun x(value: Double) = (value.coerceIn(0.0, 100.0) / 100.0 * size.width).toFloat()
+            drawRoundRect(track, Offset(0f, y - h / 2), Size(size.width, h), CornerRadius(h / 2))
+            drawRoundRect(bandColor, Offset(x(band.min), y - h), Size(x(band.max) - x(band.min), h * 2), CornerRadius(h / 2))
+            drawCircle(original, h * 0.55f, Offset(x(c.originalScore), y))
+            val at = Offset(x(score.toDouble()), y)
+            drawCircle(Color.White, h * 1.15f, at)
+            drawCircle(marker, h * 0.85f, at)
+        }
+        Row(Modifier.fillMaxWidth()) {
+            Text("0", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.compare_band_bar_legend, band.range), style = MaterialTheme.typography.labelSmall)
+            Text("100", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
     }
 }

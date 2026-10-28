@@ -10,7 +10,7 @@ import java.security.Security
 /**
  * Endurecimiento de transporte (OWASP MSTG-NETWORK-1/2/3).
  *
- * - Release: SOLO TLS 1.3 (sin cleartext, sin TLS 1.2).
+ * - Release con https: SOLO TLS 1.3 (sin cleartext, sin TLS 1.2).
  * - Android 8-9 (API 26-28) no trae TLS 1.3 de plataforma: se inserta Conscrypt como proveedor.
  * - Certificate Pinning (SPKI SHA-256) únicamente cuando hay pines configurados (release).
  */
@@ -20,9 +20,9 @@ object TlsConfig {
         val tls13 = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
             .tlsVersions(TlsVersion.TLS_1_3)
             .build()
-        // Debug: se permite HTTP solo para el emulador; el network_security_config de debug
-        // restringe el cleartext a 10.0.2.2.
-        return if (enforceTlsOnly) listOf(tls13) else listOf(tls13, ConnectionSpec.CLEARTEXT)
+        // Debug (o un backend http:// de prueba elegido con FLUILET_API_BASE_URL): se admite HTTP y TLS 1.2/1.3, para
+        // conectar con un Droplet recién creado. El network_security_config de cada compilación decide a qué hosts.
+        return if (enforceTlsOnly) listOf(tls13) else listOf(ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT)
     }
 
     /**

@@ -30,6 +30,7 @@ import com.fluilet.app.domain.model.LevelPreview
 import com.fluilet.app.domain.model.ModelAudit
 import com.fluilet.app.domain.text.LevelComparison
 import com.fluilet.app.domain.text.LevelComparisons
+import com.fluilet.app.presentation.fluibot.FluiBotMood
 import com.fluilet.app.domain.model.TechnicalSheet
 import com.fluilet.app.domain.usecase.StartReadingSessionUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingProgressUseCase
@@ -121,6 +122,20 @@ data class ReaderUiState(
      * el mini-reto, si lo hay). Salir sigue exigiendo el botón del tutor y su PIN.
      */
     val showLab: Boolean get() = completed && !showQuiz
+
+    /**
+     * Expresión de FluiBot en el lector: lee concentrado, piensa mientras algo carga o mientras se responde el
+     * mini-reto, celebra el mini-reto superado y el cofre abierto, y saluda en el laboratorio.
+     */
+    val botMood: FluiBotMood
+        get() = when {
+            showQuiz -> if (quiz?.isComplete == true && quiz.correct > 0) FluiBotMood.CELEBRATING else FluiBotMood.THINKING
+            showLab -> if (chestOpened) FluiBotMood.CELEBRATING else FluiBotMood.HAPPY
+            else -> FluiBotMood.forReader(loading = originalLoading || tts.status == TtsStatus.Initializing, celebrating = false)
+        }
+
+    /** El mini-reto terminó con al menos un acierto: dispara la celebración con confeti. */
+    val quizSucceeded: Boolean get() = quiz?.isComplete == true && quiz.correct > 0
 
     /** Botín de esta lectura: +50 💎 por completar, +25 💎 por respuesta correcta, XP y cambio de carta. */
     val loot: SessionLoot
