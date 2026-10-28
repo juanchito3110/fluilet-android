@@ -8,11 +8,16 @@ import com.google.gson.annotations.SerializedName
  * servidor calcula y el cliente nunca aporta).
  */
 
-/** `POST /api/v1/adaptations/text`. `child_id` nulo se omite al serializar. */
+/**
+ * `POST /api/v1/adaptations/text`. Se envían `nivel_simplificacion_nlp` y su alias `level` con el MISMO valor (el
+ * backend exige que coincidan) y `age_group` del perfil infantil activo. Los nulos se omiten al serializar.
+ */
 data class AdaptTextRequestDto(
     @SerializedName("text") val text: String,
     @SerializedName("nivel_simplificacion_nlp") val nlpLevel: Int,
-    @SerializedName("child_id") val childId: String? = null
+    @SerializedName("child_id") val childId: String? = null,
+    @SerializedName("level") val level: Int? = nlpLevel,
+    @SerializedName("age_group") val ageGroup: String? = null
 )
 
 /** Telemetría numérica compartida por documento y por bloque. Anulable en registros legados. */
@@ -72,7 +77,38 @@ data class AdaptationReadDto(
     @SerializedName("target_level") val targetLevel: Int? = null,
     @SerializedName("meets_readability_target") val meetsReadabilityTarget: Boolean? = null,
     @SerializedName("source") val source: LessonSourceDto? = null,
-    @SerializedName("resolved_topic") val resolvedTopic: String? = null
+    @SerializedName("resolved_topic") val resolvedTopic: String? = null,
+    @SerializedName("age_group") val ageGroup: String? = null,
+    // Motor reentrenado (backend >= 42482e0): ganancia, longitudes medias, reemplazos léxicos, 5 variantes y modelo.
+    @SerializedName("readability_gain") val readabilityGain: Double? = null,
+    @SerializedName("readability_level") val readabilityLevel: String? = null,
+    @SerializedName("original_avg_sentence_length") val originalAvgSentenceLength: Double? = null,
+    @SerializedName("adapted_avg_sentence_length") val adaptedAvgSentenceLength: Double? = null,
+    @SerializedName("original_syllables_per_word") val originalSyllablesPerWord: Double? = null,
+    @SerializedName("adapted_syllables_per_word") val adaptedSyllablesPerWord: Double? = null,
+    @SerializedName("lexical_replacements") val lexicalReplacements: List<LexicalReplacementDto>? = null,
+    @SerializedName("level_previews") val levelPreviews: List<LevelPreviewDto>? = null,
+    @SerializedName("level_progression_met") val levelProgressionMet: Boolean? = null,
+    @SerializedName("engine_version") val engineVersion: String? = null,
+    @SerializedName("model_version") val modelVersion: String? = null,
+    @SerializedName("checkpoint_name") val checkpointName: String? = null
+)
+
+data class LexicalReplacementDto(
+    @SerializedName("original") val original: String? = null,
+    @SerializedName("adapted") val adapted: String? = null
+)
+
+/** Una de las 5 variantes (`level_previews`). `syllables_per_word` es opcional: si falta se despeja de la fórmula. */
+data class LevelPreviewDto(
+    @SerializedName("level") val level: Int? = null,
+    @SerializedName("adapted_text") val adaptedText: String? = null,
+    @SerializedName("readability_score") val readabilityScore: Double? = null,
+    @SerializedName("readability_level") val readabilityLevel: String? = null,
+    @SerializedName("avg_sentence_length") val avgSentenceLength: Double? = null,
+    @SerializedName("syllables_per_word") val syllablesPerWord: Double? = null,
+    @SerializedName("target_met") val targetMet: Boolean? = null,
+    @SerializedName("method") val method: String? = null
 )
 
 /** `metrics` de la respuesta: puntajes Szigriszt-Pazos sin redondear y conteos de ambos textos. */
@@ -111,12 +147,17 @@ data class ComprehensionQuestionDto(
     @SerializedName("explanation") val explanation: String? = null
 )
 
-/** `POST /api/v1/adaptations/generate`. `topic` y `child_id` nulos se omiten al serializar. */
+/**
+ * `POST /api/v1/adaptations/generate`. `level` repite `simplification_level` (el backend exige que coincidan) y
+ * `age_group` es el del perfil infantil activo. `topic`, `child_id` y `age_group` nulos se omiten al serializar.
+ */
 data class LessonGenerateDto(
     @SerializedName("category") val category: String,
     @SerializedName("topic") val topic: String? = null,
     @SerializedName("simplification_level") val simplificationLevel: Int,
-    @SerializedName("child_id") val childId: String? = null
+    @SerializedName("child_id") val childId: String? = null,
+    @SerializedName("level") val level: Int? = simplificationLevel,
+    @SerializedName("age_group") val ageGroup: String? = null
 )
 
 data class ReadingCreateDto(

@@ -28,5 +28,21 @@ object Szigriszt {
         else -> "Muy fácil"
     }
 
+    /**
+     * Etiqueta INFLESZ con la que el backend publica `readability_level` (y cada `level_previews[].readability_level`):
+     * Muy fácil (> 80), Bastante fácil (≥ 65), Normal (≥ 55), Algo difícil (≥ 40) y Muy difícil.
+     */
+    fun inflesz(score: Double): String = when {
+        score > 80 -> "Muy fácil"
+        score >= 65 -> "Bastante fácil"
+        score >= 55 -> "Normal"
+        score >= 40 -> "Algo difícil"
+        else -> "Muy difícil"
+    }
+
+    /** Despeja de la fórmula las sílabas por palabra: S/P = (206.835 − P/F − IFSZ) / 62.3. */
+    fun syllablesPerWord(score: Double, wordsPerSentence: Double): Double =
+        ((206.835 - wordsPerSentence - score) / 62.3).coerceAtLeast(0.0)
+
     fun round2(value: Double): Double = round(value * 100.0) / 100.0
 }

@@ -18,6 +18,7 @@ import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.session.ActiveReadingHolder
 import com.fluilet.app.domain.usecase.GetEducationalProgressUseCase
 import com.fluilet.app.domain.usecase.FetchAdaptationUseCase
+import com.fluilet.app.domain.usecase.GetModelAuditUseCase
 import com.fluilet.app.domain.usecase.StartReadingSessionUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingProgressUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingSettingsUseCase
@@ -70,6 +71,7 @@ class ReaderViewModelTest {
     private val focus = FocusSessionController(launcher, { mono }, { Instant.parse("2026-10-19T10:00:00Z") })
     private val repo = FakeReadingSessionRepository()
     private val adaptations = com.fluilet.app.testutil.FakeAdaptationRepository()
+    private val modelInfo = com.fluilet.app.testutil.FakeModelInfoRepository()
     private val holder = ActiveReadingHolder()
     private val engine = FakeSpeechEngine()
     private val tts = TtsManager { engine }
@@ -92,7 +94,7 @@ class ReaderViewModelTest {
         holder.set(ActiveReading(childId, "Lector", ReadingSettings(), adaptation))
         return ReaderViewModel(
             holder, tts, focus, UpdateReadingSettingsUseCase(),
-            StartReadingSessionUseCase(repo), UpdateReadingProgressUseCase(repo), GetEducationalProgressUseCase(repo), FetchAdaptationUseCase(adaptations), appScope
+            StartReadingSessionUseCase(repo), UpdateReadingProgressUseCase(repo), GetEducationalProgressUseCase(repo), FetchAdaptationUseCase(adaptations), GetModelAuditUseCase(modelInfo), appScope
         ).also(created::add)
     }
 
@@ -832,5 +834,129 @@ class ReaderViewModelTest {
         assertEquals("Texto enciclopédico original sobre biología marina.", probe.state().originalText)
         assertTrue(probe.state().reading!!.adaptation.source!!.isWikipedia)
         assertTrue("sigue dentro del Modo Enfoque", probe.state().lockActive)
+    }
+
+    // --- Super-comparador: selector en vivo de los 5 niveles del modelo reentrenado ------------------------
+
+    /** Lección del servidor con sus 5 variantes reales (Agujeros negros de Diego, backend 42482e0). */
+    private fun retrainedLesson(): AdaptationResult {
+        fun preview(level: Int, score: Double, wps: Double, text: String) = com.fluilet.app.domain.model.LevelPreview(
+            level, text, score, com.fluilet.app.domain.text.Szigriszt.inflesz(score), wps,
+            com.fluilet.app.domain.text.Szigriszt.syllablesPerWord(score, wps)
+        )
+        return sampleAdaptation(2, category = "ciencia_espacio", level = 4).copy(
+            title = "Agujeros negros",
+            metrics = ReadabilityMetrics(
+                56.43970588235297, 61.84269230769231, 5.402986425339343, 85, 78, 162, 5, 182, 5,
+                originalAvgWordsPerSentence = 17.0, adaptedAvgWordsPerSentence = 15.6
+            ),
+            targetLevel = 4,
+            originalText = "Los agujeros negros son regiones del espacio cuya gravedad impide que la luz escape desde su interior.",
+            readabilityGain = 5.402986425339343,
+            lexicalReplacements = listOf(com.fluilet.app.domain.model.LexicalReplacement("regiones", "zonas")),
+            levelPreviews = listOf(
+                preview(1, 83.32041666666667, 8.0, "Un agujero negro es una zona del espacio. Su gravedad no deja salir la luz."),
+                preview(2, 79.01759705488624, 9.22, "Un agujero negro es una zona del espacio con mucha gravedad."),
+                preview(3, 69.38801204819279, 16.6, "Los agujeros negros son zonas del espacio donde la luz no sale."),
+                preview(4, 61.84269230769231, 15.6, "Los agujeros negros son zonas del espacio cuya gravedad impide que la luz escape."),
+                preview(5, 57.06639534883725, 17.2, "Los agujeros negros son regiones del espacio cuya gravedad impide que la luz escape.")
+            ),
+            levelProgressionMet = true,
+            modelVersion = "context-ranker-es-v2.3",
+            checkpointName = "context-ranker-v2.3",
+            engineVersion = "pedagogical-es-v2.3"
+        )
+    }
+
+    @Test fun theComparatorOpensOnTheLessonLevelWithTheRetrainedModelSeal() = readerTest {
+        val vm = viewModel(childId = "child-1", adaptation = retrainedLesson())
+        val probe = observe(vm)
+        vm.start()
+        assertNull("sin comparador no se calcula nada", probe.state().comparison)
+
+        vm.toggleOriginal()
+
+        val s = probe.state()
+        assertEquals(listOf(1, 2, 3, 4, 5), s.levelPreviews.map { it.level })
+        assertEquals(4, s.comparisonLevel)
+        val c = s.comparison!!
+        assertEquals(56.44, c.originalScore, 0.01)
+        assertEquals(61.84, c.adaptedScore, 0.01)
+        assertEquals(5.40, c.gain, 0.01)
+        assertEquals(17.0, c.originalWordsPerSentence, 1e-9)
+        assertEquals(15.6, c.adaptedWordsPerSentence, 1e-9)
+        assertEquals(2.08, c.adaptedSyllablesPerWord, 0.01)
+        assertEquals(listOf(com.fluilet.app.domain.model.LexicalReplacement("regiones", "zonas")), c.replacements)
+        assertTrue(s.reading!!.adaptation.isRetrainedModel)
+        assertEquals("4,738 pares · SARI 44.56 · Exactitud 73.25% · 5 Bandas Verificadas", s.modelAudit!!.badgeLine)
+        assertTrue("no se pidió nada al servidor: la lección ya trae todo", adaptations.fetchRequests.isEmpty())
+    }
+
+    @Test fun tappingTheFiveLevelChipsSwitchesTextScoreAndBandLiveInsideFocusMode() = readerTest {
+        val vm = viewModel(childId = "child-1", adaptation = retrainedLesson())
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleOriginal()
+
+        vm.selectComparisonLevel(1)
+        with(probe.state().comparison!!) {
+            assertEquals(1, level)
+            assertEquals(83.32, adaptedScore, 0.01)
+            assertEquals(26.88, gain, 0.01)
+            assertEquals("Muy fácil", readabilityLevel)
+            assertTrue("82–100", inBand)
+            assertEquals(8.0, adaptedWordsPerSentence, 1e-9)
+            assertTrue(adaptedText.startsWith("Un agujero negro"))
+            assertTrue("sus propias transformaciones", replacements.isNotEmpty())
+        }
+
+        vm.selectComparisonLevel(5)
+        with(probe.state().comparison!!) {
+            assertEquals(5, level)
+            assertEquals(57.07, adaptedScore, 0.01)
+            assertTrue(adaptedText.contains("regiones"))
+        }
+        val scores = (1..5).map { lvl -> vm.selectComparisonLevel(lvl); probe.state().comparison!!.adaptedScore }
+        assertTrue("Nivel 1 > 2 > 3 > 4 > 5: $scores", scores.zipWithNext().all { (a, b) -> a > b })
+
+        vm.selectComparisonLevel(9) // fuera de rango: se ignora
+        assertEquals(5, probe.state().comparisonLevel)
+        assertTrue("sigue en Modo Enfoque", probe.state().lockActive)
+        assertFalse("cambiar de nivel nunca abre el PIN", probe.state().showGate)
+        assertEquals("el modelo se consulta una sola vez", 1, modelInfo.calls)
+    }
+
+    @Test fun aPastedTextWithoutPreviewsGetsFiveLocalVariantsWithoutCallingTheServer() = readerTest {
+        val pasted = sampleAdaptation(2, level = 2).copy(
+            originalText = "Los científicos utilizan numerosos instrumentos complejos para observar el universo, aunque posteriormente " +
+                "deben comprender los datos que obtienen mediante cálculos fundamentales que realizan durante varias semanas de trabajo."
+        )
+        val vm = viewModel(childId = null, adaptation = pasted)
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleOriginal()
+
+        val s = probe.state()
+        assertEquals(5, s.levelPreviews.size)
+        assertTrue(s.levelPreviews.none { it.fromServer })
+        assertEquals(2, s.comparisonLevel)
+        assertFalse(s.comparison!!.fromServer)
+        assertTrue(adaptations.fetchRequests.isEmpty())
+    }
+
+    @Test fun anOlderLessonUsesThePreviewsOfTheRetainedAdaptationFetchedOnce() = readerTest {
+        adaptations.fetchResult = Result.success(retrainedLesson())
+        val old = sampleAdaptation(2, documentId = "doc-1", level = 4)
+        val vm = viewModel(childId = null, adaptation = old)
+        val probe = observe(vm)
+        vm.start()
+        vm.toggleOriginal()
+
+        assertEquals(listOf("doc-1"), adaptations.fetchRequests)
+        assertEquals(listOf(1, 2, 3, 4, 5), probe.state().levelPreviews.map { it.level })
+        assertTrue(probe.state().levelPreviews.all { it.fromServer })
+        assertEquals(5.40, probe.state().comparison!!.gain, 0.01)
+        vm.selectComparisonLevel(1)
+        assertEquals(83.32, probe.state().comparison!!.adaptedScore, 0.01)
     }
 }

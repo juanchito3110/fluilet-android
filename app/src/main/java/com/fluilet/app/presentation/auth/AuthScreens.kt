@@ -14,18 +14,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import com.fluilet.app.presentation.common.SelectableChip
-import com.fluilet.app.presentation.common.CheckMark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.fluilet.app.presentation.brand.FluiletFullLogo
-import com.fluilet.app.domain.usecase.QuickAccess
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -85,19 +80,19 @@ private fun PasswordField(
 enum class AuthTab { LOGIN, REGISTER }
 
 /**
- * Iniciar Sesión / Crear Cuenta: logo completo de Fluilet arriba, pestañas claras y el acceso rápido al
- * Modo Demo. [onClose] solo existe al abrirla desde "✨ Ver Intro / Cuenta" (vista previa sin cerrar sesión).
+ * Iniciar Sesión / Crear Cuenta, como en cualquier app de Google Play: logo de Fluilet, pestañas y el formulario
+ * estándar (correo, contraseña, iniciar sesión / crear cuenta). No hay atajos ni credenciales precargadas: las
+ * cuentas de la demostración se escriben a mano igual que cualquier otra. [onClose] solo existe al abrirla desde
+ * "✨ Ver Intro / Cuenta" (vista previa sin cerrar sesión).
  */
 @Composable
 fun AuthScreen(
     initialTab: AuthTab = AuthTab.LOGIN,
     onClose: (() -> Unit)? = null,
     loginViewModel: LoginViewModel = hiltViewModel(),
-    registerViewModel: RegisterViewModel = hiltViewModel(),
-    quickViewModel: QuickAccessViewModel = hiltViewModel()
+    registerViewModel: RegisterViewModel = hiltViewModel()
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
-    val quick by quickViewModel.state.collectAsStateWithLifecycle()
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -119,40 +114,6 @@ fun AuthScreen(
                 AuthTab.LOGIN -> LoginForm(loginViewModel)
                 AuthTab.REGISTER -> RegisterForm(registerViewModel)
             }
-
-            if (quick.enabled) {
-                Text(stringResource(R.string.auth_quick_title), style = MaterialTheme.typography.titleSmall)
-                QuickAccessButton(
-                    label = stringResource(R.string.auth_quick_tutor),
-                    hint = stringResource(R.string.auth_quick_tutor_hint),
-                    loading = quick.loading == QuickAccess.TUTOR,
-                    enabled = !quick.isLoading,
-                    onClick = { quickViewModel.enter(QuickAccess.TUTOR) }
-                )
-                QuickAccessButton(
-                    label = stringResource(R.string.auth_quick_master),
-                    hint = stringResource(R.string.auth_quick_master_hint),
-                    loading = quick.loading == QuickAccess.MASTER,
-                    enabled = !quick.isLoading,
-                    onClick = { quickViewModel.enter(QuickAccess.MASTER) }
-                )
-                ErrorMessage(quick.errorMessage)
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickAccessButton(label: String, hint: String, loading: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-            Text(if (loading) stringResource(R.string.auth_quick_loading) else label, style = MaterialTheme.typography.labelLarge)
-            Text(hint, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

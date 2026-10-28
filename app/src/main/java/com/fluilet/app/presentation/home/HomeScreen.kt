@@ -32,6 +32,7 @@ import com.fluilet.app.R
 import com.fluilet.app.domain.model.ChildProfile
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.FullScreenLoading
+import com.fluilet.app.presentation.common.ModelAuditCard
 import com.fluilet.app.presentation.fluibot.FluiBotViewModel
 import com.fluilet.app.presentation.parentalgate.GateMode
 import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
@@ -110,6 +111,12 @@ fun HomeScreen(
                         onOpenDemoLesson = { lesson ->
                             viewModel.openDemoLesson(lesson)
                             if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+                        },
+                        onOpenLibraryLesson = { item ->
+                            viewModel.openLibraryLesson(item) {
+                                val now = viewModel.uiState.value
+                                if (now.isTutor && !now.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+                            }
                         }
                     )
                     HomeTab.FLUIBOT -> FluiBotTab(
@@ -134,6 +141,7 @@ fun HomeScreen(
                     HomeTab.ESTADISTICAS -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         DemoDataCard(state, viewModel::loadDemoData)
                         ProgressDashboard(state.progress, state.progressNote)
+                        state.modelAudit?.let { ModelAuditCard(it) }
                     }
                 }
             }

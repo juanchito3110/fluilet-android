@@ -4,16 +4,29 @@ import com.fluilet.app.core.network.AppError
 import com.fluilet.app.domain.model.AuthSession
 import com.fluilet.app.domain.model.RegistrationData
 import com.fluilet.app.domain.model.User
+import com.fluilet.app.domain.model.UserRole
 import com.fluilet.app.domain.repository.AuthRepository
 import com.fluilet.app.domain.repository.TutorPinRepository
 import com.fluilet.app.domain.validation.Validators
 import javax.inject.Inject
 
-class LoginUseCase @Inject constructor(private val repository: AuthRepository) {
+/**
+ * Login normal (`POST /auth/login`) para cualquier cuenta, incluidas las de la demostración escritas a mano.
+ * Si entra `tutor@fluilet.com`, deja listo en el dispositivo su PIN parental público (1234, el mismo que guarda
+ * el backend) para que el Modo Enfoque de sus 4 niños funcione desde el primer momento.
+ */
+class LoginUseCase @Inject constructor(
+    private val repository: AuthRepository,
+    private val pin: TutorPinRepository
+) {
     suspend operator fun invoke(email: String, password: String): Result<AuthSession> {
         Validators.email(email)?.let { return Result.failure(AppError.Validation(it)) }
         if (password.isEmpty()) return Result.failure(AppError.Validation("Ingresa tu contraseña."))
-        return repository.login(email, password)
+        return repository.login(email, password).onSuccess { session ->
+            if (session.role == UserRole.TUTOR && DemoAccounts.isDemoTutor(session.email)) {
+                pin.configureDemoPin(DemoAccounts.TUTOR_PIN)
+            }
+        }
     }
 }
 

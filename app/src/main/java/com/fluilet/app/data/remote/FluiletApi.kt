@@ -12,6 +12,7 @@ import com.fluilet.app.data.remote.dto.AdaptationReadDto
 import com.fluilet.app.data.remote.dto.DocumentDto
 import com.fluilet.app.data.remote.dto.EducationalProgressDto
 import com.fluilet.app.data.remote.dto.LessonGenerateDto
+import com.fluilet.app.data.remote.dto.ModelInfoDto
 import com.fluilet.app.data.remote.dto.ReadingCreateDto
 import com.fluilet.app.data.remote.dto.ReadingDto
 import com.fluilet.app.data.remote.dto.ReadingUpdateDto
@@ -65,6 +66,8 @@ interface FluiletApi {
     suspend fun adaptFile(
         @Body body: RequestBody,
         @Query("nivel_simplificacion_nlp") nlpLevel: Int,
+        @Query("level") level: Int?,
+        @Query("age_group") ageGroup: String?,
         @Query("child_id") childId: String?
     ): AdaptationReadDto
 
@@ -77,6 +80,14 @@ interface FluiletApi {
     @Headers("$READ_TIMEOUT_HEADER: $ADAPTATION_READ_TIMEOUT_SECONDS")
     @GET("api/v1/adaptations/{id}")
     suspend fun adaptation(@Path("id") id: String): AdaptationReadDto
+
+    /** Auditoría del modelo reentrenado (SARI, exactitud léxica, dataset, 5 bandas). Cualquier usuario autenticado. */
+    @GET("api/v1/adaptations/model-info")
+    suspend fun modelInfo(): ModelInfoDto
+
+    /** Lecturas asignadas a un niño (metadatos); cada una se abre con [adaptation] por su `document.id`. */
+    @GET("api/v1/children/{id}/library")
+    suspend fun childLibrary(@Path("id") childId: String): List<DocumentDto>
 
     @GET("api/v1/documents")
     suspend fun documents(@Query("offset") offset: Int = 0): List<DocumentDto>

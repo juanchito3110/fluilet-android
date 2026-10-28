@@ -25,6 +25,11 @@ import com.fluilet.app.domain.session.ActiveReadingHolder
 import com.fluilet.app.domain.text.SentenceSpans
 import com.fluilet.app.domain.usecase.GetEducationalProgressUseCase
 import com.fluilet.app.domain.usecase.FetchAdaptationUseCase
+import com.fluilet.app.domain.usecase.GetModelAuditUseCase
+import com.fluilet.app.domain.model.LevelPreview
+import com.fluilet.app.domain.model.ModelAudit
+import com.fluilet.app.domain.text.LevelComparison
+import com.fluilet.app.domain.text.LevelComparisons
 import com.fluilet.app.domain.model.TechnicalSheet
 import com.fluilet.app.domain.usecase.StartReadingSessionUseCase
 import com.fluilet.app.domain.usecase.UpdateReadingProgressUseCase
@@ -85,7 +90,15 @@ data class ReaderUiState(
     val labTab: LabTab = LabTab.DEFAULT,
     /** Original recuperado con `GET /adaptations/{id}` para lecturas anteriores que no lo traían. */
     val fetchedOriginal: String? = null,
-    val originalLoading: Boolean = false
+    val originalLoading: Boolean = false,
+    /** Las 5 variantes que ofrece el comparador (servidor, detalle recuperado o motor local sobre el original). */
+    val levelPreviews: List<LevelPreview> = emptyList(),
+    /** Nivel elegido en el selector en vivo del comparador. */
+    val comparisonLevel: Int? = null,
+    /** Ficha técnica, banda y transformaciones léxicas del nivel elegido. */
+    val comparison: LevelComparison? = null,
+    /** Auditoría del modelo reentrenado para el sello del comparador (`model-info` o valores verificados). */
+    val modelAudit: ModelAudit? = null
 ) {
     /** "¿Sabías que...?": dato del servidor o local según tema/categoría; se muestra al final del texto. */
     val funFact: String? get() = reading?.adaptation?.effectiveFunFact
@@ -146,7 +159,11 @@ private data class Local(
     val selectedWord: String? = null,
     val labTab: LabTab = LabTab.DEFAULT,
     val fetchedOriginal: String? = null,
-    val originalLoading: Boolean = false
+    val originalLoading: Boolean = false,
+    /** Adaptación completa recuperada del servidor (aporta sus `level_previews` y reemplazos). */
+    val fetchedDetail: AdaptationResult? = null,
+    val comparisonLevel: Int? = null,
+    val modelAudit: ModelAudit? = null
 )
 
 @HiltViewModel
@@ -159,6 +176,7 @@ class ReaderViewModel @Inject constructor(
     private val updateProgress: UpdateReadingProgressUseCase,
     private val getProgress: GetEducationalProgressUseCase,
     private val fetchAdaptation: FetchAdaptationUseCase,
+    private val getModelAudit: GetModelAuditUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
@@ -174,6 +192,7 @@ class ReaderViewModel @Inject constructor(
 
     val uiState: StateFlow<ReaderUiState> = combine(holder.current, tts.state, focus.state, local) { reading, ttsState, focusState, l ->
         val words = vocabularyFor(reading?.adaptation)
+        val compared = if (l.showOriginal) comparisonFor(reading?.adaptation, l) else null
         ReaderUiState(
             reading = reading,
             settings = l.settings,
@@ -194,7 +213,11 @@ class ReaderViewModel @Inject constructor(
             selectedWord = words.firstOrNull { it.word == l.selectedWord },
             labTab = l.labTab,
             fetchedOriginal = l.fetchedOriginal,
-            originalLoading = l.originalLoading
+            originalLoading = l.originalLoading,
+            levelPreviews = compared?.first.orEmpty(),
+            comparisonLevel = compared?.second?.level ?: l.comparisonLevel,
+            comparison = compared?.second,
+            modelAudit = l.modelAudit
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderUiState())
 
@@ -282,7 +305,25 @@ class ReaderViewModel @Inject constructor(
     fun toggleOriginal() {
         val turningOn = !local.value.showOriginal
         local.update { it.copy(showOriginal = turningOn) }
-        if (turningOn) loadOriginalIfMissing()
+        if (turningOn) {
+            loadOriginalIfMissing()
+            loadModelAudit()
+        }
+    }
+
+    /** Selector en vivo de los 5 niveles: cambia el texto y la ficha sin salir de la lectura (ni del Modo Enfoque). */
+    fun selectComparisonLevel(level: Int) {
+        if (level !in 1..5) return
+        local.update { it.copy(comparisonLevel = level) }
+    }
+
+    /** Sello del modelo: una sola consulta por lector (el repositorio además la guarda en memoria). */
+    private fun loadModelAudit() {
+        if (local.value.modelAudit != null) return
+        viewModelScope.launch {
+            val audit = getModelAudit()
+            local.update { it.copy(modelAudit = audit) }
+        }
     }
 
     /** Lecturas anteriores sin `original_text`: se pide al servidor la adaptación retenida (por su id o el del documento). */
@@ -294,7 +335,9 @@ class ReaderViewModel @Inject constructor(
         local.update { it.copy(originalLoading = true) }
         viewModelScope.launch {
             fetchAdaptation(id)
-                .onSuccess { r -> local.update { it.copy(fetchedOriginal = r.originalText?.takeIf { t -> t.isNotBlank() }, originalLoading = false) } }
+                .onSuccess { r ->
+                    local.update { it.copy(fetchedOriginal = r.originalText?.takeIf { t -> t.isNotBlank() }, fetchedDetail = r, originalLoading = false) }
+                }
                 .onFailure { local.update { it.copy(originalLoading = false) } }
         }
     }
@@ -307,6 +350,30 @@ class ReaderViewModel @Inject constructor(
     fun speakWord(word: String) = tts.speakWord(word)
 
     fun selectLabTab(tab: LabTab) = local.update { it.copy(labTab = tab) }
+
+    /**
+     * Variantes y comparativa del nivel elegido. El estado se recombina con cada palabra que lee la voz, así que se
+     * memorizan: las variantes por lectura/detalle/original y la comparativa por nivel.
+     */
+    private var previewsMemo: PreviewsMemo? = null
+    private var comparisonMemo: Pair<List<LevelPreview>, LevelComparison>? = null
+
+    private class PreviewsMemo(val adaptation: AdaptationResult, val detail: AdaptationResult?, val original: String?, val previews: List<LevelPreview>)
+
+    private fun comparisonFor(adaptation: AdaptationResult?, l: Local): Pair<List<LevelPreview>, LevelComparison?>? {
+        adaptation ?: return null
+        val original = adaptation.originalText?.takeIf { it.isNotBlank() } ?: l.fetchedOriginal
+        val memo = previewsMemo?.takeIf { it.adaptation === adaptation && it.detail === l.fetchedDetail && it.original == original }
+            ?: PreviewsMemo(adaptation, l.fetchedDetail, original, LevelComparisons.previews(adaptation, l.fetchedDetail, original)).also { previewsMemo = it }
+        val previews = memo.previews
+        val level = l.comparisonLevel?.takeIf { lvl -> previews.any { it.level == lvl } } ?: LevelComparisons.defaultLevel(adaptation, previews)
+            ?: return previews to null
+        comparisonMemo?.takeIf { it.first === previews && it.second.level == level }?.let { return previews to it.second }
+        val base = if (adaptation.levelPreviews.isEmpty() && l.fetchedDetail?.levelPreviews?.isNotEmpty() == true) l.fetchedDetail else adaptation
+        val comparison = LevelComparisons.compare(base, previews, level, original) ?: return previews to null
+        comparisonMemo = previews to comparison
+        return previews to comparison
+    }
 
     /** Glosario de la lectura: se calcula una vez por lectura (no en cada recomposición). */
     private var vocabularyCache: Pair<AdaptationResult, List<VocabularyEntry>>? = null

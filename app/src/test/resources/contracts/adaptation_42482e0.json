@@ -1,0 +1,257 @@
+{
+ "readability_gain": 5.402986425339343,
+ "original_avg_sentence_length": 17.0,
+ "adapted_avg_sentence_length": 15.6,
+ "original_syllables_per_word": 2.1411764705882352,
+ "adapted_syllables_per_word": 2.076923076923077,
+ "lexical_replacements": [
+  {
+   "original": "Los agujeros negros son regiones",
+   "adapted": "Un agujero negro es una zona"
+  },
+  {
+   "original": "cuya",
+   "adapted": "Su fuerza de"
+  },
+  {
+   "original": "absorbe de forma inevitable",
+   "adapted": "se traga"
+  },
+  {
+   "original": "lo que existe a cualquier distancia su",
+   "adapted": "sin límite Su"
+  }
+ ],
+ "level_previews": [
+  {
+   "level": 1,
+   "adapted_text": "Un agujero negro es una zona del espacio. Su fuerza de gravedad impide que salga la luz. Tiene un límite llamado horizonte de sucesos. Desde su interior nada puede volver a salir. Algunas estrellas muy grandes colapsan al final de su vida. De ese modo pueden formar agujeros negros. Para estudiarlos se mira la materia que está cerca. También se mira el efecto de su gravedad. Un agujero negro no se traga todo sin límite. Su efecto depende de la masa y la distancia. No se traga todo sin más. Se mira lo que hay cerca.",
+   "readability_score": 83.32041666666667,
+   "readability_level": "Muy fácil",
+   "avg_sentence_length": 8.0,
+   "target_met": true,
+   "method": "algebraic_scaffolded",
+   "pre_support_text": "Un agujero negro es una zona del espacio. Su fuerza de gravedad impide que salga la luz. Tiene un límite llamado horizonte de sucesos. Desde su interior nada puede volver a salir. Algunas estrellas muy grandes colapsan al final de su vida. De ese modo pueden formar agujeros negros. Para estudiarlos se mira la materia que está cerca. También se mira el efecto de su gravedad. Un agujero negro no se traga todo sin límite. Su efecto depende de la masa y la distancia.",
+   "pre_support_readability_score": 78.28500000000001,
+   "pedagogical_support": [
+    {
+     "text": "No se traga todo sin más.",
+     "evidence": "Un agujero negro no absorbe de forma inevitable todo lo que existe a cualquier distancia: su efecto depende de la masa y de la distancia.",
+     "kind": "source_paraphrase"
+    },
+    {
+     "text": "Se mira lo que hay cerca.",
+     "evidence": "Los astrónomos estudian la materia cercana y sus efectos gravitatorios para obtener información sobre ellos.",
+     "kind": "source_paraphrase"
+    }
+   ]
+  },
+  {
+   "level": 2,
+   "adapted_text": "Un agujero negro es una zona del espacio. Su fuerza de gravedad impide que salga la luz. El límite a partir del cual nada puede regresar se llama horizonte de sucesos. Algunas estrellas muy grandes colapsan al final de su vida. De ese modo pueden formar agujeros negros. Para estudiarlos se observa la materia que está cerca. También se mira el efecto de su gravedad. Un agujero negro no se traga todo sin límite. Su efecto depende de la masa y la distancia.",
+   "readability_score": 79.01759705488624,
+   "readability_level": "Bastante fácil",
+   "avg_sentence_length": 9.222222222222221,
+   "target_met": true,
+   "method": "reviewed_local_alignment",
+   "pre_support_text": null,
+   "pre_support_readability_score": 79.01759705488624,
+   "pedagogical_support": []
+  },
+  {
+   "level": 3,
+   "adapted_text": "Los agujeros negros son regiones del espacio cuya gravedad impide que la luz escape desde su interior. El límite a partir del cual nada puede regresar se llama horizonte de sucesos. Algunas estrellas muy grandes colapsan al final de su vida; De ese modo pueden formar agujeros negros. Para estudiarlos se mira la materia que está cerca; también se mira el efecto de su gravedad. Un agujero negro no se traga todo sin límite; su efecto depende de la masa y la distancia.",
+   "readability_score": 69.38801204819279,
+   "readability_level": "Bastante fácil",
+   "avg_sentence_length": 16.6,
+   "target_met": false,
+   "method": "algebraic_structural",
+   "pre_support_text": null,
+   "pre_support_readability_score": 69.38801204819279,
+   "pedagogical_support": []
+  },
+  {
+   "level": 4,
+   "adapted_text": "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz. El límite a partir del cual nada puede regresar se llama horizonte de sucesos. Algunos agujeros negros se forman cuando estrellas muy masivas colapsan al terminar su evolución. Los astrónomos estudian la materia cercana y sus efectos gravitatorios para obtener información sobre ellos. Un agujero negro no se traga todo sin límite; Su efecto depende de la masa y la distancia.",
+   "readability_score": 61.84269230769231,
+   "readability_level": "Normal",
+   "avg_sentence_length": 15.6,
+   "target_met": true,
+   "method": "algebraic_structural",
+   "pre_support_text": null,
+   "pre_support_readability_score": 61.84269230769231,
+   "pedagogical_support": []
+  },
+  {
+   "level": 5,
+   "adapted_text": "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz. Tiene un límite llamado horizonte de sucesos; Desde su interior nada puede volver a salir. Algunos agujeros negros se forman cuando estrellas muy masivas colapsan al terminar su evolución. Los astrónomos estudian la materia cercana y sus efectos gravitatorios para obtener información sobre ellos. Un agujero negro no absorbe de forma inevitable todo lo que existe a cualquier distancia: su efecto depende de la masa y de la distancia.",
+   "readability_score": 57.06639534883725,
+   "readability_level": "Normal",
+   "avg_sentence_length": 17.2,
+   "target_met": true,
+   "method": "algebraic_structural",
+   "pre_support_text": null,
+   "pre_support_readability_score": 57.06639534883725,
+   "pedagogical_support": []
+  }
+ ],
+ "level_progression_met": true,
+ "removed_fragments": [],
+ "engine_version": "pedagogical-es-v2.3",
+ "model_version": "context-ranker-es-v2.3",
+ "checkpoint_name": "context-ranker-v2.3",
+ "id": "a8343dda-3555-49b0-b5e3-f70d1477db65",
+ "original_text": "Los agujeros negros son regiones del espacio cuya gravedad impide que la luz escape desde su interior. El límite a partir del cual nada puede regresar se llama horizonte de sucesos. Algunos agujeros negros se forman cuando estrellas muy masivas colapsan al terminar su evolución. Los astrónomos estudian la materia cercana y sus efectos gravitatorios para obtener información sobre ellos. Un agujero negro no absorbe de forma inevitable todo lo que existe a cualquier distancia: su efecto depende de la masa y de la distancia.",
+ "original_readability_score": 56.43970588235297,
+ "readability_score": 61.84269230769231,
+ "metrics": {
+  "original_szigriszt_pazos": 56.43970588235297,
+  "adapted_szigriszt_pazos": 61.84269230769231,
+  "score_delta": 5.402986425339343,
+  "original_word_count": 85,
+  "adapted_word_count": 78,
+  "original_sentence_count": 5,
+  "adapted_sentence_count": 5,
+  "original_average_words_per_sentence": 17.0,
+  "adapted_average_words_per_sentence": 15.6
+ },
+ "target_level": 4,
+ "age_group": "9-11",
+ "document": {
+  "original_szigriszt_score": 56.43970588235297,
+  "adapted_szigriszt_score": 61.84269230769231,
+  "score_delta": 5.402986425339343,
+  "original_word_count": 85,
+  "adapted_word_count": 78,
+  "original_syllable_count": 182,
+  "original_sentence_count": 5,
+  "syllable_count": 162,
+  "sentence_count": 5,
+  "maintenance_exception": false,
+  "id": "7c634970-6b33-43a2-90b8-d098aa677faa",
+  "content_sha256": "83a82d2b16dc547566c6e9f3f19db9bcb5c303cc998d2086a44d8cf8153a5953",
+  "file_type": "txt",
+  "file_size_bytes": 530,
+  "word_count": 85,
+  "chunk_count": 1,
+  "status": "completed",
+  "adaptation_method": "rules",
+  "category": "ciencia_espacio",
+  "simplification_level": 4,
+  "uploaded_at": "2026-10-27T01:38:25.581330-06:00",
+  "meets_readability_target": false
+ },
+ "adapted_text": "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz. El límite a partir del cual nada puede regresar se llama horizonte de sucesos. Algunos agujeros negros se forman cuando estrellas muy masivas colapsan al terminar su evolución. Los astrónomos estudian la materia cercana y sus efectos gravitatorios para obtener información sobre ellos. Un agujero negro no se traga todo sin límite; Su efecto depende de la masa y la distancia.",
+ "chunks": [
+  {
+   "original_szigriszt_score": 56.43970588235297,
+   "adapted_szigriszt_score": 61.84269230769231,
+   "score_delta": 5.402986425339343,
+   "original_word_count": 85,
+   "adapted_word_count": 78,
+   "original_syllable_count": 182,
+   "original_sentence_count": 5,
+   "syllable_count": 162,
+   "sentence_count": 5,
+   "maintenance_exception": false,
+   "chunk_index": 0,
+   "meets_readability_target": false
+  }
+ ],
+ "meets_readability_target": false,
+ "quality_status": "best_effort",
+ "warnings": [
+  "readability_target_not_met"
+ ],
+ "title": "Agujeros negros",
+ "category": "ciencia_espacio",
+ "simplification_level": 4,
+ "comprehension_questions": [
+  {
+   "id": "q1",
+   "question": "¿Qué idea aparece en esta lectura?",
+   "options": [
+    "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz",
+    "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la electricidad",
+    "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la temperatura"
+   ],
+   "correct_option_index": 0,
+   "hint": "Pista: Busca la idea de la primera oración. ¡Tú puedes!",
+   "explanation": "¡Buen trabajo! La lectura presenta esta idea: «Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz»."
+  },
+  {
+   "id": "q2",
+   "question": "¿Qué propósito se explica en la lectura?",
+   "options": [
+    "obtener información sobre ellos",
+    "obtener energía sobre ellos",
+    "obtener velocidad sobre ellos"
+   ],
+   "correct_option_index": 0,
+   "hint": "Pista: Busca «para» o «el fin es». ¡Lo encontrarás!",
+   "explanation": "¡Buen trabajo! El texto explica este propósito: «obtener información sobre ellos»."
+  }
+ ],
+ "question_age_group": "9-11",
+ "child_age_years": 11,
+ "fun_fact": "Dato de la lectura: «El límite a partir del cual nada puede regresar se llama horizonte de sucesos.»",
+ "key_vocabulary": [
+  {
+   "word": "luz",
+   "definition": "Radiación que permite ver los objetos cuando llega a nuestros ojos.",
+   "example": "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz."
+  },
+  {
+   "word": "gravedad",
+   "definition": "La atracción que existe entre los cuerpos con masa.",
+   "example": "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz."
+  },
+  {
+   "word": "estrellas",
+   "definition": "Una gran esfera de gas que produce luz y energía.",
+   "example": "Algunos agujeros negros se forman cuando estrellas muy masivas colapsan al terminar su evolución."
+  },
+  {
+   "word": "masa",
+   "definition": "Una medida de la cantidad de materia de un cuerpo.",
+   "example": "Un agujero negro no se traga todo sin límite; Su efecto depende de la masa y la distancia."
+  }
+ ],
+ "source": {
+  "provider": "local",
+  "title": "Agujeros negros",
+  "url": "https://science.nasa.gov/universe/black-holes/",
+  "license": null,
+  "license_url": null,
+  "revision_id": null
+ },
+ "resolved_topic": "Agujeros negros",
+ "readability_level": "Normal",
+ "questions": [
+  {
+   "id": "q1",
+   "question": "¿Qué idea aparece en esta lectura?",
+   "options": [
+    "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz",
+    "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la electricidad",
+    "Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la temperatura"
+   ],
+   "correct_option_index": 0,
+   "hint": "Pista: Busca la idea de la primera oración. ¡Tú puedes!",
+   "explanation": "¡Buen trabajo! La lectura presenta esta idea: «Un agujero negro es una zona del espacio; Su fuerza de gravedad impide que salga la luz»."
+  },
+  {
+   "id": "q2",
+   "question": "¿Qué propósito se explica en la lectura?",
+   "options": [
+    "obtener información sobre ellos",
+    "obtener energía sobre ellos",
+    "obtener velocidad sobre ellos"
+   ],
+   "correct_option_index": 0,
+   "hint": "Pista: Busca «para» o «el fin es». ¡Lo encontrarás!",
+   "explanation": "¡Buen trabajo! El texto explica este propósito: «obtener información sobre ellos»."
+  }
+ ],
+ "pedagogical_support": []
+}

@@ -142,8 +142,25 @@ class FakeAdaptationRepository : com.fluilet.app.domain.repository.AdaptationRep
     /** Resultado de `adapt`; por omisión una adaptación de ejemplo sin texto original del servidor. */
     var adaptResult: com.fluilet.app.domain.model.AdaptationResult? = null
     var generateResult: Result<com.fluilet.app.domain.model.AdaptationResult> = Result.success(sampleAdaptation(withQuiz = true))
-    override suspend fun adapt(source: com.fluilet.app.domain.model.AdaptationSource, nlpLevel: com.fluilet.app.domain.model.NlpLevel, childId: String?) =
-        Result.success(adaptResult ?: sampleAdaptation())
+    /** Nivel y edad didáctica de cada `adapt` (lo que la app envía al backend). */
+    val adaptRequests = mutableListOf<Triple<com.fluilet.app.domain.model.NlpLevel, String?, com.fluilet.app.domain.model.AgeGroup?>>()
+    override suspend fun adapt(
+        source: com.fluilet.app.domain.model.AdaptationSource,
+        nlpLevel: com.fluilet.app.domain.model.NlpLevel,
+        childId: String?,
+        ageGroup: com.fluilet.app.domain.model.AgeGroup?
+    ): Result<com.fluilet.app.domain.model.AdaptationResult> {
+        adaptRequests += Triple(nlpLevel, childId, ageGroup)
+        return Result.success(adaptResult ?: sampleAdaptation())
+    }
+
+    /** `GET /children/{id}/library`: lo configurado por cada prueba. */
+    val libraryRequests = mutableListOf<String>()
+    var libraryResult: Result<List<com.fluilet.app.domain.model.LibraryItem>> = Result.success(emptyList())
+    override suspend fun library(childId: String): Result<List<com.fluilet.app.domain.model.LibraryItem>> {
+        libraryRequests += childId
+        return libraryResult
+    }
     val fetchRequests = mutableListOf<String>()
     var fetchResult: Result<com.fluilet.app.domain.model.AdaptationResult> =
         Result.failure(com.fluilet.app.core.network.AppError.NotFound())
@@ -156,5 +173,15 @@ class FakeAdaptationRepository : com.fluilet.app.domain.repository.AdaptationRep
     override suspend fun generate(request: com.fluilet.app.domain.model.LessonRequest, childId: String?): Result<com.fluilet.app.domain.model.AdaptationResult> {
         generateRequests += request to childId
         return generateResult
+    }
+}
+
+/** `model-info` falso: devuelve [audit] y cuenta las consultas. */
+class FakeModelInfoRepository(var audit: com.fluilet.app.domain.model.ModelAudit = com.fluilet.app.domain.model.ModelAudit.VERIFIED_42482E0.copy(fromServer = true)) :
+    com.fluilet.app.domain.repository.ModelInfoRepository {
+    var calls = 0
+    override suspend fun audit(): com.fluilet.app.domain.model.ModelAudit {
+        calls++
+        return audit
     }
 }

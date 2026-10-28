@@ -81,7 +81,7 @@ class AuthFlowTest {
 
     @Test fun manualLoginUsesWhateverTheUserTypes() = runTest(dispatcher) {
         coEvery { auth.login("mama@example.com", "Clave#2026x") } returns Result.success(tutorSession)
-        val vm = LoginViewModel(LoginUseCase(auth))
+        val vm = LoginViewModel(LoginUseCase(auth, FakeTutorPin()))
         vm.onEmail("mama@example.com")
         vm.onPassword("Clave#2026x")
         assertTrue(vm.state.value.canSubmit)
@@ -92,7 +92,7 @@ class AuthFlowTest {
 
     @Test fun aWrongPasswordShowsAnErrorOnTheSameScreen() = runTest(dispatcher) {
         coEvery { auth.login(any(), any()) } returns Result.failure(AppError.Unauthorized())
-        val vm = LoginViewModel(LoginUseCase(auth))
+        val vm = LoginViewModel(LoginUseCase(auth, FakeTutorPin()))
         vm.onEmail("mama@example.com")
         vm.onPassword("mala")
         vm.submit()
@@ -102,7 +102,7 @@ class AuthFlowTest {
     // --- Registro normal con PIN parental --------------------------------------------------------------------
 
     private fun registerVm(pin: FakeTutorPin = FakeTutorPin()): Pair<RegisterViewModel, FakeTutorPin> =
-        RegisterViewModel(RegisterUseCase(auth), LoginUseCase(auth), pin) to pin
+        RegisterViewModel(RegisterUseCase(auth), LoginUseCase(auth, pin), pin) to pin
 
     private fun RegisterViewModel.fill(pin: String = "4821", role: UserRole = UserRole.TUTOR) {
         onName("Ana Nueva"); onEmail("nuevo@example.com"); onPassword("Clave#2026xyz"); onRole(role); onPin(pin)

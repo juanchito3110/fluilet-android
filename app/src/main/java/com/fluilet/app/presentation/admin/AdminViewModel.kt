@@ -6,6 +6,8 @@ import com.fluilet.app.core.network.toAppError
 import com.fluilet.app.domain.model.AdminOverview
 import com.fluilet.app.domain.model.MasterGrant
 import com.fluilet.app.domain.repository.AdminRepository
+import com.fluilet.app.domain.model.ModelAudit
+import com.fluilet.app.domain.usecase.GetModelAuditUseCase
 import com.fluilet.app.domain.usecase.LogoutUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,8 +30,13 @@ data class AdminUiState(
     val isBusy: Boolean = false,
     val tab: AdminTab = AdminTab.CHILDREN,
     val message: String? = null,
-    val errorMessage: String? = null
-)
+    val errorMessage: String? = null,
+    /** Auditoría de `model-info` cuando el overview no la trae (servidor anterior o sin conexión). */
+    val fallbackAudit: ModelAudit? = null
+) {
+    /** 🧠 Auditoría del modelo reentrenado: la de `GET /admin/overview` o, si falta, la de `model-info`. */
+    val modelAudit: ModelAudit? get() = overview.modelAudit ?: fallbackAudit
+}
 
 /**
  * Sistema de Control Maestro: KPIs (`GET /admin/overview`), otorgamiento a niños (`POST /admin/profiles/{id}/grant`),
@@ -39,7 +46,8 @@ data class AdminUiState(
 @HiltViewModel
 class AdminViewModel @Inject constructor(
     private val admin: AdminRepository,
-    private val logoutUseCase: LogoutUseCase
+    private val logoutUseCase: LogoutUseCase,
+    private val getModelAudit: GetModelAuditUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AdminUiState())
@@ -57,6 +65,10 @@ class AdminViewModel @Inject constructor(
             admin.overview()
                 .onSuccess { o -> _state.update { it.copy(overview = o, isLoading = false) } }
                 .onFailure { e -> _state.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
+            if (_state.value.overview.modelAudit == null && _state.value.fallbackAudit == null) {
+                val audit = getModelAudit()
+                _state.update { it.copy(fallbackAudit = audit) }
+            }
         }
     }
 

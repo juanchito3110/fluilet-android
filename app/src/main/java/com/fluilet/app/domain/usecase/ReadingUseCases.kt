@@ -4,6 +4,10 @@ import com.fluilet.app.core.network.AppError
 import com.fluilet.app.domain.model.AccessiblePalette
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.AdaptationSource
+import com.fluilet.app.domain.model.AgeGroup
+import com.fluilet.app.domain.model.LibraryItem
+import com.fluilet.app.domain.model.ModelAudit
+import com.fluilet.app.domain.repository.ModelInfoRepository
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.ReadingProgress
 import com.fluilet.app.domain.text.SpanishText
@@ -15,7 +19,8 @@ import com.fluilet.app.domain.repository.ReadingSessionRepository
 import javax.inject.Inject
 
 class AdaptTextUseCase @Inject constructor(private val repository: AdaptationRepository) {
-    suspend operator fun invoke(source: AdaptationSource, level: NlpLevel, childId: String?): Result<AdaptationResult> {
+    /** [ageGroup]: edad didáctica del perfil infantil activo; se envía siempre junto al nivel. */
+    suspend operator fun invoke(source: AdaptationSource, level: NlpLevel, childId: String?, ageGroup: AgeGroup? = null): Result<AdaptationResult> {
         if (source.bytes.isEmpty()) return Result.failure(AppError.Validation("El documento está vacío."))
         if (source.bytes.size > AdaptationSource.MAX_BYTES) {
             return Result.failure(AppError.TooLarge())
@@ -25,7 +30,7 @@ class AdaptTextUseCase @Inject constructor(private val repository: AdaptationRep
         ) {
             return Result.failure(AppError.Validation("El texto debe tener al menos ${AdaptationSource.MIN_WORDS} palabras."))
         }
-        return repository.adapt(source, level, childId)
+        return repository.adapt(source, level, childId, ageGroup)
     }
 }
 
@@ -65,6 +70,16 @@ class ClaimDailyMissionUseCase @Inject constructor(private val repository: Readi
 /** Recupera una adaptación retenida: da el texto original a lecturas antiguas que no lo traían. */
 class FetchAdaptationUseCase @Inject constructor(private val repository: AdaptationRepository) {
     suspend operator fun invoke(id: String): Result<AdaptationResult> = repository.fetch(id)
+}
+
+/** Lecturas asignadas al niño (biblioteca del servidor); cada una se abre con [FetchAdaptationUseCase]. */
+class GetChildLibraryUseCase @Inject constructor(private val repository: AdaptationRepository) {
+    suspend operator fun invoke(childId: String): Result<List<LibraryItem>> = repository.library(childId)
+}
+
+/** Auditoría del modelo reentrenado; nunca falla (sin servidor, valores verificados del commit 42482e0). */
+class GetModelAuditUseCase @Inject constructor(private val repository: ModelInfoRepository) {
+    suspend operator fun invoke(): ModelAudit = repository.audit()
 }
 
 class GenerateLessonUseCase @Inject constructor(private val repository: AdaptationRepository) {

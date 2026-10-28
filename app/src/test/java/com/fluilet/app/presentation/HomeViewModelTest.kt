@@ -19,6 +19,11 @@ import com.fluilet.app.domain.usecase.LogoutUseCase
 import com.fluilet.app.domain.usecase.SeedDemoDataUseCase
 import com.fluilet.app.domain.usecase.ClaimDailyMissionUseCase
 import com.fluilet.app.domain.usecase.SetNlpLevelUseCase
+import com.fluilet.app.domain.usecase.FetchAdaptationUseCase
+import com.fluilet.app.domain.usecase.GetChildLibraryUseCase
+import com.fluilet.app.domain.usecase.GetModelAuditUseCase
+import com.fluilet.app.testutil.FakeAdaptationRepository
+import com.fluilet.app.testutil.FakeModelInfoRepository
 import com.fluilet.app.presentation.home.HomeUiState
 import com.fluilet.app.presentation.home.HomeViewModel
 import com.fluilet.app.testutil.FakeChildRepository
@@ -59,6 +64,8 @@ class HomeViewModelTest {
     private val children = FakeChildRepository()
     private val holder = ActiveReadingHolder()
     private val auth = mockk<AuthRepository>()
+    private val adaptations = FakeAdaptationRepository()
+    private val modelInfo = FakeModelInfoRepository()
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
@@ -81,7 +88,8 @@ class HomeViewModelTest {
             session, holder, auth,
             GetChildrenUseCase(children), SetNlpLevelUseCase(children), DeleteChildUseCase(children),
             GetEducationalProgressUseCase(sessions), IsTutorPinConfiguredUseCase(FakeTutorPin(pinConfigured)),
-            LogoutUseCase(auth), holder, SeedDemoDataUseCase(sessions), ClaimDailyMissionUseCase(sessions)
+            LogoutUseCase(auth), holder, SeedDemoDataUseCase(sessions), ClaimDailyMissionUseCase(sessions),
+            GetChildLibraryUseCase(adaptations), FetchAdaptationUseCase(adaptations), GetModelAuditUseCase(modelInfo)
         )
     }
 
@@ -524,5 +532,91 @@ class HomeViewModelTest {
             listOf(1, 2, 3, 4),
             p.map { com.fluilet.app.domain.gamification.FluiBotStage.forXp(it.xp).number }
         )
+    }
+
+    // --- Biblioteca del niño (sus lecciones demo) y auditoría del modelo en 📊 Estadísticas -------------------
+
+    private val diegoLessons = listOf(
+        com.fluilet.app.domain.model.LibraryItem("doc-negros", "ciencia_espacio", 4, 56.44, 61.84),
+        com.fluilet.app.domain.model.LibraryItem("doc-madrid", "deportes", 3, 66.75, 68.12)
+    )
+
+    @Test fun selectingAChildLoadsItsLibraryAndSwitchingChildrenNeverShowsAnotherOnesLessons() = runTest(dispatcher) {
+        children.children = listOf(sampleChild("diego", "Diego"), sampleChild("sofia", "Sofía"))
+        adaptations.libraryResult = Result.success(diegoLessons)
+        val vm = viewModel(UserRole.TUTOR, pinConfigured = true, email = "tutor@fluilet.com")
+        val state = observe(vm)
+
+        vm.refresh()
+        assertEquals(listOf("doc-negros", "doc-madrid"), state().library.map { it.documentId })
+        assertEquals("diego", adaptations.libraryRequests.last())
+
+        adaptations.libraryResult = Result.success(emptyList())
+        vm.select("sofia")
+        assertTrue(state().library.isEmpty())
+        assertEquals("sofia", adaptations.libraryRequests.last())
+    }
+
+    @Test fun openingALibraryLessonFetchesItCompleteAndLeavesItReadyForTheReader() = runTest(dispatcher) {
+        children.children = listOf(sampleChild("diego", "Diego"))
+        adaptations.libraryResult = Result.success(diegoLessons)
+        val full = sampleAdaptation(2, documentId = "doc-negros", level = 4).copy(
+            title = "Agujeros negros", originalText = "Los agujeros negros son regiones del espacio.",
+            modelVersion = "context-ranker-es-v2.3", engineVersion = "pedagogical-es-v2.3"
+        )
+        adaptations.fetchResult = Result.success(full)
+        val vm = viewModel(UserRole.TUTOR, pinConfigured = true, email = "tutor@fluilet.com")
+        val state = observe(vm)
+        vm.refresh()
+
+        var ready = 0
+        vm.openLibraryLesson(state().library.first()) { ready++ }
+
+        assertEquals(listOf("doc-negros"), adaptations.fetchRequests)
+        assertEquals(1, ready)
+        assertNull(state().openingLessonId)
+        val reading = holder.current.value!!
+        assertEquals("diego", reading.childId)
+        assertEquals("Agujeros negros", reading.adaptation.title)
+        assertTrue(reading.adaptation.isRetrainedModel)
+    }
+
+    @Test fun aLessonThatCannotBeOpenedShowsTheErrorAndDoesNotNavigate() = runTest(dispatcher) {
+        children.children = listOf(sampleChild("diego", "Diego"))
+        adaptations.libraryResult = Result.success(diegoLessons)
+        adaptations.fetchResult = Result.failure(com.fluilet.app.core.network.AppError.NotFound())
+        val vm = viewModel(UserRole.TUTOR, pinConfigured = true)
+        val state = observe(vm)
+        vm.refresh()
+
+        var ready = 0
+        vm.openLibraryLesson(state().library.first()) { ready++ }
+
+        assertEquals(0, ready)
+        assertNotNull(state().errorMessage)
+        assertNull(state().openingLessonId)
+        assertNull(holder.current.value)
+    }
+
+    @Test fun withoutServerTheDemoTutorKeepsItsFourChildrenAndNoLibraryIsRequested() = runTest(dispatcher) {
+        children.listError = com.fluilet.app.core.network.AppError.NoConnection()
+        val vm = viewModel(UserRole.TUTOR, email = "tutor@fluilet.com")
+        val state = observe(vm)
+        vm.refresh()
+        assertEquals(listOf("Sofía", "Mateo", "Diego", "Valentina"), state().children.map { it.name })
+        assertTrue(state().offlineDemo)
+        assertTrue(state().library.isEmpty())
+        assertTrue(adaptations.libraryRequests.isEmpty())
+    }
+
+    @Test fun theStatisticsTabGetsTheRetrainedModelAuditOnce() = runTest(dispatcher) {
+        val vm = viewModel(UserRole.ADULTO_INDEPENDIENTE)
+        val state = observe(vm)
+        vm.refresh()
+        vm.refresh()
+        val audit = state().modelAudit!!
+        assertTrue(audit.acceptanceCriteriaMet)
+        assertEquals("Catálogo 31/31 · EASIER 6/6 · Controlados 6/6 · Demos 15/15", audit.bandsSummary)
+        assertEquals(1, modelInfo.calls)
     }
 }

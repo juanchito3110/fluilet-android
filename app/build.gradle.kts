@@ -21,10 +21,6 @@ val releaseCertPins = providers.gradleProperty("fluilet.certPins")
             "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="  // TODO: pin SPKI de respaldo (intermedio / siguiente llave)
     ).get()
 
-// Accesos rápidos de la demostración (tutor@fluilet.com y admin@fluilet.com, públicos en docs/demo-accounts.md del backend).
-// En debug siempre se muestran; en release quedan ocultos salvo -Pfluilet.demoAccounts=true.
-val demoAccounts = providers.gradleProperty("fluilet.demoAccounts").orElse("false").get().toBoolean()
-
 android {
     namespace = "com.fluilet.app"
     compileSdk {
@@ -50,7 +46,6 @@ android {
             buildConfigField("boolean", "ENFORCE_TLS_ONLY", "false")
             // Adaptación y telemetría contra el backend real. false = modo offline explícito (solo desarrollo).
             buildConfigField("boolean", "USE_REMOTE_ADAPTATION", "true")
-            buildConfigField("boolean", "DEMO_ACCOUNTS_ENABLED", "true")
         }
         release {
             optimization {
@@ -61,7 +56,6 @@ android {
             buildConfigField("String", "CERT_PINS", "\"$releaseCertPins\"")
             buildConfigField("boolean", "ENFORCE_TLS_ONLY", "true")
             buildConfigField("boolean", "USE_REMOTE_ADAPTATION", "true")
-            buildConfigField("boolean", "DEMO_ACCOUNTS_ENABLED", "$demoAccounts")
         }
     }
     compileOptions {

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.fluilet.app.R
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.LessonCategory
+import com.fluilet.app.domain.model.LibraryItem
 import com.fluilet.app.presentation.common.SectionCard
 
 /** Botón destacado "🎓 Cargar Datos Demo" (Estadísticas y Lecturas) con el estado de la carga. */
@@ -92,3 +93,47 @@ internal fun DemoLessonsCard(lessons: List<AdaptationResult>, onOpen: (Adaptatio
         }
     }
 }
+
+/** 📚 Lecciones guardadas en el servidor para el niño (sus lecciones demo incluidas), listas para abrir y comparar. */
+@Composable
+internal fun LibraryCard(childName: String, items: List<LibraryItem>, openingId: String?, onOpen: (LibraryItem) -> Unit) {
+    if (items.isEmpty()) return
+    SectionCard(stringResource(R.string.library_title, childName)) {
+        Text(stringResource(R.string.library_hint), style = MaterialTheme.typography.bodySmall)
+        items.take(MAX_LIBRARY_ROWS).forEach { item ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        stringResource(R.string.library_row, LessonCategory.displayNameFor(item.category), item.level ?: 0),
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    if (item.originalScore != null && item.adaptedScore != null) {
+                        Text(
+                            stringResource(
+                                R.string.library_scores,
+                                String.format(java.util.Locale.US, "%.1f", item.originalScore),
+                                String.format(java.util.Locale.US, "%.1f", item.adaptedScore)
+                            ),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    val opening = openingId == item.documentId
+                    OutlinedButton(
+                        onClick = { onOpen(item) },
+                        enabled = openingId == null,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(stringResource(if (opening) R.string.library_opening else R.string.library_open), style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val MAX_LIBRARY_ROWS = 12

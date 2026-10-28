@@ -14,12 +14,6 @@
     <string name="auth_register">Crear cuenta</string>
     <string name="auth_tab_login">Iniciar Sesión</string>
     <string name="auth_tab_register">Crear Cuenta</string>
-    <string name="auth_quick_title">Acceso rápido para la demostración</string>
-    <string name="auth_quick_tutor">👨‍👧‍👦 Cuenta Tutor (4 Niños / 4 Fases)</string>
-    <string name="auth_quick_tutor_hint">tutor@fluilet.com · PIN 1234</string>
-    <string name="auth_quick_master">👑 Usuario Maestro (Panel Admin)</string>
-    <string name="auth_quick_master_hint">admin@fluilet.com</string>
-    <string name="auth_quick_loading">Entrando…</string>
     <string name="auth_pin">PIN parental (4 a 6 dígitos)</string>
     <string name="auth_pin_rules">Protege la salida del Modo Enfoque de tus niños. Evita secuencias como 1234.</string>
     <string name="auth_back_to_panel">← Volver al panel</string>

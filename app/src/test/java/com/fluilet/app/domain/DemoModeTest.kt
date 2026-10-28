@@ -1,5 +1,7 @@
 package com.fluilet.app.domain
 
+import com.fluilet.app.BuildConfig
+import com.fluilet.app.R
 import com.fluilet.app.core.network.AppError
 import com.fluilet.app.domain.demo.DemoData
 import com.fluilet.app.domain.gamification.DailyMissions
@@ -9,10 +11,9 @@ import com.fluilet.app.domain.model.TechnicalSheet
 import com.fluilet.app.domain.model.UserRole
 import com.fluilet.app.domain.repository.AuthRepository
 import com.fluilet.app.domain.usecase.DemoAccounts
-import com.fluilet.app.domain.usecase.DemoConfig
-import com.fluilet.app.domain.usecase.QuickAccess
-import com.fluilet.app.domain.usecase.QuickAccessUseCase
-import com.fluilet.app.presentation.auth.QuickAccessViewModel
+import com.fluilet.app.domain.usecase.LoginUseCase
+import com.fluilet.app.presentation.auth.LoginViewModel
+import com.fluilet.app.presentation.navigation.Routes
 import com.fluilet.app.testutil.FakeTutorPin
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -27,13 +28,17 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-/** Accesos rápidos de la demostración (tutor y maestro) y el respaldo local de "🎓 Cargar Datos Demo". */
+/**
+ * Login de producción sin atajos: las cuentas de la demostración se escriben a mano en el formulario normal.
+ * Además, el respaldo local de "🎓 Cargar Datos Demo".
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DemoModeTest {
 
@@ -45,66 +50,88 @@ class DemoModeTest {
     private val pin = FakeTutorPin(configured = false)
 
     private fun session(role: UserRole, email: String) = AuthSession("a", "r", role, email)
-    private fun useCase(config: DemoConfig = DemoConfig(true)) = QuickAccessUseCase(config, auth, pin)
 
-    // --- Credenciales públicas del backend (docs/demo-accounts.md) -------------------------------
+    /** Lo que el usuario escribe a mano (credenciales públicas del backend, `docs/demo-accounts.md`). */
+    private val tutorPassword = "Tutor2026!"
+    private val adminPassword = "Master2026!"
 
-    @Test fun demoCredentialsAreTheOnesPublishedByTheBackend() {
-        assertEquals("tutor@fluilet.com", DemoAccounts.TUTOR_EMAIL)
-        assertEquals("Tutor2026!", DemoAccounts.TUTOR_PASSWORD)
-        assertEquals("1234", DemoAccounts.TUTOR_PIN)
-        assertEquals("admin@fluilet.com", DemoAccounts.ADMIN_EMAIL)
-        assertEquals("Master2026!", DemoAccounts.ADMIN_PASSWORD)
+    // --- Pantalla de acceso de producción ----------------------------------------------------------------
+
+    @Test fun theLoginScreenHasNoQuickAccessButtonsFlagsOrStoredPasswords() {
+        assertTrue("sin textos de acceso rápido", R.string::class.java.fields.none { it.name.startsWith("auth_quick") })
+        assertTrue("sin bandera de build para la demo", BuildConfig::class.java.fields.none { it.name == "DEMO_ACCOUNTS_ENABLED" })
+        assertTrue(
+            "sin ViewModel ni caso de uso de acceso rápido",
+            listOf("com.fluilet.app.presentation.auth.QuickAccessViewModel", "com.fluilet.app.domain.usecase.QuickAccessUseCase")
+                .none { runCatching { Class.forName(it) }.isSuccess }
+        )
+        assertTrue(
+            "la app no guarda las contraseñas de las cuentas demo",
+            DemoAccounts::class.java.declaredFields.none { it.name.contains("PASSWORD") }
+        )
     }
 
-    @Test fun theTutorQuickAccessIsTheNormalLoginAndLeavesThePinReady() = runTest(dispatcher) {
-        coEvery { auth.login(DemoAccounts.TUTOR_EMAIL, DemoAccounts.TUTOR_PASSWORD) } returns
-            Result.success(session(UserRole.TUTOR, DemoAccounts.TUTOR_EMAIL))
+    @Test fun demoAccountsOnlyKnowTheirEmailsAndThePublicTutorPin() {
+        assertEquals("tutor@fluilet.com", DemoAccounts.TUTOR_EMAIL)
+        assertEquals("admin@fluilet.com", DemoAccounts.ADMIN_EMAIL)
+        assertEquals("1234", DemoAccounts.TUTOR_PIN)
+        assertTrue(DemoAccounts.isDemoTutor("  Tutor@Fluilet.com "))
+        assertFalse(DemoAccounts.isDemoTutor("admin@fluilet.com"))
+        assertFalse(DemoAccounts.isDemoTutor(null))
+    }
 
-        val result = useCase()(QuickAccess.TUTOR)
+    // --- Login manual de las cuentas demo ---------------------------------------------------------------------
 
-        assertEquals(UserRole.TUTOR, result.getOrNull())
+    @Test fun typingTheTutorAccountLogsInNormallyAndLeavesItsPinReady() = runTest(dispatcher) {
+        coEvery { auth.login("tutor@fluilet.com", tutorPassword) } returns Result.success(session(UserRole.TUTOR, "tutor@fluilet.com"))
+        val vm = LoginViewModel(LoginUseCase(auth, pin))
+
+        vm.onEmail("tutor@fluilet.com")
+        vm.onPassword(tutorPassword)
+        vm.submit()
+
+        coVerify(exactly = 1) { auth.login("tutor@fluilet.com", tutorPassword) }
+        coVerify(exactly = 0) { auth.register(any()) } // no se crean cuentas: las provisiona el backend
+        assertNull(vm.state.value.errorMessage)
+        assertEquals("", vm.state.value.password)
         assertTrue(pin.isConfigured())
         assertEquals("1234", pin.lastDemoPin)
-        coVerify(exactly = 1) { auth.login(any(), any()) }
-        coVerify(exactly = 0) { auth.register(any()) } // no se crean cuentas: las provisiona el backend
+        assertEquals(Routes.HOME, Routes.homeFor(UserRole.TUTOR))
     }
 
-    @Test fun theMasterQuickAccessLogsInWithTheAdminAccountAndTouchesNoPin() = runTest(dispatcher) {
-        coEvery { auth.login(DemoAccounts.ADMIN_EMAIL, DemoAccounts.ADMIN_PASSWORD) } returns
-            Result.success(session(UserRole.MASTER_ADMIN, DemoAccounts.ADMIN_EMAIL))
+    @Test fun typingTheMasterAccountOpensTheMasterPanelAndTouchesNoPin() = runTest(dispatcher) {
+        coEvery { auth.login("admin@fluilet.com", adminPassword) } returns Result.success(session(UserRole.MASTER_ADMIN, "admin@fluilet.com"))
 
-        val result = useCase()(QuickAccess.MASTER)
+        val result = LoginUseCase(auth, pin)("admin@fluilet.com", adminPassword)
 
-        assertEquals(UserRole.MASTER_ADMIN, result.getOrNull())
+        assertEquals(UserRole.MASTER_ADMIN, result.getOrThrow().role)
+        assertEquals(Routes.ADMIN, Routes.homeFor(result.getOrThrow().role))
+        assertFalse(pin.isConfigured())
+        assertNull(pin.lastDemoPin)
+    }
+
+    @Test fun anyOtherTutorLogsInWithoutTouchingThePin() = runTest(dispatcher) {
+        coEvery { auth.login("mama@example.com", "Clave#2026x") } returns Result.success(session(UserRole.TUTOR, "mama@example.com"))
+        LoginUseCase(auth, pin)("mama@example.com", "Clave#2026x").getOrThrow()
         assertFalse(pin.isConfigured())
     }
 
-    @Test fun aFailedLoginIsReportedAndNoPinIsStored() = runTest(dispatcher) {
+    @Test fun aWrongPasswordOrNoConnectionIsReportedAndNoPinIsStored() = runTest(dispatcher) {
         coEvery { auth.login(any(), any()) } returns Result.failure(AppError.Unauthorized())
-        assertTrue(useCase()(QuickAccess.TUTOR).exceptionOrNull() is AppError.Unauthorized)
-        assertFalse(pin.isConfigured())
-    }
-
-    @Test fun quickAccessIsDisabledWithoutTheFlagAndTheButtonsStayHidden() = runTest(dispatcher) {
-        assertTrue(useCase(DemoConfig.DISABLED)(QuickAccess.MASTER).exceptionOrNull() is AppError.Unsupported)
-        assertFalse(QuickAccessViewModel(DemoConfig.DISABLED, useCase(DemoConfig.DISABLED)).state.value.enabled)
-        coVerify(exactly = 0) { auth.login(any(), any()) }
-    }
-
-    @Test fun theQuickAccessButtonsEnterInOneTapAndSurfaceErrors() = runTest(dispatcher) {
-        coEvery { auth.login(any(), any()) } returns Result.success(session(UserRole.TUTOR, DemoAccounts.TUTOR_EMAIL))
-        val vm = QuickAccessViewModel(DemoConfig(true), useCase())
-        assertTrue(vm.state.value.enabled)
-
-        vm.enter(QuickAccess.TUTOR)
-        assertFalse(vm.state.value.isLoading)
-        assertEquals(null, vm.state.value.errorMessage)
+        assertTrue(LoginUseCase(auth, pin)("tutor@fluilet.com", "mala").exceptionOrNull() is AppError.Unauthorized)
 
         coEvery { auth.login(any(), any()) } returns Result.failure(AppError.NoConnection())
-        vm.enter(QuickAccess.MASTER)
+        val vm = LoginViewModel(LoginUseCase(auth, pin))
+        vm.onEmail("tutor@fluilet.com")
+        vm.onPassword(tutorPassword)
+        vm.submit()
         assertTrue(vm.state.value.errorMessage!!.contains("conexión"))
-        coVerify(exactly = 1) { auth.login(DemoAccounts.ADMIN_EMAIL, DemoAccounts.ADMIN_PASSWORD) }
+        assertFalse(pin.isConfigured())
+    }
+
+    @Test fun anEmptyPasswordIsRejectedBeforeCallingTheServer() = runTest(dispatcher) {
+        assertTrue(LoginUseCase(auth, pin)("tutor@fluilet.com", "").exceptionOrNull() is AppError.Validation)
+        coVerify(exactly = 0) { auth.login(any(), any()) }
     }
 
     // --- Respaldo local de los datos demo --------------------------------------------------------

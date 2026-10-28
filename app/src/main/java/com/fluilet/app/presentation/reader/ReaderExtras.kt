@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -29,7 +30,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.fluilet.app.R
-import com.fluilet.app.domain.model.TechnicalSheet
+import com.fluilet.app.domain.model.AdaptationResult
+import com.fluilet.app.domain.model.LevelPreview
+import com.fluilet.app.domain.model.LexicalReplacement
+import com.fluilet.app.domain.model.ModelAudit
+import com.fluilet.app.domain.text.LevelComparison
+import com.fluilet.app.domain.text.LexicalDiff
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import java.util.Locale
 import com.fluilet.app.presentation.common.SelectableChip
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
 
@@ -53,11 +71,13 @@ internal fun FunFactCard(fact: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * 🔄 Vista "Adaptado vs. Original": la Ficha Técnica del Motor NLP y, debajo, el texto original (fuente
- * enciclopédica) frente al texto adaptado por Fluilet. Disponible en TODAS las lecturas.
+ * 🔄 Super-comparador "Adaptado vs. Original", disponible en TODAS las lecturas (demo, por tema, texto pegado o
+ * archivo): sello del modelo reentrenado, selector en vivo de los 5 niveles (`level_previews`), Ficha Técnica
+ * Szigriszt-Pazos del nivel elegido, transformaciones léxicas y el original frente al adaptado con los términos
+ * simplificados resaltados. Todo el texto vive solo en RAM.
  */
 @Composable
-internal fun ComparisonCard(state: ReaderUiState, modifier: Modifier = Modifier) {
+internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifier: Modifier = Modifier) {
     val settings = state.settings
     val bodyStyle = TextStyle(
         fontFamily = OpenDyslexicFontFamily,
@@ -67,6 +87,7 @@ internal fun ComparisonCard(state: ReaderUiState, modifier: Modifier = Modifier)
         color = MaterialTheme.colorScheme.onBackground
     )
     val adaptation = state.reading?.adaptation
+    val comparison = state.comparison
     Card(
         modifier = modifier.fillMaxSize(),
         shape = RoundedCornerShape(24.dp),
@@ -76,8 +97,17 @@ internal fun ComparisonCard(state: ReaderUiState, modifier: Modifier = Modifier)
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(stringResource(R.string.compare_title), style = MaterialTheme.typography.titleLarge)
-            state.technicalSheet?.let { TechnicalSheetCard(it) }
+            Text(stringResource(R.string.compare_heading), style = MaterialTheme.typography.titleLarge)
+            if (adaptation != null) ModelSeal(adaptation, state.modelAudit)
+
+            if (state.levelPreviews.isNotEmpty()) {
+                LevelSelector(state.levelPreviews, state.comparisonLevel, onLevel)
+            }
+            comparison?.let {
+                BandLine(it)
+                FichaTecnicaCard(it)
+                LexicalTransformations(it.replacements)
+            }
             adaptation?.source?.let { src ->
                 Text(
                     stringResource(R.string.compare_source, if (src.isWikipedia) "Wikipedia" else "Banco Fluilet", src.title),
@@ -85,51 +115,100 @@ internal fun ComparisonCard(state: ReaderUiState, modifier: Modifier = Modifier)
                 )
             }
 
-            Text(stringResource(R.string.compare_original_label), style = MaterialTheme.typography.titleMedium)
+            val replaced = comparison?.replacements.orEmpty()
+            Text(stringResource(R.string.compare_original_title), style = MaterialTheme.typography.titleMedium)
             val original = state.originalText
             when {
-                !original.isNullOrBlank() -> Text(
-                    if (original.length > MAX_ORIGINAL_CHARS) original.take(MAX_ORIGINAL_CHARS) + "…" else original,
-                    style = bodyStyle
-                )
+                !original.isNullOrBlank() -> {
+                    val shown = if (original.length > MAX_ORIGINAL_CHARS) original.take(MAX_ORIGINAL_CHARS) + "…" else original
+                    val mark = SpanStyle(background = MaterialTheme.colorScheme.errorContainer, textDecoration = TextDecoration.Underline)
+                    val annotated = remember(shown, replaced, mark) { highlighted(shown, replaced.map { it.original }, mark) }
+                    Text(annotated, style = bodyStyle)
+                }
                 state.originalLoading -> Text(stringResource(R.string.compare_original_loading), style = MaterialTheme.typography.bodyMedium)
                 else -> Text(stringResource(R.string.compare_original_unavailable), style = MaterialTheme.typography.bodyMedium)
             }
-            Text(stringResource(R.string.compare_adapted_label), style = MaterialTheme.typography.titleMedium)
-            Text(state.currentText, style = bodyStyle)
+
+            val level = comparison?.level ?: adaptation?.effectiveLevel ?: 0
+            Text(stringResource(R.string.compare_adapted_title, level), style = MaterialTheme.typography.titleMedium)
+            val adaptedText = comparison?.adaptedText ?: state.currentText
+            val shownAdapted = if (adaptedText.length > MAX_ORIGINAL_CHARS) adaptedText.take(MAX_ORIGINAL_CHARS) + "…" else adaptedText
+            val good = SpanStyle(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), fontWeight = FontWeight.Bold)
+            val annotatedAdapted = remember(shownAdapted, replaced, good) { highlighted(shownAdapted, replaced.map { it.adapted }, good) }
+            Text(annotatedAdapted, style = bodyStyle)
+            if (replaced.isNotEmpty()) Text(stringResource(R.string.compare_highlight_hint), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
 
-/** 🔬 Ficha Técnica del Motor NLP: Szigriszt-Pazos original vs. adaptado lado a lado, palabras y longitud media de oración. */
+/** Resalta las apariciones de [terms] (palabras o frases completas) sin cambiar el texto. */
+private fun highlighted(text: String, terms: List<String>, style: SpanStyle): AnnotatedString = buildAnnotatedString {
+    append(text)
+    LexicalDiff.spans(text, terms).forEach { addStyle(style, it.first, it.last + 1) }
+}
+
+/** 🧠 Sello del motor que adaptó la lectura: modelo reentrenado (con sus cifras), motor local u otro motor. */
 @Composable
-internal fun TechnicalSheetCard(sheet: TechnicalSheet, modifier: Modifier = Modifier) {
+private fun ModelSeal(adaptation: AdaptationResult, audit: ModelAudit?) {
+    val retrained = adaptation.isRetrainedModel
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (retrained) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.background
+        )
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(stringResource(R.string.techsheet_title), style = MaterialTheme.typography.titleMedium)
-            Text(sheet.headline, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SheetColumn(
-                    stringResource(R.string.techsheet_original), sheet.originalScore, sheet.originalLabel,
-                    sheet.originalWords, sheet.originalWordsPerSentence, Modifier.weight(1f)
-                )
-                SheetColumn(
-                    stringResource(R.string.techsheet_adapted), sheet.adaptedScore, sheet.adaptedLabel,
-                    sheet.adaptedWords, sheet.adaptedWordsPerSentence, Modifier.weight(1f)
+        val onColor = if (retrained) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            when {
+                retrained -> {
+                    Text(stringResource(R.string.compare_model_active), style = MaterialTheme.typography.titleMedium, color = onColor)
+                    val version = listOfNotNull(adaptation.modelVersion, adaptation.checkpointName).joinToString(" / ")
+                    Text(version, style = MaterialTheme.typography.labelMedium, color = onColor)
+                    audit?.takeIf { it.active }?.let {
+                        Text(it.badgeLine, style = MaterialTheme.typography.labelLarge, color = onColor)
+                        if (!it.fromServer) Text(stringResource(R.string.compare_model_offline_values), style = MaterialTheme.typography.bodySmall, color = onColor)
+                    }
+                }
+                adaptation.isLocalEngine -> {
+                    Text(stringResource(R.string.compare_model_local), style = MaterialTheme.typography.titleMedium, color = onColor)
+                    Text(stringResource(R.string.compare_model_local_body), style = MaterialTheme.typography.bodySmall, color = onColor)
+                }
+                else -> Text(
+                    stringResource(R.string.compare_model_other, adaptation.modelVersion ?: adaptation.engineVersion ?: "—"),
+                    style = MaterialTheme.typography.titleSmall, color = onColor
                 )
             }
+        }
+    }
+}
+
+/** Selector en vivo: `Nivel 1 (6-8)` | `Nivel 2` | `Nivel 3` | `Nivel 4` | `Nivel 5 (12+)`. */
+@Composable
+private fun LevelSelector(previews: List<LevelPreview>, selected: Int?, onLevel: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.compare_levels_title), style = MaterialTheme.typography.titleSmall)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            previews.forEach { preview ->
+                val label = when (preview.level) {
+                    1 -> stringResource(R.string.compare_level_1)
+                    5 -> stringResource(R.string.compare_level_5)
+                    else -> stringResource(R.string.compare_level_n, preview.level)
+                }
+                SelectableChip(
+                    selected = preview.level == selected,
+                    onClick = { onLevel(preview.level) },
+                    label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+                    modifier = Modifier.semantics {
+                        contentDescription = "$label, Szigriszt-Pazos ${oneDecimal(preview.readabilityScore)}"
+                    }
+                )
+            }
+        }
+        if (previews.size == 5) {
+            val strict = previews.sortedBy { it.level }.zipWithNext().all { (a, b) -> a.readabilityScore > b.readabilityScore }
             Text(
-                stringResource(R.string.techsheet_delta, sheet.delta),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.semantics { contentDescription = "Cambio de legibilidad: ${sheet.delta.toInt()} puntos" }
-            )
-            Text(
-                stringResource(if (sheet.bestEffort) R.string.techsheet_best_effort else R.string.techsheet_ok),
+                stringResource(if (strict) R.string.compare_progression_ok else R.string.compare_progression_partial),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -137,21 +216,94 @@ internal fun TechnicalSheetCard(sheet: TechnicalSheet, modifier: Modifier = Modi
 }
 
 @Composable
-private fun SheetColumn(title: String, score: Double, label: String, words: Int, perSentence: Double, modifier: Modifier = Modifier) {
+private fun BandLine(c: LevelComparison) {
+    val band = c.band ?: return
+    Text(
+        stringResource(if (c.inBand) R.string.compare_band_in else R.string.compare_band_out, c.readabilityLevel, c.level, band.range),
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+    )
+}
+
+/** 🔬 Ficha Técnica del Motor NLP Szigriszt-Pazos del nivel elegido. */
+@Composable
+private fun FichaTecnicaCard(c: LevelComparison) {
     Card(
-        modifier = modifier.semantics(mergeDescendants = true) { },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge)
-            Text("%.1f".format(java.util.Locale.US, score), style = MaterialTheme.typography.headlineSmall)
-            Text(label, style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.techsheet_words, words), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.techsheet_per_sentence, perSentence), style = MaterialTheme.typography.bodySmall)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.compare_ficha_title), style = MaterialTheme.typography.titleMedium)
+
+            FichaRow(
+                stringResource(R.string.compare_index_label),
+                stringResource(R.string.compare_index_values, oneDecimal(c.originalScore), c.level, oneDecimal(c.adaptedScore))
+            )
+            val gain = if (c.gain >= 0) stringResource(R.string.compare_gain_positive, oneDecimal(c.gain))
+            else stringResource(R.string.compare_gain_negative, oneDecimal(c.gain))
+            Text(
+                gain,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+            FichaRow(
+                stringResource(R.string.compare_wps_label),
+                stringResource(R.string.compare_wps_values, oneDecimal(c.originalWordsPerSentence), oneDecimal(c.adaptedWordsPerSentence))
+            )
+            FichaRow(
+                stringResource(R.string.compare_spw_label),
+                stringResource(R.string.compare_spw_values, twoDecimals(c.originalSyllablesPerWord), twoDecimals(c.adaptedSyllablesPerWord))
+            )
+            if (!c.fromServer) Text(stringResource(R.string.compare_measured_locally), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
+
+@Composable
+private fun FichaRow(label: String, value: String) {
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { }, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(value, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** ✨ Transformaciones léxicas `Antes ➔ Ahora` del nivel elegido (las frases muy largas solo se resaltan en el texto). */
+@Composable
+private fun LexicalTransformations(replacements: List<LexicalReplacement>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.compare_lexical_title), style = MaterialTheme.typography.titleSmall)
+        val shown = replacements.filter { it.original.split(' ').size <= MAX_CHIP_WORDS && it.adapted.split(' ').size <= MAX_CHIP_WORDS }
+            .take(MAX_CHIPS)
+        if (shown.isEmpty()) {
+            Text(stringResource(R.string.compare_lexical_empty), style = MaterialTheme.typography.bodySmall)
+            return
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            shown.forEach { r ->
+                Text(
+                    "«${r.original}» ➔ «${r.adapted}»",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.background)
+                        .border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                        .semantics { contentDescription = "Antes ${r.original}, ahora ${r.adapted}" }
+                )
+            }
+        }
+        val more = replacements.size - shown.size
+        if (more > 0) Text(pluralStringResource(R.plurals.compare_lexical_more, more, more), style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+private fun oneDecimal(value: Double) = String.format(Locale.US, "%.1f", value)
+private fun twoDecimals(value: Double) = String.format(Locale.US, "%.2f", value)
+
+private const val MAX_CHIPS = 16
+private const val MAX_CHIP_WORDS = 6
 
 /** 🔍 Glosario Mágico: palabras clave tocables; cada una muestra definición, ejemplo y "Escuchar palabra". */
 @Composable

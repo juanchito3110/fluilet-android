@@ -12,6 +12,7 @@ import com.fluilet.app.core.network.toAppError
 import com.fluilet.app.domain.model.ActiveReading
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.AdaptationSource
+import com.fluilet.app.domain.model.AgeGroup
 import com.fluilet.app.domain.model.ChildProfile
 import com.fluilet.app.domain.model.LessonCategory
 import com.fluilet.app.domain.model.LessonRequest
@@ -187,7 +188,7 @@ class NewReadingViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _state.update { it.copy(isAdapting = true, errorMessage = null, result = null) }
-            adaptText(source, s.level, childId)
+            adaptText(source, s.level, childId, activeAgeGroup())
                 .onSuccess { result ->
                     // El original solo se conserva en RAM (texto pegado o .txt) para la vista "Original vs. Adaptado".
                     val original = originalTextOf(source)
@@ -196,6 +197,10 @@ class NewReadingViewModel @Inject constructor(
                 .onFailure { e -> _state.update { it.copy(isAdapting = false, errorMessage = e.toAppError().userMessage) } }
         }
     }
+
+    /** Edad didáctica del perfil infantil activo (la que fija el backend o, si falta, la de su fecha de nacimiento). */
+    private fun activeAgeGroup(): AgeGroup? =
+        child?.takeIf { it.id == childId }?.let { AgeGroup.fromCode(it.ageGroup) ?: AgeGroup.fromAge(it.ageYears()) }
 
     private fun originalTextOf(source: AdaptationSource): String? =
         if (source.type == SourceType.PDF) null
@@ -206,7 +211,7 @@ class NewReadingViewModel @Inject constructor(
         val category = s.category ?: return
         viewModelScope.launch {
             _state.update { it.copy(isAdapting = true, errorMessage = null, result = null) }
-            generateLesson(LessonRequest(category, s.topic, s.level), childId)
+            generateLesson(LessonRequest(category, s.topic, s.level, activeAgeGroup()), childId)
                 .onSuccess { result -> _state.update { it.copy(isAdapting = false, result = result) } }
                 .onFailure { e -> _state.update { it.copy(isAdapting = false, errorMessage = e.toAppError().userMessage) } }
         }

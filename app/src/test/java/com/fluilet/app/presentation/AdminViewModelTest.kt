@@ -8,7 +8,9 @@ import com.fluilet.app.domain.model.MasterGrant
 import com.fluilet.app.domain.model.PinResetResult
 import com.fluilet.app.domain.repository.AdminRepository
 import com.fluilet.app.domain.repository.AuthRepository
+import com.fluilet.app.domain.usecase.GetModelAuditUseCase
 import com.fluilet.app.domain.usecase.LogoutUseCase
+import com.fluilet.app.testutil.FakeModelInfoRepository
 import com.fluilet.app.presentation.admin.AdminTab
 import com.fluilet.app.presentation.admin.AdminViewModel
 import io.mockk.coEvery
@@ -36,6 +38,7 @@ class AdminViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val admin = mockk<AdminRepository>()
     private val auth = mockk<AuthRepository>(relaxed = true)
+    private val modelInfo = FakeModelInfoRepository()
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
@@ -59,7 +62,7 @@ class AdminViewModelTest {
 
     private fun viewModel(initial: AdminOverview = overview()): AdminViewModel {
         coEvery { admin.overview() } returns Result.success(initial)
-        return AdminViewModel(admin, LogoutUseCase(auth))
+        return AdminViewModel(admin, LogoutUseCase(auth), GetModelAuditUseCase(modelInfo))
     }
 
     // --- overview ------------------------------------------------------------------------------------------
@@ -86,7 +89,7 @@ class AdminViewModelTest {
 
     @Test fun anOverviewFailureIsShownAndCanBeRetried() = runTest(dispatcher) {
         coEvery { admin.overview() } returns Result.failure(AppError.Forbidden())
-        val vm = AdminViewModel(admin, LogoutUseCase(auth))
+        val vm = AdminViewModel(admin, LogoutUseCase(auth), GetModelAuditUseCase(modelInfo))
         assertTrue(vm.state.value.errorMessage!!.contains("permisos"))
         assertFalse(vm.state.value.isLoading)
 
@@ -225,5 +228,27 @@ class AdminViewModelTest {
         val vm = viewModel()
         vm.logout()
         coVerify(exactly = 1) { auth.logout() }
+    }
+
+    // --- 🧠 Auditoría del modelo reentrenado ---------------------------------------------------------------
+
+    @Test fun theMasterPanelShowsTheAuditThatComesWithTheOverview() = runTest(dispatcher) {
+        val audit = com.fluilet.app.domain.model.ModelAudit.VERIFIED_42482E0.copy(fromServer = true)
+        val vm = viewModel(overview().copy(modelAudit = audit))
+        assertEquals(audit, vm.state.value.modelAudit)
+        assertTrue(vm.state.value.modelAudit!!.acceptanceCriteriaMet)
+        assertEquals("sin segunda consulta a model-info", 0, modelInfo.calls)
+    }
+
+    @Test fun withoutModelInfoInTheOverviewItAsksModelInfoOrUsesTheVerifiedValues() = runTest(dispatcher) {
+        val vm = viewModel(overview())
+        assertEquals(1, modelInfo.calls)
+        assertEquals("4,738", vm.state.value.modelAudit!!.datasetPairs)
+
+        coEvery { admin.overview() } returns Result.failure(AppError.NoConnection())
+        modelInfo.audit = com.fluilet.app.domain.model.ModelAudit.VERIFIED_42482E0
+        val offline = AdminViewModel(admin, LogoutUseCase(auth), GetModelAuditUseCase(modelInfo))
+        assertFalse(offline.state.value.modelAudit!!.fromServer)
+        assertEquals("73.25%", offline.state.value.modelAudit!!.lexicalAccuracyText)
     }
 }

@@ -43,7 +43,9 @@ data class AdminOverview(
     val totalReadingSessions: Int,
     val averageComprehension: Double,
     val users: List<AdminUser>,
-    val profiles: List<AdminProfile>
+    val profiles: List<AdminProfile>,
+    /** Auditoría del modelo reentrenado (`model_info`); `null` si el servidor no la envía. */
+    val modelAudit: ModelAudit? = null
 ) {
     val tutors: List<AdminUser> get() = users.filter { it.isTutor }
 

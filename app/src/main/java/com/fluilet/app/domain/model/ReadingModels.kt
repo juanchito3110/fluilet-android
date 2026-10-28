@@ -23,7 +23,10 @@ data class ReadabilityMetrics(
     val maintenanceException: Boolean = false,
     /** Longitud media de oración (palabras por oración) que calcula el servidor; 0 = se deriva de los conteos. */
     val originalAvgWordsPerSentence: Double = 0.0,
-    val adaptedAvgWordsPerSentence: Double = 0.0
+    val adaptedAvgWordsPerSentence: Double = 0.0,
+    /** Sílabas por palabra que envía el servidor (`original_/adapted_syllables_per_word`); 0 = se derivan de los conteos. */
+    val originalAvgSyllablesPerWord: Double = 0.0,
+    val adaptedAvgSyllablesPerWord: Double = 0.0
 ) {
     val originalWordsPerSentence: Double
         get() = if (originalAvgWordsPerSentence > 0) originalAvgWordsPerSentence
@@ -32,6 +35,14 @@ data class ReadabilityMetrics(
     val adaptedWordsPerSentence: Double
         get() = if (adaptedAvgWordsPerSentence > 0) adaptedAvgWordsPerSentence
         else if (sentenceCount > 0) adaptedWordCount.toDouble() / sentenceCount else 0.0
+
+    val originalSyllablesPerWord: Double
+        get() = if (originalAvgSyllablesPerWord > 0) originalAvgSyllablesPerWord
+        else if (originalWordCount > 0) originalSyllableCount.toDouble() / originalWordCount else 0.0
+
+    val adaptedSyllablesPerWord: Double
+        get() = if (adaptedAvgSyllablesPerWord > 0) adaptedAvgSyllablesPerWord
+        else if (adaptedWordCount > 0) syllableCount.toDouble() / adaptedWordCount else 0.0
 }
 
 /** Fuente de una lección generada (`source` del backend): Wikipedia en español o el banco local. */
@@ -69,14 +80,49 @@ data class AdaptationResult(
     val targetLevel: Int? = null,
     val source: LessonSourceInfo? = null,
     /** `meets_readability_target` del servidor; `null` si no lo envía. */
-    val meetsTarget: Boolean? = null
+    val meetsTarget: Boolean? = null,
+    /** `readability_gain` del servidor (puntos Szigriszt-Pazos ganados); `null` = se deriva de las métricas. */
+    val readabilityGain: Double? = null,
+    /** Etiqueta de dificultad del texto adaptado (`readability_level`). */
+    val readabilityLevel: String? = null,
+    /** Términos que el motor reemplazó en el nivel pedido (`lexical_replacements`). */
+    val lexicalReplacements: List<LexicalReplacement> = emptyList(),
+    /** Las 5 variantes de la lectura (`level_previews`), ordenadas del Nivel 1 al 5. */
+    val levelPreviews: List<LevelPreview> = emptyList(),
+    /** `level_progression_met`: los puntajes bajan estrictamente del Nivel 1 al 5. */
+    val levelProgressionMet: Boolean? = null,
+    /** Modelo y motor que adaptaron el texto (`model_version`, `checkpoint_name`, `engine_version`). */
+    val modelVersion: String? = null,
+    val checkpointName: String? = null,
+    val engineVersion: String? = null
 ) {
+    /** Puntos de facilidad ganados: los del servidor o la diferencia de puntajes. */
+    val gain: Double get() = readabilityGain ?: (metrics.adaptedSzigrisztScore - metrics.originalSzigrisztScore)
+
+    /** Adaptada en el dispositivo por el motor local de respaldo (sin conexión). */
+    val isLocalEngine: Boolean get() = engineVersion == LOCAL_ENGINE_VERSION
+
+    /** La adaptó el modelo reentrenado del servidor (no el motor local ni una versión legada o sin modelo). */
+    val isRetrainedModel: Boolean
+        get() = !isLocalEngine && !modelVersion.isNullOrBlank() && modelVersion !in NON_RETRAINED_MODELS
+
     /** Dato curioso: el del servidor o uno local según tema/categoría. */
     val effectiveFunFact: String? get() = LessonFacts.forLesson(funFact, topic, category)
 
     /** Glosario: el del servidor o las palabras conocidas que aparecen en el texto adaptado. */
     val effectiveVocabulary: List<VocabularyEntry>
         get() = keyVocabulary.ifEmpty { LocalGlossary.find(chunks.joinToString(" ") { it.text }) }
+
+    /** Nivel con el que se adaptó (el pedido, o el de la lección). */
+    val effectiveLevel: Int? get() = targetLevel ?: simplificationLevel
+
+    companion object {
+        /** `engine_version` de las adaptaciones hechas en el dispositivo por [com.fluilet.app.domain.text.TextAdapter]. */
+        const val LOCAL_ENGINE_VERSION = "fluilet-local-rules-v2"
+
+        /** `model_version` del backend que no corresponde al modelo reentrenado. */
+        val NON_RETRAINED_MODELS = setOf("unavailable", "legacy_not_retrained")
+    }
 }
 
 enum class SourceType { TXT, PDF, PASTED_TEXT }

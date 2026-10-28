@@ -20,11 +20,15 @@ enum class LessonCategory(val code: String, val displayName: String) {
     }
 }
 
-/** Petición del generador de lecciones. El tema es opcional (hasta 120 caracteres). */
+/**
+ * Petición del generador de lecciones. El tema es opcional (hasta 120 caracteres); [ageGroup] es la edad didáctica
+ * del perfil infantil activo (`null` para adultos).
+ */
 data class LessonRequest(
     val category: LessonCategory,
     val topic: String?,
-    val level: NlpLevel
+    val level: NlpLevel,
+    val ageGroup: AgeGroup? = null
 ) {
     /** Tema normalizado: espacios colapsados, sin caracteres no imprimibles, máximo 120; `null` si queda vacío. */
     val cleanTopic: String?

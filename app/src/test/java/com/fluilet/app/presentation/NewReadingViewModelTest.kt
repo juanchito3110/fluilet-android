@@ -247,4 +247,59 @@ class NewReadingViewModelTest {
         assertEquals("ORIGINAL DEL SERVIDOR", vm.state.value.result!!.originalText)
         assertEquals("ad-1", vm.state.value.result!!.adaptationId)
     }
+
+    // --- Nivel y edad didáctica del perfil activo en cada petición -------------------------------------------
+
+    private fun viewModelFor(child: com.fluilet.app.domain.model.ChildProfile?): NewReadingViewModel {
+        val handle = SavedStateHandle(if (child != null) mapOf("childId" to child.id) else emptyMap())
+        return NewReadingViewModel(
+            handle, mockk<Context>(relaxed = true),
+            GetChildrenUseCase(FakeChildRepository(listOfNotNull(child))),
+            AdaptTextUseCase(adaptation), GenerateLessonUseCase(adaptation), holder,
+            SessionManager(com.fluilet.app.testutil.FakeSecureStore()), IsTutorPinConfiguredUseCase(FakeTutorPin(true))
+        )
+    }
+
+    private val diego = sampleChild("diego", "Diego").copy(nlpLevel = NlpLevel.NIVEL_4, ageGroup = "9-11")
+    private val pastedText = List(MIN_TEST_WORDS) { "palabra" }.joinToString(" ") + "."
+
+    @Test fun pastedTextSendsTheLevelAndTheAgeGroupOfTheActiveChild() = runTest(dispatcher) {
+        val vm = viewModelFor(diego)
+        vm.onText(pastedText)
+        vm.adapt()
+        val (level, childId, group) = adaptation.adaptRequests.single()
+        assertEquals(NlpLevel.NIVEL_4, level)
+        assertEquals("diego", childId)
+        assertEquals(com.fluilet.app.domain.model.AgeGroup.NINE_TO_ELEVEN, group)
+    }
+
+    @Test fun aTopicLessonSendsTheChosenLevelAndTheChildsAgeGroup() = runTest(dispatcher) {
+        val vm = viewModelFor(diego)
+        vm.onMode(InputMode.GENERATE)
+        vm.onCategory(LessonCategory.CIENCIA_ESPACIO)
+        vm.onLevel(NlpLevel.NIVEL_1)
+        vm.adapt()
+        val (request, childId) = adaptation.generateRequests.single()
+        assertEquals(NlpLevel.NIVEL_1, request.level)
+        assertEquals(com.fluilet.app.domain.model.AgeGroup.NINE_TO_ELEVEN, request.ageGroup)
+        assertEquals("diego", childId)
+    }
+
+    @Test fun withoutAnAgeGroupFromTheServerItIsDerivedFromTheBirthDate() = runTest(dispatcher) {
+        val sofia = sampleChild("sofia", "Sofía").copy(birthDate = java.time.LocalDate.now().minusYears(7), ageGroup = null)
+        val vm = viewModelFor(sofia)
+        vm.onText(pastedText)
+        vm.adapt()
+        assertEquals(com.fluilet.app.domain.model.AgeGroup.SIX_TO_EIGHT, adaptation.adaptRequests.single().third)
+    }
+
+    @Test fun anAdultSendsTheLevelWithoutAnyAgeGroup() = runTest(dispatcher) {
+        val vm = viewModelFor(null)
+        vm.onText(pastedText)
+        vm.adapt()
+        val (level, childId, group) = adaptation.adaptRequests.single()
+        assertEquals(NlpLevel.DEFAULT, level)
+        assertNull(childId)
+        assertNull(group)
+    }
 }

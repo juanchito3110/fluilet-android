@@ -55,6 +55,7 @@ import com.fluilet.app.domain.model.MasterGrant
 import com.fluilet.app.presentation.brand.FluiletBrand
 import com.fluilet.app.presentation.brand.FluiletIsotypeLogo
 import com.fluilet.app.presentation.common.ErrorMessage
+import com.fluilet.app.presentation.common.ModelAuditCard
 import com.fluilet.app.presentation.common.SelectableChip
 
 /**
@@ -81,6 +82,7 @@ fun MasterAdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
             ErrorMessage(state.errorMessage)
 
             KpiPanel(state)
+            state.modelAudit?.let { ModelAuditCard(it) }
 
             TabRow(selectedTabIndex = state.tab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
                 AdminTab.entries.forEach { tab ->

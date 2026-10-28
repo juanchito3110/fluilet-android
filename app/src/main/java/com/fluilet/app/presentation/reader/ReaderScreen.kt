@@ -204,7 +204,7 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel) {
         } else {
             GuideBar(state, vm)
             Box(Modifier.weight(1f)) {
-                if (state.showOriginal) ComparisonCard(state) else ChunkCard(state, onGuideTap = vm::guideNext)
+                if (state.showOriginal) ComparisonCard(state, onLevel = vm::selectComparisonLevel) else ChunkCard(state, onGuideTap = vm::guideNext)
             }
             GlossaryBar(state, vm)
             SpeechUnavailableBanner(state)

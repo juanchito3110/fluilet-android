@@ -8,12 +8,14 @@ import com.fluilet.app.data.repository.FluiBotInventoryStore
 import com.fluilet.app.data.repository.InMemoryReaderSettingsRepository
 import com.fluilet.app.data.repository.LocalAdaptationRepository
 import com.fluilet.app.data.repository.LocalReadingSessionRepository
-import com.fluilet.app.data.repository.RemoteAdaptationRepository
+import com.fluilet.app.data.repository.RemoteModelInfoRepository
+import com.fluilet.app.data.repository.ResilientAdaptationRepository
 import com.fluilet.app.data.repository.RemoteReadingSessionRepository
 import com.fluilet.app.domain.gamification.FluiBotInventoryRepository
 import com.fluilet.app.domain.repository.AdaptationRepository
 import com.fluilet.app.domain.repository.AuthRepository
 import com.fluilet.app.domain.repository.ChildRepository
+import com.fluilet.app.domain.repository.ModelInfoRepository
 import com.fluilet.app.domain.repository.ReaderSettingsRepository
 import com.fluilet.app.domain.repository.ReadingSessionRepository
 import com.fluilet.app.domain.repository.TutorPinRepository
@@ -34,18 +36,19 @@ abstract class RepositoryModule {
     @Binds abstract fun bindReaderSettings(impl: InMemoryReaderSettingsRepository): ReaderSettingsRepository
     @Binds abstract fun bindTutorPin(impl: TutorPinManager): TutorPinRepository
     @Binds abstract fun bindFluiBotInventory(impl: FluiBotInventoryStore): FluiBotInventoryRepository
+    @Binds abstract fun bindModelInfo(impl: RemoteModelInfoRepository): ModelInfoRepository
 
     companion object {
         /**
-         * `USE_REMOTE_ADAPTATION` (BuildConfig) alterna entre el motor del servidor (mT5) y la
-         * adaptación local de respaldo. Activar cuando el backend publique los endpoints.
+         * `USE_REMOTE_ADAPTATION` (BuildConfig): el modelo reentrenado del servidor con respaldo local cuando no hay
+         * red, o solo el motor local (builds de desarrollo sin backend).
          */
         @Provides
         @Singleton
         fun provideAdaptationRepository(
-            remote: RemoteAdaptationRepository,
+            resilient: ResilientAdaptationRepository,
             local: LocalAdaptationRepository
-        ): AdaptationRepository = if (BuildConfig.USE_REMOTE_ADAPTATION) remote else local
+        ): AdaptationRepository = if (BuildConfig.USE_REMOTE_ADAPTATION) resilient else local
 
         @Provides
         @Singleton

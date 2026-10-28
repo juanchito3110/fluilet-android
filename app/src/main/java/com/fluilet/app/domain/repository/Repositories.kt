@@ -5,6 +5,9 @@ import com.fluilet.app.domain.model.MasterGrant
 import com.fluilet.app.domain.model.PinResetResult
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.AdaptationSource
+import com.fluilet.app.domain.model.AgeGroup
+import com.fluilet.app.domain.model.LibraryItem
+import com.fluilet.app.domain.model.ModelAudit
 import com.fluilet.app.domain.model.AuthSession
 import com.fluilet.app.domain.model.ChildDraft
 import com.fluilet.app.domain.model.ChildProfile
@@ -36,12 +39,16 @@ interface ChildRepository {
     suspend fun delete(id: String): Result<Unit>
 }
 
-/** Adaptación de textos (mT5 + Szigriszt-Pazos). El texto resultante nunca se persiste. */
+/**
+ * Adaptación de textos (modelo reentrenado del servidor + Szigriszt-Pazos). El texto resultante nunca se persiste.
+ * [ageGroup] es la edad didáctica del perfil infantil activo (`6-8`, `9-11`, `12+`); `null` para adultos.
+ */
 interface AdaptationRepository {
     suspend fun adapt(
         source: AdaptationSource,
         nlpLevel: NlpLevel,
-        childId: String?
+        childId: String?,
+        ageGroup: AgeGroup? = null
     ): Result<AdaptationResult>
 
     /** Genera una lección por categoría/tema (banco del servidor) ya adaptada al nivel pedido. */
@@ -50,6 +57,18 @@ interface AdaptationRepository {
     /** Recupera una adaptación retenida (incluido su original) por id de adaptación o de documento. */
     suspend fun fetch(id: String): Result<AdaptationResult> =
         Result.failure(com.fluilet.app.core.network.AppError.Unsupported("Esta versión no recupera adaptaciones guardadas."))
+
+    /** Lecturas asignadas a un niño (`GET /children/{id}/library`), sin texto: se abren con [fetch]. */
+    suspend fun library(childId: String): Result<List<LibraryItem>> =
+        Result.failure(com.fluilet.app.core.network.AppError.Unsupported("La biblioteca requiere el servidor."))
+}
+
+/**
+ * Auditoría del modelo reentrenado (`GET /adaptations/model-info`). Nunca falla: sin servidor devuelve los valores
+ * verificados del commit 42482e0 marcados con `fromServer = false`.
+ */
+interface ModelInfoRepository {
+    suspend fun audit(): ModelAudit
 }
 
 /**
@@ -93,7 +112,7 @@ interface TutorPinRepository {
 
     /**
      * PIN público de la cuenta de demostración del tutor (1234): se guarda aunque sea una secuencia que
-     * [setInitialPin] rechazaría. Solo lo usa el acceso rápido de la demo.
+     * [setInitialPin] rechazaría. Solo lo usa el login de `tutor@fluilet.com`.
      */
     fun configureDemoPin(pin: String): Result<Unit> = resetAfterReauthentication(pin)
 

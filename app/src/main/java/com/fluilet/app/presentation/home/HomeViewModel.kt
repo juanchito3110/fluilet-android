@@ -21,6 +21,11 @@ import com.fluilet.app.domain.usecase.LogoutUseCase
 import com.fluilet.app.domain.usecase.SetNlpLevelUseCase
 import com.fluilet.app.domain.usecase.ClaimDailyMissionUseCase
 import com.fluilet.app.domain.usecase.SeedDemoDataUseCase
+import com.fluilet.app.domain.usecase.FetchAdaptationUseCase
+import com.fluilet.app.domain.usecase.GetChildLibraryUseCase
+import com.fluilet.app.domain.usecase.GetModelAuditUseCase
+import com.fluilet.app.domain.model.LibraryItem
+import com.fluilet.app.domain.model.ModelAudit
 import com.fluilet.app.domain.demo.DemoChildren
 import com.fluilet.app.domain.demo.DemoData
 import com.fluilet.app.domain.gamification.FluiBotStage
@@ -71,7 +76,13 @@ data class HomeUiState(
     /** Etapa de FluiBot y gemas por niño (id del perfil) para las tarjetas del selector. */
     val childSummaries: Map<String, ChildSummary> = emptyMap(),
     /** Los datos mostrados son el respaldo local de la demostración (el servidor no respondió). */
-    val offlineDemo: Boolean = false
+    val offlineDemo: Boolean = false,
+    /** Lecturas guardadas en el servidor para el niño seleccionado (`GET /children/{id}/library`). */
+    val library: List<LibraryItem> = emptyList(),
+    /** Lección de la biblioteca que se está abriendo (`GET /adaptations/{id}`). */
+    val openingLessonId: String? = null,
+    /** 🧠 Auditoría del modelo reentrenado para 📊 Estadísticas. */
+    val modelAudit: ModelAudit? = null
 ) {
     val selectedChild: ChildProfile? get() = children.firstOrNull { it.id == selectedChildId }
 
@@ -103,7 +114,12 @@ private data class HomeLocal(
     val childSummaries: Map<String, ChildSummary> = emptyMap(),
     /** Id del perfil al que pertenece `progress` (para refrescar su tarjeta sin parpadeos). */
     val progressOwner: String? = null,
-    val offlineDemo: Boolean = false
+    val offlineDemo: Boolean = false,
+    val library: List<LibraryItem> = emptyList(),
+    /** Perfil al que pertenece `library` (evita mostrar la de otro niño mientras carga). */
+    val libraryOwner: String? = null,
+    val openingLessonId: String? = null,
+    val modelAudit: ModelAudit? = null
 )
 
 @HiltViewModel
@@ -119,7 +135,10 @@ class HomeViewModel @Inject constructor(
     private val logoutUseCase: LogoutUseCase,
     private val readingHolder: ActiveReadingHolder,
     private val seedDemo: SeedDemoDataUseCase,
-    private val claimDailyMission: ClaimDailyMissionUseCase
+    private val claimDailyMission: ClaimDailyMissionUseCase,
+    private val getLibrary: GetChildLibraryUseCase,
+    private val fetchAdaptation: FetchAdaptationUseCase,
+    private val getModelAudit: GetModelAuditUseCase
 ) : ViewModel() {
 
     private val local = MutableStateFlow(HomeLocal())
@@ -142,7 +161,10 @@ class HomeViewModel @Inject constructor(
             isDemoLoading = l.isDemoLoading,
             demoNote = l.demoNote,
             childSummaries = withSelectedSummary(l),
-            offlineDemo = l.offlineDemo
+            offlineDemo = l.offlineDemo,
+            library = if (l.libraryOwner != null && l.libraryOwner == l.selectedChildId) l.library else emptyList(),
+            openingLessonId = l.openingLessonId,
+            modelAudit = l.modelAudit
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -171,6 +193,11 @@ class HomeViewModel @Inject constructor(
                 local.update { it.copy(isLoading = false) }
             }
             loadProgress()
+            loadLibrary()
+            if (local.value.modelAudit == null) {
+                val audit = getModelAudit()
+                local.update { it.copy(modelAudit = audit) }
+            }
         }
     }
 
@@ -181,7 +208,10 @@ class HomeViewModel @Inject constructor(
 
     fun select(childId: String) {
         local.update { it.copy(selectedChildId = childId, progress = EducationalProgress.empty(it.children.firstOrNull { c -> c.id == childId }?.nlpLevel?.value ?: 2), progressNote = null, progressOwner = null) }
-        viewModelScope.launch { loadProgress() }
+        viewModelScope.launch {
+            loadProgress()
+            loadLibrary()
+        }
     }
 
     /**
@@ -233,7 +263,38 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun isDemoTutor(): Boolean = sessionManager.email.equals(DemoAccounts.TUTOR_EMAIL, ignoreCase = true)
+    private fun isDemoTutor(): Boolean = DemoAccounts.isDemoTutor(sessionManager.email)
+
+    /** Biblioteca del niño seleccionado en el servidor (las lecciones demo incluidas). Sin servidor queda vacía. */
+    private suspend fun loadLibrary() {
+        val l = local.value
+        val child = l.children.firstOrNull { it.id == l.selectedChildId }
+        if (!uiState.value.isTutor || child == null || l.offlineDemo || DemoChildren.isDemoId(child.id)) {
+            local.update { it.copy(library = emptyList(), libraryOwner = null) }
+            return
+        }
+        getLibrary(child.id)
+            .onSuccess { items -> local.update { it.copy(library = items, libraryOwner = child.id) } }
+            .onFailure { local.update { it.copy(library = emptyList(), libraryOwner = null) } }
+    }
+
+    /**
+     * Abre una lección de la biblioteca: la pide completa (original, 5 niveles, reemplazos y modelo) y la deja lista
+     * en el lector; [onReady] navega al terminar.
+     */
+    fun openLibraryLesson(item: LibraryItem, onReady: () -> Unit = {}) {
+        if (local.value.openingLessonId != null) return
+        local.update { it.copy(openingLessonId = item.documentId, errorMessage = null) }
+        viewModelScope.launch {
+            fetchAdaptation(item.documentId)
+                .onSuccess { lesson ->
+                    local.update { it.copy(openingLessonId = null) }
+                    openDemoLesson(lesson)
+                    onReady()
+                }
+                .onFailure { e -> local.update { it.copy(openingLessonId = null, errorMessage = e.toAppError().userMessage) } }
+        }
+    }
 
     /** Sin servidor, `tutor@fluilet.com` conserva a Sofía, Mateo, Diego y Valentina con sus fases y saldos. */
     private fun useLocalDemoChildren() {

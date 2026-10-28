@@ -66,14 +66,18 @@ class LessonsAndProgressRepositoryTest {
     @Test fun generateSendsExactlyTheBackendRequestAndMapsTheLesson() = runBlocking {
         server.enqueue(json(lessonJson))
 
-        val result = adaptation.generate(LessonRequest(LessonCategory.CIENCIA_ESPACIO, "  Agujeros   negros ", NlpLevel.NIVEL_2), "child-1").getOrThrow()
+        val result = adaptation.generate(
+            LessonRequest(LessonCategory.CIENCIA_ESPACIO, "  Agujeros   negros ", NlpLevel.NIVEL_2, com.fluilet.app.domain.model.AgeGroup.NINE_TO_ELEVEN), "child-1"
+        ).getOrThrow()
 
         val request = server.takeRequest()
         assertEquals("POST", request.method)
         assertEquals("/api/v1/adaptations/generate", request.path)
         assertNull("la cabecera interna de timeout no sale a la red", request.getHeader("X-Read-Timeout-Seconds"))
         val body = JsonParser.parseString(request.body.readUtf8()).asJsonObject
-        assertEquals(setOf("category", "topic", "simplification_level", "child_id"), body.keySet())
+        assertEquals(setOf("category", "topic", "simplification_level", "child_id", "level", "age_group"), body.keySet())
+        assertEquals("el alias level repite el nivel (el backend exige que coincidan)", 2, body["level"].asInt)
+        assertEquals("edad didáctica del perfil activo", "9-11", body["age_group"].asString)
         assertEquals("ciencia_espacio", body["category"].asString)
         assertEquals("Agujeros negros", body["topic"].asString) // espacios normalizados
         assertEquals(2, body["simplification_level"].asInt)
@@ -95,7 +99,8 @@ class LessonsAndProgressRepositoryTest {
         server.enqueue(json(lessonJson))
         adaptation.generate(LessonRequest(LessonCategory.DEPORTES, "   ", NlpLevel.NIVEL_3), null).getOrThrow()
         val body = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
-        assertEquals(setOf("category", "simplification_level"), body.keySet())
+        assertEquals("sin perfil infantil no se envía age_group", setOf("category", "simplification_level", "level"), body.keySet())
+        assertEquals(3, body["level"].asInt)
         assertEquals("deportes", body["category"].asString)
         assertEquals(3, body["simplification_level"].asInt)
     }

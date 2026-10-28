@@ -5,6 +5,12 @@ import com.fluilet.app.data.remote.dto.AdaptationReadDto
 import com.fluilet.app.data.remote.dto.ComprehensionQuestionDto
 import com.fluilet.app.data.remote.dto.DocumentDto
 import com.fluilet.app.data.remote.dto.LessonSourceDto
+import com.fluilet.app.data.remote.dto.LevelPreviewDto
+import com.fluilet.app.data.remote.dto.LexicalReplacementDto
+import com.fluilet.app.domain.model.LevelPreview
+import com.fluilet.app.domain.model.LexicalReplacement
+import com.fluilet.app.domain.model.LibraryItem
+import com.fluilet.app.domain.text.SpanishText
 import com.fluilet.app.domain.model.LessonSourceInfo
 import com.fluilet.app.data.remote.dto.VocabularyDto
 import com.fluilet.app.domain.text.VocabularyEntry
@@ -36,7 +42,16 @@ fun DocumentDto.toMetrics(): ReadabilityMetrics {
  * Métricas de la respuesta: prefiere el objeto `metrics` (puntajes sin redondear de ambos textos) y, si el
  * servidor es anterior, cae a los campos del documento y a los puntajes de nivel superior.
  */
-fun AdaptationReadDto.toMetrics(): ReadabilityMetrics {
+fun AdaptationReadDto.toMetrics(): ReadabilityMetrics = baseMetrics().let { b ->
+    b.copy(
+        originalAvgWordsPerSentence = b.originalAvgWordsPerSentence.takeIf { it > 0 } ?: originalAvgSentenceLength ?: 0.0,
+        adaptedAvgWordsPerSentence = b.adaptedAvgWordsPerSentence.takeIf { it > 0 } ?: adaptedAvgSentenceLength ?: 0.0,
+        originalAvgSyllablesPerWord = originalSyllablesPerWord ?: 0.0,
+        adaptedAvgSyllablesPerWord = adaptedSyllablesPerWord ?: 0.0
+    )
+}
+
+private fun AdaptationReadDto.baseMetrics(): ReadabilityMetrics {
     val base = document.toMetrics()
     val m = metrics
     if (m == null) {
@@ -91,9 +106,57 @@ fun AdaptationReadDto.toDomain(title: String, level: NlpLevel): AdaptationResult
         targetLevel = targetLevel,
         source = source?.toDomain(),
         meetsTarget = meetsReadabilityTarget,
-        topic = resolvedTopic?.takeIf { it.isNotBlank() }
+        topic = resolvedTopic?.takeIf { it.isNotBlank() },
+        readabilityGain = readabilityGain,
+        readabilityLevel = readabilityLevel?.takeIf { it.isNotBlank() },
+        lexicalReplacements = lexicalReplacements.orEmpty().mapNotNull { it.toDomain() }.distinct(),
+        levelPreviews = levelPreviews.orEmpty().mapNotNull { it.toDomain() }.distinctBy { it.level }.sortedBy { it.level },
+        levelProgressionMet = levelProgressionMet,
+        modelVersion = modelVersion?.takeIf { it.isNotBlank() },
+        checkpointName = checkpointName?.takeIf { it.isNotBlank() },
+        engineVersion = engineVersion?.takeIf { it.isNotBlank() }
     )
 }
+
+fun LexicalReplacementDto.toDomain(): LexicalReplacement? {
+    val from = original?.trim().orEmpty()
+    val to = adapted?.trim().orEmpty()
+    if (from.isEmpty() || to.isEmpty() || from.equals(to, ignoreCase = true)) return null
+    return LexicalReplacement(from, to)
+}
+
+/**
+ * Una variante del servidor. Si no trae `syllables_per_word` se despeja de su puntaje y longitud de oración
+ * (misma fórmula Szigriszt-Pazos del backend); si tampoco hay longitud, se mide el texto en el dispositivo.
+ */
+fun LevelPreviewDto.toDomain(): LevelPreview? {
+    val lvl = level?.takeIf { it in 1..5 } ?: return null
+    val text = adaptedText?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val score = readabilityScore ?: Szigriszt.score(text)
+    val wps = avgSentenceLength?.takeIf { it > 0 } ?: SpanishText.wordCount(text).toDouble() / SpanishText.sentenceCount(text).coerceAtLeast(1)
+    val spw = syllablesPerWord?.takeIf { it > 0 }
+        ?: if (avgSentenceLength != null && readabilityScore != null) Szigriszt.syllablesPerWord(score, wps)
+        else SpanishText.syllableCount(text).toDouble() / SpanishText.wordCount(text).coerceAtLeast(1)
+    return LevelPreview(
+        level = lvl,
+        adaptedText = text,
+        readabilityScore = score,
+        readabilityLevel = readabilityLevel?.takeIf { it.isNotBlank() } ?: Szigriszt.inflesz(score),
+        avgSentenceLength = wps,
+        syllablesPerWord = spw,
+        targetMet = targetMet ?: false,
+        fromServer = true
+    )
+}
+
+/** Lectura de la biblioteca de un niño: solo metadatos (el texto se pide al abrirla). */
+fun DocumentDto.toLibraryItem(): LibraryItem = LibraryItem(
+    documentId = id,
+    category = category ?: "lectura_libre",
+    level = simplificationLevel,
+    originalScore = originalSzigrisztScore,
+    adaptedScore = adaptedSzigrisztScore
+)
 
 private fun LessonSourceDto.toDomain(): LessonSourceInfo? {
     val t = title?.trim().orEmpty()

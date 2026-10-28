@@ -16,7 +16,8 @@ fun AdminOverviewDto.toDomain() = AdminOverview(
     totalReadingSessions = totalReadingSessions,
     averageComprehension = averageComprehension.coerceIn(0.0, 100.0),
     users = users.orEmpty().mapNotNull { it.toDomain() },
-    profiles = profiles.orEmpty().mapNotNull { it.toDomain() }
+    profiles = profiles.orEmpty().mapNotNull { it.toDomain() },
+    modelAudit = modelInfo?.takeIf { it.modelVersion != null }?.toDomain()
 )
 
 private fun AdminUserDto.toDomain(): AdminUser? {

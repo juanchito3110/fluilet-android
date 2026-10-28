@@ -6,9 +6,6 @@ import com.fluilet.app.core.network.toAppError
 import com.fluilet.app.domain.model.RegistrationData
 import com.fluilet.app.domain.model.UserRole
 import com.fluilet.app.domain.repository.TutorPinRepository
-import com.fluilet.app.domain.usecase.DemoConfig
-import com.fluilet.app.domain.usecase.QuickAccess
-import com.fluilet.app.domain.usecase.QuickAccessUseCase
 import com.fluilet.app.domain.usecase.LoginUseCase
 import com.fluilet.app.domain.usecase.RegisterUseCase
 import com.fluilet.app.domain.validation.Validators
@@ -103,40 +100,6 @@ class RegisterViewModel @Inject constructor(
                         .onFailure { e -> _state.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
                         .onSuccess { _state.update { it.copy(isLoading = false, password = "", pin = "") } }
                 }
-        }
-    }
-}
-
-data class QuickAccessUiState(
-    val enabled: Boolean = false,
-    /** Acceso que se está procesando (para mostrar el progreso solo en su botón). */
-    val loading: QuickAccess? = null,
-    val errorMessage: String? = null
-) {
-    val isLoading: Boolean get() = loading != null
-}
-
-/**
- * Accesos rápidos de la demostración: `👨‍👧‍👦 Cuenta Tutor` (tutor@fluilet.com) y `👑 Usuario Maestro` (admin@fluilet.com).
- * Es el login normal con las credenciales públicas del backend; la navegación reacciona a la sesión.
- */
-@HiltViewModel
-class QuickAccessViewModel @Inject constructor(
-    config: DemoConfig,
-    private val quickAccess: QuickAccessUseCase
-) : ViewModel() {
-
-    private val _state = MutableStateFlow(QuickAccessUiState(enabled = config.enabled))
-    val state: StateFlow<QuickAccessUiState> = _state.asStateFlow()
-
-    fun enter(access: QuickAccess) {
-        val current = _state.value
-        if (!current.enabled || current.isLoading) return
-        viewModelScope.launch {
-            _state.update { it.copy(loading = access, errorMessage = null) }
-            quickAccess(access)
-                .onFailure { e -> _state.update { it.copy(loading = null, errorMessage = e.toAppError().userMessage) } }
-                .onSuccess { _state.update { it.copy(loading = null) } }
         }
     }
 }

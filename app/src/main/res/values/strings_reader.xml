@@ -40,10 +40,42 @@
     <string name="quiz_feedback_correct_title">¡Correcto! Muy bien.</string>
     <string name="quiz_feedback_wrong_title">¡Casi! Sigue intentándolo.</string>
     <string name="reader_compare">🔄 Adaptado vs. Original</string>
-    <string name="compare_title">Adaptado vs. Original</string>
-    <string name="compare_original_label">📄 Texto Original (Fuente Enciclopédica)</string>
+    <!-- Super-comparador "🔄 Adaptado vs. Original" (backend 42482e0) -->
+    <string name="compare_heading">🔄 Adaptado vs. Original</string>
+    <string name="compare_model_active">🧠 Modelo IA Reentrenado Activo</string>
+    <string name="compare_model_offline_values">Métricas verificadas del commit 42482e0 (el servidor no respondió).</string>
+    <string name="compare_model_local">📴 Motor local de respaldo (sin conexión)</string>
+    <string name="compare_model_local_body">Reglas en el dispositivo con las mismas métricas Szigriszt-Pazos. Al volver la red, el modelo reentrenado del servidor adapta de nuevo.</string>
+    <string name="compare_model_other">⚙️ Motor del servidor: %1$s</string>
+    <string name="compare_levels_title">Elige el nivel y mira el cambio en vivo</string>
+    <string name="compare_level_1">Nivel 1 (6-8)</string>
+    <string name="compare_level_n">Nivel %1$d</string>
+    <string name="compare_level_5">Nivel 5 (12+)</string>
+    <string name="compare_progression_ok">Progresión verificada: Nivel 1 &gt; Nivel 2 &gt; Nivel 3 &gt; Nivel 4 &gt; Nivel 5</string>
+    <string name="compare_progression_partial">Esta lectura no logra una progresión estricta entre los 5 niveles.</string>
+    <string name="compare_band_in">✅ %1$s · dentro de la banda del Nivel %2$d (%3$s)</string>
+    <string name="compare_band_out">⚠️ %1$s · fuera de la banda del Nivel %2$d (%3$s)</string>
+    <string name="compare_ficha_title">🔬 Ficha Técnica del Motor NLP Szigriszt-Pazos</string>
+    <string name="compare_index_label">Índice Szigriszt-Pazos</string>
+    <string name="compare_index_values">Original: %1$s ➔ Adaptado (Nivel %2$d): %3$s</string>
+    <string name="compare_gain_positive">+%1$s pts de facilidad</string>
+    <string name="compare_gain_negative">%1$s pts (más exigente que el original)</string>
+    <string name="compare_wps_label">Palabras por oración</string>
+    <string name="compare_wps_values">Original: %1$s ➔ Adaptado: %2$s palabras/oración</string>
+    <string name="compare_spw_label">Sílabas por palabra</string>
+    <string name="compare_spw_values">Original: %1$s ➔ Adaptado: %2$s sílabas/palabra</string>
+    <string name="compare_measured_locally">Medido en el dispositivo con el motor local.</string>
+    <string name="compare_lexical_title">✨ Transformaciones Léxicas del Modelo (Antes ➔ Ahora)</string>
+    <string name="compare_lexical_empty">En este nivel no se reemplazaron términos: solo se reorganizaron las oraciones.</string>
+    <plurals name="compare_lexical_more">
+        <item quantity="one">+%d transformación más resaltada en el texto.</item>
+        <item quantity="many">+%d transformaciones más resaltadas en el texto.</item>
+        <item quantity="other">+%d transformaciones más resaltadas en el texto.</item>
+    </plurals>
+    <string name="compare_original_title">📜 Texto Original Enciclopédico</string>
+    <string name="compare_adapted_title">✨ Texto Adaptado (Nivel %1$d)</string>
+    <string name="compare_highlight_hint">Resaltado: los términos que el motor simplificó.</string>
     <string name="compare_original_unavailable">Esta lección no tiene un texto original que mostrar (se generó o vino de un PDF). Por privacidad, el texto no se guarda en el dispositivo.</string>
-    <string name="compare_adapted_label">✨ Texto Adaptado por Fluilet (este bloque)</string>
     <string name="funfact_title">🧠 ¿Sabías que...?</string>
     <string name="glossary_title">🔍 Palabras clave de esta lectura</string>
     <string name="glossary_close">Cerrar</string>
@@ -51,12 +83,4 @@
     <string name="glossary_listen">🔊 Escuchar palabra</string>
     <string name="compare_original_loading">Buscando el texto original en el servidor…</string>
     <string name="compare_source">Fuente: %1$s — %2$s</string>
-    <string name="techsheet_title">🔬 Ficha Técnica del Motor NLP</string>
-    <string name="techsheet_original">Original</string>
-    <string name="techsheet_adapted">Adaptado</string>
-    <string name="techsheet_words">%1$d palabras</string>
-    <string name="techsheet_per_sentence">%1$.1f palabras por oración</string>
-    <string name="techsheet_delta">Índice Szigriszt-Pazos: %1$+.1f puntos (más alto = más fácil)</string>
-    <string name="techsheet_ok">Objetivo de legibilidad alcanzado.</string>
-    <string name="techsheet_best_effort">Mejor adaptación posible: el servidor no inventa puntajes.</string>
 </resources>

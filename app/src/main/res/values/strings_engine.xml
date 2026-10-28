@@ -1,0 +1,30 @@
+<resources>
+    <!-- Auditoría del modelo reentrenado (GET /api/v1/adaptations/model-info) -->
+    <string name="audit_title">🧠 Auditoría del Modelo IA Reentrenado (EASIER + Szigriszt-Pazos)</string>
+    <string name="audit_criteria_label">Estado de Criterios Académicos</string>
+    <string name="audit_criteria_ok">✅ Cumplidos al 100% (acceptance_criteria_met = true)</string>
+    <string name="audit_criteria_pending">⚠️ Pendientes (acceptance_criteria_met = false)</string>
+    <string name="audit_inactive">⚠️ El servidor no tiene activo el modelo reentrenado.</string>
+    <string name="audit_dataset_label">Dataset de Entrenamiento</string>
+    <string name="audit_dataset_value">%1$s pares auditados (%2$s)</string>
+    <plurals name="audit_epochs">
+        <item quantity="one">%d época</item>
+        <item quantity="many">%d épocas</item>
+        <item quantity="other">%d épocas</item>
+    </plurals>
+    <string name="audit_lexical_label">Exactitud Léxica en Test</string>
+    <string name="audit_lexical_value">%1$s (vs. %2$s base)</string>
+    <string name="audit_sari_label">Métrica SARI en Test</string>
+    <string name="audit_sari_value">%1$s (vs. %2$s base)</string>
+    <string name="audit_bands_label">Cumplimiento de 5 Bandas y Progresión</string>
+    <string name="audit_source_server">Fuente: GET /api/v1/adaptations/model-info (en vivo).</string>
+    <string name="audit_source_fallback">Sin conexión: valores verificados del commit 42482e0 del backend.</string>
+
+    <!-- Biblioteca del niño (GET /children/{id}/library) -->
+    <string name="library_title">📚 Lecciones de %1$s</string>
+    <string name="library_hint">Lecturas guardadas en el servidor para este perfil. Ábrelas con su original, sus 5 niveles y la ficha técnica.</string>
+    <string name="library_row">%1$s · Nivel %2$d</string>
+    <string name="library_scores">Szigriszt-Pazos %1$s ➔ %2$s</string>
+    <string name="library_open">📖 Abrir lección</string>
+    <string name="library_opening">Abriendo…</string>
+</resources>

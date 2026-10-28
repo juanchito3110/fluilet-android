@@ -63,7 +63,9 @@ class RemoteRepositoriesTest {
     @Test fun pastedTextGoesAsJsonToAdaptationsText() = runBlocking {
         server.enqueue(MockResponse().setBody(adaptationJson).addHeader("Content-Type", "application/json"))
 
-        val result = adaptation.adapt(source(SourceType.PASTED_TEXT, "hola mundo".toByteArray()), NlpLevel.NIVEL_4, "child-9").getOrThrow()
+        val result = adaptation.adapt(
+            source(SourceType.PASTED_TEXT, "hola mundo".toByteArray()), NlpLevel.NIVEL_4, "child-9", com.fluilet.app.domain.model.AgeGroup.TWELVE_PLUS
+        ).getOrThrow()
 
         val request = server.takeRequest()
         assertEquals("POST", request.method)
@@ -72,6 +74,8 @@ class RemoteRepositoriesTest {
         assertTrue(body, body.contains("\"text\":\"hola mundo\""))
         assertTrue(body, body.contains("\"nivel_simplificacion_nlp\":4"))
         assertTrue(body, body.contains("\"child_id\":\"child-9\""))
+        assertTrue("alias level con el mismo nivel: $body", body.contains("\"level\":4"))
+        assertTrue("edad didáctica del perfil activo: $body", body.contains("\"age_group\":\"12+\""))
         assertNull("la cabecera interna de timeout no debe salir a la red", request.getHeader("X-Read-Timeout-Seconds"))
 
         assertEquals("doc-1", result.documentId)
@@ -87,17 +91,19 @@ class RemoteRepositoriesTest {
     @Test fun textWithoutChildOmitsChildId() = runBlocking {
         server.enqueue(MockResponse().setBody(adaptationJson).addHeader("Content-Type", "application/json"))
         adaptation.adapt(source(SourceType.PASTED_TEXT, "hola".toByteArray()), NlpLevel.NIVEL_3, null).getOrThrow()
-        assertTrue(!server.takeRequest().body.readUtf8().contains("child_id"))
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(!body.contains("child_id"))
+        assertTrue("sin perfil no hay age_group", !body.contains("age_group"))
     }
 
     @Test fun pdfGoesAsRawBinaryBodyNotMultipart() = runBlocking {
         server.enqueue(MockResponse().setBody(adaptationJson).addHeader("Content-Type", "application/json"))
         val pdf = byteArrayOf(0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34)
 
-        adaptation.adapt(source(SourceType.PDF, pdf), NlpLevel.NIVEL_2, "child-9").getOrThrow()
+        adaptation.adapt(source(SourceType.PDF, pdf), NlpLevel.NIVEL_2, "child-9", com.fluilet.app.domain.model.AgeGroup.SIX_TO_EIGHT).getOrThrow()
 
         val request = server.takeRequest()
-        assertEquals("/api/v1/adaptations/document?nivel_simplificacion_nlp=2&child_id=child-9", request.path)
+        assertEquals("/api/v1/adaptations/document?nivel_simplificacion_nlp=2&level=2&age_group=6-8&child_id=child-9", request.path)
         assertEquals("application/pdf", request.getHeader("Content-Type"))
         assertTrue(request.getHeader("Content-Type")!!.startsWith("application/pdf"))
         assertEquals(pdf.toList(), request.body.readByteArray().toList())
@@ -107,7 +113,7 @@ class RemoteRepositoriesTest {
         server.enqueue(MockResponse().setBody(adaptationJson).addHeader("Content-Type", "application/json"))
         adaptation.adapt(source(SourceType.TXT, "contenido".toByteArray()), NlpLevel.NIVEL_3, null).getOrThrow()
         val request = server.takeRequest()
-        assertEquals("/api/v1/adaptations/document?nivel_simplificacion_nlp=3", request.path)
+        assertEquals("/api/v1/adaptations/document?nivel_simplificacion_nlp=3&level=3", request.path)
         assertTrue(request.getHeader("Content-Type")!!.startsWith("text/plain"))
     }
 

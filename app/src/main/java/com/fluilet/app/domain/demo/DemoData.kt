@@ -170,16 +170,24 @@ object DemoData {
     )
 
     /** Las tres lecturas demo del respaldo local (el servidor entrega seis). */
-    fun lessons(): List<AdaptationResult> = entries.map { e ->
-        TextAdapter.adapt(e.title, e.original, NlpLevel.fromValue(e.level)).copy(
+    fun lessons(): List<AdaptationResult> = entries.map { e -> lesson(e, NlpLevel.fromValue(e.level)) }
+
+    /**
+     * Lección por tema SIN conexión: la lectura del banco local de esa categoría, adaptada en el dispositivo al nivel
+     * pedido (con sus 5 variantes). `null` si el banco local no tiene esa categoría.
+     */
+    fun offlineLesson(category: String, level: NlpLevel): AdaptationResult? =
+        entries.firstOrNull { it.category == category }?.let { lesson(it, level) }
+
+    private fun lesson(e: Entry, level: NlpLevel): AdaptationResult =
+        TextAdapter.adapt(e.title, e.original, level).copy(
             category = e.category,
-            simplificationLevel = e.level,
-            targetLevel = e.level,
+            simplificationLevel = level.value,
+            targetLevel = level.value,
             questions = e.questions,
             funFact = e.funFact,
             keyVocabulary = e.vocabulary,
             topic = e.topic,
             originalText = e.original
         )
-    }
 }

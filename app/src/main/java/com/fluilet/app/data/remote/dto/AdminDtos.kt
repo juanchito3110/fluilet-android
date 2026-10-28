@@ -10,7 +10,9 @@ data class AdminOverviewDto(
     @SerializedName("total_reading_sessions") val totalReadingSessions: Int = 0,
     @SerializedName("average_comprehension") val averageComprehension: Double = 0.0,
     @SerializedName("users") val users: List<AdminUserDto>? = null,
-    @SerializedName("profiles") val profiles: List<AdminProfileDto>? = null
+    @SerializedName("profiles") val profiles: List<AdminProfileDto>? = null,
+    /** Mismo objeto que `GET /adaptations/model-info` (backend >= 42482e0). */
+    @SerializedName("model_info") val modelInfo: ModelInfoDto? = null
 )
 
 data class AdminUserDto(
