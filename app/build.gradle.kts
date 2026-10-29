@@ -17,8 +17,11 @@ plugins {
 // (debug: http://10.0.2.2:8000/, el backend local visto desde el emulador; release: el placeholder de abajo).
 // Con una URL http:// fuera del emulador se usa network_security_config_http.xml (HTTP en claro permitido).
 //
-// Release con https además necesita los pines SPKI reales (fluilet.certPins=sha256/AAAA...=,sha256/BBBB...=). Los
-// valores por defecto son PLACEHOLDERS: con ellos el pinning falla cerrado y ninguna conexión TLS de release prospera.
+// Release con https (DigitalOcean + certificado de una CA pública, el caso estándar para Google Play) funciona SIN pines:
+// confía en las autoridades certificadoras del sistema Android (network_security_config.xml) con TLS 1.3. El certificate
+// pinning es opcional y solo se activa al pasar pines SPKI explícitos (mínimo 2: activo + respaldo):
+//   ./gradlew bundleRelease -PFLUILET_API_BASE_URL=https://api.midominio.com -Pfluilet.certPins=sha256/AAAA...=,sha256/BBBB...=
+//   (o la variable de entorno FLUILET_CERT_PINS). Un pin mal escrito detiene la compilación en lugar de romper la app.
 data class ApiEndpoint(val baseUrl: String, val host: String, val cleartext: Boolean)
 
 fun apiEndpoint(raw: String): ApiEndpoint {
@@ -35,11 +38,19 @@ val apiBaseUrlOverride: String? = providers.gradleProperty("FLUILET_API_BASE_URL
     .orNull?.trim()?.takeIf { it.isNotEmpty() }
 val debugApi = apiEndpoint(apiBaseUrlOverride ?: "http://10.0.2.2:8000/")
 val releaseApi = apiEndpoint(apiBaseUrlOverride ?: "https://api.fluilet.example.com/")
-val releaseCertPins = providers.gradleProperty("fluilet.certPins")
-    .orElse(
-        "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=," + // TODO: pin SPKI del certificado hoja (DigitalOcean)
-            "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="  // TODO: pin SPKI de respaldo (intermedio / siguiente llave)
-    ).get()
+/** Pines SPKI opcionales: vacío = sin pinning (CAs del sistema). Cada pin debe ser `sha256/` + 44 caracteres base64. */
+fun certPins(raw: String): String {
+    val pins = raw.split(',').map(String::trim).filter(String::isNotEmpty)
+    pins.forEach { pin ->
+        require(Regex("^sha256/[A-Za-z0-9+/]{43}=$").matches(pin)) { "fluilet.certPins: pin inválido \"$pin\" (formato sha256/<44 base64>)" }
+    }
+    require(pins.size != 1) { "fluilet.certPins: usa al menos 2 pines (certificado activo + respaldo) para poder rotar la llave" }
+    return pins.joinToString(",")
+}
+
+val releaseCertPins = certPins(
+    providers.gradleProperty("fluilet.certPins").orElse(providers.environmentVariable("FLUILET_CERT_PINS")).orElse("").get()
+)
 
 // Hosts con HTTP que ya admite la configuración de red de debug (emulador y `adb reverse`).
 val debugCleartextHosts = setOf("10.0.2.2", "127.0.0.1", "localhost")
@@ -77,13 +88,16 @@ android {
             buildConfigField("boolean", "USE_REMOTE_ADAPTATION", "true")
         }
         release {
+            // R8 (minify + ofuscación + optimización) con las reglas por defecto y las propias de la app:
+            // proguard-rules.pro protege los DTO de red (Gson) y las interfaces de Retrofit.
             optimization {
                 enable = true
             }
+            proguardFiles("proguard-rules.pro")
             buildConfigField("String", "API_BASE_URL", "\"${releaseApi.baseUrl}\"")
             buildConfigField("String", "API_HOST", "\"${releaseApi.host}\"")
             buildConfigField("String", "CERT_PINS", "\"$releaseCertPins\"")
-            // Solo TLS 1.3; una URL http:// (IP de prueba sin dominio) desactiva la restricción para poder conectar.
+            // Sin pines: CAs del sistema. Solo TLS 1.3; una URL http:// (IP de prueba sin dominio) desactiva la restricción.
             buildConfigField("boolean", "ENFORCE_TLS_ONLY", "${!releaseApi.cleartext}")
             manifestPlaceholders["networkSecurityConfig"] = networkSecurityConfig(releaseApi, debug = false)
             buildConfigField("boolean", "USE_REMOTE_ADAPTATION", "true")
@@ -136,6 +150,8 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.okhttp.mockwebserver)
+    // Certificados de prueba (HeldCertificate) para comprobar el cliente HTTPS de release contra un servidor TLS real.
+    testImplementation(libs.okhttp.tls)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

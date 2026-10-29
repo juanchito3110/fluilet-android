@@ -13,6 +13,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -87,7 +88,9 @@ fun HomeScreen(
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        // consumeWindowInsets: el Scaffold ya reservó barra de estado y navegación; safeDrawingPadding solo añade lo que
+        // falte (teclado, recortes de cámara) en lugar de duplicar esos márgenes.
+        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             if (state.isLoading) {
                 FullScreenLoading()
                 return@Box

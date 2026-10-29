@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -42,6 +43,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fluilet.app.R
@@ -160,7 +162,8 @@ fun AccessoriesGrid(state: FluiBotUiState, onBuy: (Accessory) -> Unit, onToggle:
         Text(stringResource(R.string.fluibot_workshop_hint), style = MaterialTheme.typography.bodySmall)
         WorkshopMessage(state.message)
         state.accessories.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // IntrinsicSize.Min: las dos tarjetas de cada fila miden lo mismo y sus botones quedan alineados.
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { item -> AccessoryCard(item, state.bot.stage, onBuy, onToggle, Modifier.weight(1f)) }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -177,19 +180,35 @@ private fun AccessoryCard(item: AccessoryUi, stage: FluiBotStage, onBuy: (Access
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
         border = if (item.equipped) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            // Vista previa: FluiBot (en su etapa) con este accesorio puesto.
-            FluiBotCanvas(
-                stage = stage,
-                equipped = setOf(a.id),
-                animated = false,
-                interactive = false,
-                modifier = Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(12.dp))
-                    .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.background)))
+        Column(Modifier.fillMaxHeight().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Vista previa: FluiBot (en su etapa) con este accesorio puesto; el precio flota en una esquina.
+            Box {
+                FluiBotCanvas(
+                    stage = stage,
+                    equipped = setOf(a.id),
+                    animated = false,
+                    interactive = false,
+                    modifier = Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(12.dp))
+                        .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.background)))
+                )
+                Text(
+                    if (item.owned) "✓" else "${a.cost} 💎",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+                        .clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
+            Text(a.displayName, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                a.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
             )
-            Text(a.displayName, style = MaterialTheme.typography.titleSmall)
-            Text("${a.cost} 💎", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Text(a.description, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f, fill = false))
+            Spacer(Modifier.weight(1f))
             when {
                 !item.owned -> Button(
                     onClick = { onBuy(a) },
@@ -380,7 +399,7 @@ fun AlbumSection(cards: List<CollectibleCard>, badges: List<EducationalBadge>) {
             style = MaterialTheme.typography.bodyMedium
         )
         cards.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { CollectibleCardTile(it, Modifier.weight(1f).fillMaxHeight()) }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -402,15 +421,14 @@ fun CollectibleCardTile(card: CollectibleCard, modifier: Modifier = Modifier) {
         border = BorderStroke(if (card.rarity == CardRarity.ORO) 4.dp else 3.dp, color)
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(card.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Box(Modifier.clip(RoundedCornerShape(10.dp)).background(color).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (!card.unlocked) Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                        Text(rarityName, style = MaterialTheme.typography.labelMedium, color = Color.White)
-                    }
+            // La rareza va en su propia línea: en tarjetas angostas no se encima con el título.
+            Box(Modifier.clip(RoundedCornerShape(10.dp)).background(color).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (!card.unlocked) Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                    Text(rarityName, style = MaterialTheme.typography.labelMedium, color = Color.White)
                 }
             }
+            Text(card.title, style = MaterialTheme.typography.titleMedium)
             Text(LessonCategory.displayNameFor(card.categoryCode), style = MaterialTheme.typography.labelLarge)
             Text(stringResource(R.string.album_lessons_completed, card.lessonsCompleted), style = MaterialTheme.typography.bodyMedium)
             if (card.unlocked) {

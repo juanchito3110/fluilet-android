@@ -7,7 +7,10 @@ import com.fluilet.app.core.network.apiCall
 import com.fluilet.app.data.mapper.toDomain
 import com.fluilet.app.data.remote.AuthApi
 import com.fluilet.app.data.remote.FluiletApi
+import com.fluilet.app.data.remote.dto.ForgotPasswordRequestDto
 import com.fluilet.app.data.remote.dto.RegisterRequestDto
+import com.fluilet.app.data.remote.dto.ResetPasswordRequestDto
+import com.fluilet.app.data.remote.dto.VerifyResetCodeRequestDto
 import com.fluilet.app.data.remote.dto.TokenDto
 import com.fluilet.app.domain.model.AuthSession
 import com.fluilet.app.domain.model.RegistrationData
@@ -81,5 +84,24 @@ class AuthRepositoryImpl @Inject constructor(
         return apiCall { authApi.login(email, password) }.map { tokens ->
             tokens.refreshToken?.let { sessionManager.updateTokens(tokens.accessToken, it) }
         }
+    }
+
+    override suspend fun requestPasswordReset(email: String): Result<String> =
+        apiCall { authApi.forgotPassword(ForgotPasswordRequestDto(email.trim().lowercase())) }.map { it.message }
+
+    override suspend fun verifyResetCode(email: String, code: String): Result<String> =
+        apiCall { authApi.verifyResetCode(VerifyResetCodeRequestDto(email.trim().lowercase(), code)) }
+            .mapCatching { if (it.valid) it.message else throw AppError.InvalidResetCode(it.message) }
+            .invalidCodeOn400()
+
+    override suspend fun resetPassword(email: String, code: String, newPassword: String): Result<String> =
+        apiCall { authApi.resetPassword(ResetPasswordRequestDto(email.trim().lowercase(), code, newPassword)) }
+            .map { it.message }
+            .invalidCodeOn400()
+
+    /** En la recuperación, un 400 siempre significa código incorrecto, vencido, usado o bloqueado (un 422 es otro dato). */
+    private fun Result<String>.invalidCodeOn400(): Result<String> {
+        val error = exceptionOrNull()
+        return if (error is AppError.Validation && error.httpStatus == 400) Result.failure(AppError.InvalidResetCode(error.userMessage)) else this
     }
 }

@@ -37,6 +37,35 @@ data class UserDto(
     @SerializedName("created_at") val createdAt: String? = null
 )
 
+/** `POST /auth/forgot-password` (backend a2dd836): pide un código de 6 dígitos por correo. */
+data class ForgotPasswordRequestDto(
+    @SerializedName("email") val email: String
+)
+
+/** `POST /auth/verify-reset-code`: el código viaja como texto para conservar los ceros iniciales ("004821"). */
+data class VerifyResetCodeRequestDto(
+    @SerializedName("email") val email: String,
+    @SerializedName("code") val code: String
+)
+
+/** `POST /auth/reset-password`: mismo código verificado y la contraseña nueva (misma política que el registro). */
+data class ResetPasswordRequestDto(
+    @SerializedName("email") val email: String,
+    @SerializedName("code") val code: String,
+    @SerializedName("new_password") val newPassword: String
+)
+
+/** Respuesta de `forgot-password` y `reset-password`: un mensaje en español listo para mostrar. */
+data class AuthMessageDto(
+    @SerializedName("message") val message: String
+)
+
+/** Respuesta de `verify-reset-code`; verificar no consume el código que necesita el paso siguiente. */
+data class ResetCodeVerificationDto(
+    @SerializedName("valid") val valid: Boolean,
+    @SerializedName("message") val message: String
+)
+
 /** Cuerpo de error estándar de FastAPI: `detail` es texto o una lista de errores de validación. */
 data class ErrorBodyDto(
     @SerializedName("detail") val detail: com.google.gson.JsonElement? = null,

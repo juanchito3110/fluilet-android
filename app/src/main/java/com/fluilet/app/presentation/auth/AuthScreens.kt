@@ -1,5 +1,7 @@
 package com.fluilet.app.presentation.auth
 
+import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -16,6 +18,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
@@ -29,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import com.fluilet.app.presentation.common.CelebrationBurst
 import com.fluilet.app.domain.gamification.Accessory
 import com.fluilet.app.domain.gamification.FluiBotStage
 import com.fluilet.app.presentation.brand.FluiletBrand
@@ -77,7 +82,7 @@ import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.PrimaryButton
 
 @Composable
-private fun PasswordField(
+internal fun PasswordField(
     value: String,
     onChange: (String) -> Unit,
     label: String,
@@ -116,45 +121,71 @@ enum class AuthTab { LOGIN, REGISTER }
  * Iniciar Sesión / Crear Cuenta, como en cualquier app de Google Play: una cabecera con FluiBot dando la bienvenida
  * (piensa mientras se verifica la cuenta), el logo de Fluilet, pestañas y el formulario estándar con transiciones
  * animadas entre ambos. No hay atajos ni credenciales precargadas: las cuentas de la demostración se escriben a mano
- * igual que cualquier otra. [onClose] solo existe al abrirla desde "✨ Ver Intro / Cuenta" (vista previa sin cerrar sesión).
+ * igual que cualquier otra. "¿Olvidaste tu contraseña?" abre la recuperación en 3 pasos en esta misma pantalla, con
+ * FluiBot acompañando cada paso. [onClose] solo existe al abrirla desde "✨ Ver Intro / Cuenta" (vista previa sin
+ * cerrar sesión).
  */
 @Composable
 fun AuthScreen(
     initialTab: AuthTab = AuthTab.LOGIN,
     onClose: (() -> Unit)? = null,
     loginViewModel: LoginViewModel = hiltViewModel(),
-    registerViewModel: RegisterViewModel = hiltViewModel()
+    registerViewModel: RegisterViewModel = hiltViewModel(),
+    recoveryViewModel: PasswordRecoveryViewModel = hiltViewModel()
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
+    var recovering by rememberSaveable { mutableStateOf(false) }
     val loginState by loginViewModel.state.collectAsStateWithLifecycle()
     val registerState by registerViewModel.state.collectAsStateWithLifecycle()
-    val loading = if (tab == AuthTab.LOGIN) loginState.isLoading else registerState.isLoading
+    val recoveryState by recoveryViewModel.state.collectAsStateWithLifecycle()
+    val hero = when {
+        recovering -> recoveryHero(recoveryState)
+        (if (tab == AuthTab.LOGIN) loginState.isLoading else registerState.isLoading) ->
+            HeroContent(FluiBotMood.THINKING, R.string.auth_hero_title, R.string.auth_hero_loading)
+        else -> HeroContent(FluiBotMood.HAPPY, R.string.auth_hero_title, R.string.auth_hero_subtitle)
+    }
+    val finishRecovery: (String, String?) -> Unit = { email, message ->
+        loginViewModel.onPasswordRecovered(email, message)
+        tab = AuthTab.LOGIN
+        recovering = false
+    }
+
+    // Atrás dentro de la recuperación retrocede un paso; desde el primero vuelve a Iniciar Sesión.
+    BackHandler(enabled = recovering) {
+        if (!recoveryViewModel.back()) recovering = false
+    }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().imePadding()) {
-            WelcomeHeader(loading = loading, onClose = onClose)
-            Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                FluiletFullLogo(Modifier.fillMaxWidth())
-                Text(stringResource(R.string.auth_login_subtitle), style = MaterialTheme.typography.bodyLarge)
-
-                TabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
-                    Tab(selected = tab == AuthTab.LOGIN, onClick = { tab = AuthTab.LOGIN }, text = { Text(stringResource(R.string.auth_tab_login), style = MaterialTheme.typography.titleSmall) })
-                    Tab(selected = tab == AuthTab.REGISTER, onClick = { tab = AuthTab.REGISTER }, text = { Text(stringResource(R.string.auth_tab_register), style = MaterialTheme.typography.titleSmall) })
-                }
-
-                AnimatedContent(
-                    targetState = tab,
-                    transitionSpec = {
-                        val forward = targetState.ordinal > initialState.ordinal
-                        (slideInHorizontally(tween(320)) { if (forward) it / 3 else -it / 3 } + fadeIn(tween(320)))
-                            .togetherWith(slideOutHorizontally(tween(240)) { if (forward) -it / 3 else it / 3 } + fadeOut(tween(200)))
-                            .using(SizeTransform(clip = false))
-                    },
-                    label = "authForm"
-                ) { current ->
-                    when (current) {
-                        AuthTab.LOGIN -> LoginForm(loginViewModel)
-                        AuthTab.REGISTER -> RegisterForm(registerViewModel)
+            WelcomeHeader(hero, celebration = if (recovering) recoveryState.celebration else 0, onClose = onClose)
+            AnimatedContent(
+                targetState = recovering,
+                transitionSpec = {
+                    (fadeIn(tween(320)) + slideInHorizontally(tween(320)) { if (targetState) it / 4 else -it / 4 })
+                        .togetherWith(fadeOut(tween(180)))
+                        .using(SizeTransform(clip = false))
+                },
+                label = "authMode"
+            ) { inRecovery ->
+                Column(Modifier.padding(horizontal = 24.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    if (inRecovery) {
+                        PasswordRecoveryFlow(
+                            state = recoveryState,
+                            viewModel = recoveryViewModel,
+                            onExit = { recovering = false },
+                            onFinished = finishRecovery
+                        )
+                    } else {
+                        AuthForms(
+                            tab = tab,
+                            onTab = { tab = it },
+                            loginViewModel = loginViewModel,
+                            registerViewModel = registerViewModel,
+                            onForgotPassword = {
+                                recoveryViewModel.start(loginState.email)
+                                recovering = true
+                            }
+                        )
                     }
                 }
             }
@@ -162,23 +193,91 @@ fun AuthScreen(
     }
 }
 
-/** Cabecera con degradado y FluiBot que entra con un rebote, saluda y salta al tocarlo. */
+/** Logo, pestañas y el formulario de la pestaña elegida. */
 @Composable
-private fun WelcomeHeader(loading: Boolean, onClose: (() -> Unit)?) {
+private fun AuthForms(
+    tab: AuthTab,
+    onTab: (AuthTab) -> Unit,
+    loginViewModel: LoginViewModel,
+    registerViewModel: RegisterViewModel,
+    onForgotPassword: () -> Unit
+) {
+    FluiletFullLogo(Modifier.fillMaxWidth())
+    Text(
+        stringResource(R.string.auth_login_subtitle),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    TabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
+        Tab(selected = tab == AuthTab.LOGIN, onClick = { onTab(AuthTab.LOGIN) }, text = { Text(stringResource(R.string.auth_tab_login), style = MaterialTheme.typography.titleSmall) })
+        Tab(selected = tab == AuthTab.REGISTER, onClick = { onTab(AuthTab.REGISTER) }, text = { Text(stringResource(R.string.auth_tab_register), style = MaterialTheme.typography.titleSmall) })
+    }
+    AnimatedContent(
+        targetState = tab,
+        transitionSpec = {
+            val forward = targetState.ordinal > initialState.ordinal
+            (slideInHorizontally(tween(320)) { if (forward) it / 3 else -it / 3 } + fadeIn(tween(320)))
+                .togetherWith(slideOutHorizontally(tween(240)) { if (forward) -it / 3 else it / 3 } + fadeOut(tween(200)))
+                .using(SizeTransform(clip = false))
+        },
+        label = "authForm"
+    ) { current ->
+        when (current) {
+            AuthTab.LOGIN -> LoginForm(loginViewModel, onForgotPassword)
+            AuthTab.REGISTER -> RegisterForm(registerViewModel)
+        }
+    }
+}
+
+/** Lo que muestra la cabecera: el gesto de FluiBot, el título y la frase de apoyo. */
+private data class HeroContent(val mood: FluiBotMood, @StringRes val title: Int, @StringRes val subtitle: Int)
+
+private fun recoveryHero(state: PasswordRecoveryUiState): HeroContent = when {
+    state.step == RecoveryStep.DONE -> HeroContent(state.mood, R.string.recovery_hero_done, R.string.recovery_hero_celebrate)
+    state.isLoading -> HeroContent(
+        state.mood,
+        R.string.recovery_hero_title,
+        when (state.step) {
+            RecoveryStep.CODE -> R.string.recovery_hero_verifying
+            RecoveryStep.NEW_PASSWORD -> R.string.recovery_hero_saving
+            else -> R.string.recovery_hero_sending
+        }
+    )
+    else -> HeroContent(
+        state.mood,
+        R.string.recovery_hero_title,
+        when (state.step) {
+            RecoveryStep.CODE -> R.string.recovery_hero_code
+            RecoveryStep.NEW_PASSWORD -> R.string.recovery_hero_password
+            else -> R.string.recovery_hero_email
+        }
+    )
+}
+
+/**
+ * Cabecera con degradado y FluiBot que entra con un rebote, saluda, piensa mientras se trabaja y celebra (salta y
+ * suelta estrellas, con confeti encima) cuando [celebration] sube. Salta al tocarlo.
+ */
+@Composable
+private fun WelcomeHeader(hero: HeroContent, celebration: Int, onClose: (() -> Unit)?) {
     val appeared = remember { MutableTransitionState(false).apply { targetState = true } }
     Box(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
             .background(Brush.verticalGradient(listOf(FluiletBrand.Purple, FluiletBrand.SloganPurple, FluiletBrand.Lavender)))
             .statusBarsPadding()
-            .padding(bottom = 18.dp)
+            .padding(bottom = 20.dp)
     ) {
         if (onClose != null) {
             TextButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart)) {
                 Text(stringResource(R.string.auth_back_to_panel), color = Color.White)
             }
         }
-        Column(Modifier.fillMaxWidth().padding(top = if (onClose != null) 40.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            Modifier.fillMaxWidth().padding(top = if (onClose != null) 40.dp else 12.dp, start = 24.dp, end = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             AnimatedVisibility(
                 visibleState = appeared,
                 enter = fadeIn(tween(500)) + scaleIn(spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessLow), initialScale = 0.5f)
@@ -186,27 +285,34 @@ private fun WelcomeHeader(loading: Boolean, onClose: (() -> Unit)?) {
                 FluiBotCanvas(
                     stage = FluiBotStage.GUARDIAN,
                     equipped = setOf(Accessory.EMBLEMA_ESTELAR.id),
-                    mood = if (loading) FluiBotMood.THINKING else FluiBotMood.HAPPY,
-                    modifier = Modifier.size(196.dp)
+                    mood = hero.mood,
+                    celebrationTick = celebration,
+                    modifier = Modifier.size(176.dp)
                 )
             }
-            Text(stringResource(R.string.auth_hero_title), style = MaterialTheme.typography.titleLarge, color = Color.White)
-            AnimatedContent(targetState = loading, transitionSpec = { fadeIn(tween(250)).togetherWith(fadeOut(tween(150))) }, label = "heroLine") { busy ->
+            AnimatedContent(targetState = hero.title, transitionSpec = { fadeIn(tween(250)).togetherWith(fadeOut(tween(150))) }, label = "heroTitle") { title ->
+                Text(stringResource(title), style = MaterialTheme.typography.titleLarge, color = Color.White, textAlign = TextAlign.Center)
+            }
+            AnimatedContent(targetState = hero.subtitle, transitionSpec = { fadeIn(tween(250)).togetherWith(fadeOut(tween(150))) }, label = "heroLine") { line ->
                 Text(
-                    stringResource(if (busy) R.string.auth_hero_loading else R.string.auth_hero_subtitle),
+                    stringResource(line),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                 )
             }
         }
+        // Confeti sobre la cabecera al restablecer la contraseña (no intercepta toques).
+        CelebrationBurst(trigger = celebration, modifier = Modifier.matchParentSize(), originY = 0.4f)
     }
 }
 
 @Composable
-private fun LoginForm(viewModel: LoginViewModel) {
+private fun LoginForm(viewModel: LoginViewModel, onForgotPassword: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        RecoveredNotice(state.notice)
         OutlinedTextField(
             value = state.email,
             onValueChange = viewModel::onEmail,
@@ -219,6 +325,13 @@ private fun LoginForm(viewModel: LoginViewModel) {
         PasswordField(state.password, viewModel::onPassword, stringResource(R.string.auth_password), ImeAction.Done, viewModel::submit)
         ErrorMessage(state.errorMessage)
         PrimaryButton(stringResource(R.string.auth_login), viewModel::submit, enabled = state.canSubmit, loading = state.isLoading)
+        TextButton(
+            onClick = onForgotPassword,
+            enabled = !state.isLoading,
+            modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp)
+        ) {
+            Text(stringResource(R.string.auth_forgot_password), style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
 

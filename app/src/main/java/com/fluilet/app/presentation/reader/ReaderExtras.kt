@@ -18,13 +18,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -109,8 +113,8 @@ internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifi
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(stringResource(R.string.compare_heading), style = MaterialTheme.typography.titleLarge)
             if (adaptation != null) ModelSeal(adaptation, state.modelAudit)
@@ -131,38 +135,66 @@ internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifi
             }
 
             val replaced = comparison?.replacements.orEmpty()
-            Text(stringResource(R.string.compare_original_title), style = MaterialTheme.typography.titleMedium)
-            val original = state.originalText
-            when {
-                !original.isNullOrBlank() -> {
-                    val shown = if (original.length > MAX_ORIGINAL_CHARS) original.take(MAX_ORIGINAL_CHARS) + "…" else original
-                    val mark = SpanStyle(background = MaterialTheme.colorScheme.errorContainer, textDecoration = TextDecoration.Underline)
-                    val annotated = remember(shown, replaced, mark) { highlighted(shown, replaced.map { it.original }, mark) }
-                    Text(annotated, style = bodyStyle)
+            // Original y adaptado, cada uno en su panel delimitado para leerlos (y compararlos) sin confundirlos.
+            TextPane(stringResource(R.string.compare_original_title), MaterialTheme.colorScheme.outline) {
+                val original = state.originalText
+                when {
+                    !original.isNullOrBlank() -> {
+                        val shown = if (original.length > MAX_ORIGINAL_CHARS) original.take(MAX_ORIGINAL_CHARS) + "…" else original
+                        val mark = SpanStyle(background = MaterialTheme.colorScheme.errorContainer, textDecoration = TextDecoration.Underline)
+                        val annotated = remember(shown, replaced, mark) { highlighted(shown, replaced.map { it.original }, mark) }
+                        Text(annotated, style = bodyStyle)
+                    }
+                    state.originalLoading -> Text(stringResource(R.string.compare_original_loading), style = MaterialTheme.typography.bodyMedium)
+                    else -> Text(stringResource(R.string.compare_original_unavailable), style = MaterialTheme.typography.bodyMedium)
                 }
-                state.originalLoading -> Text(stringResource(R.string.compare_original_loading), style = MaterialTheme.typography.bodyMedium)
-                else -> Text(stringResource(R.string.compare_original_unavailable), style = MaterialTheme.typography.bodyMedium)
             }
 
             val level = comparison?.level ?: adaptation?.effectiveLevel ?: 0
-            Text(stringResource(R.string.compare_adapted_title, level), style = MaterialTheme.typography.titleMedium)
-            val adaptedText = comparison?.adaptedText ?: state.currentText
-            val shownAdapted = if (adaptedText.length > MAX_ORIGINAL_CHARS) adaptedText.take(MAX_ORIGINAL_CHARS) + "…" else adaptedText
-            val good = SpanStyle(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), fontWeight = FontWeight.Bold)
-            val annotatedAdapted = remember(shownAdapted, replaced, good) { highlighted(shownAdapted, replaced.map { it.adapted }, good) }
-            // Al cambiar de nivel, el texto adaptado entra con un fundido y un leve deslizamiento.
-            AnimatedContent(
-                targetState = AdaptedPane(level, annotatedAdapted),
-                contentKey = { it.level },
-                transitionSpec = {
-                    val down = targetState.level > initialState.level
-                    (fadeIn(tween(380)) + slideInVertically(tween(380)) { if (down) it / 10 else -it / 10 })
-                        .togetherWith(fadeOut(tween(180)))
-                        .using(SizeTransform(clip = false))
-                },
-                label = "adaptedText"
-            ) { pane -> Text(pane.text, style = bodyStyle) }
-            if (replaced.isNotEmpty()) Text(stringResource(R.string.compare_highlight_hint), style = MaterialTheme.typography.bodySmall)
+            TextPane(stringResource(R.string.compare_adapted_title, level), MaterialTheme.colorScheme.primary) {
+                val adaptedText = comparison?.adaptedText ?: state.currentText
+                val shownAdapted = if (adaptedText.length > MAX_ORIGINAL_CHARS) adaptedText.take(MAX_ORIGINAL_CHARS) + "…" else adaptedText
+                val good = SpanStyle(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), fontWeight = FontWeight.Bold)
+                val annotatedAdapted = remember(shownAdapted, replaced, good) { highlighted(shownAdapted, replaced.map { it.adapted }, good) }
+                // Al cambiar de nivel, el texto adaptado entra con un fundido y un leve deslizamiento.
+                AnimatedContent(
+                    targetState = AdaptedPane(level, annotatedAdapted),
+                    contentKey = { it.level },
+                    transitionSpec = {
+                        val down = targetState.level > initialState.level
+                        (fadeIn(tween(380)) + slideInVertically(tween(380)) { if (down) it / 10 else -it / 10 })
+                            .togetherWith(fadeOut(tween(180)))
+                            .using(SizeTransform(clip = false))
+                    },
+                    label = "adaptedText"
+                ) { pane -> Text(pane.text, style = bodyStyle) }
+            }
+            if (replaced.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.compare_highlight_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/** Panel con borde y franja de color a la izquierda para un texto del comparador (original o adaptado). */
+@Composable
+private fun TextPane(title: String, accent: Color, content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.45f))
+    ) {
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = accent)
+                content()
+            }
         }
     }
 }

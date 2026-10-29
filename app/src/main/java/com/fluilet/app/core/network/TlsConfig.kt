@@ -3,6 +3,7 @@ package com.fluilet.app.core.network
 import android.os.Build
 import okhttp3.CertificatePinner
 import okhttp3.ConnectionSpec
+import okhttp3.OkHttpClient
 import okhttp3.TlsVersion
 import org.conscrypt.Conscrypt
 import java.security.Security
@@ -12,9 +13,21 @@ import java.security.Security
  *
  * - Release con https: SOLO TLS 1.3 (sin cleartext, sin TLS 1.2).
  * - Android 8-9 (API 26-28) no trae TLS 1.3 de plataforma: se inserta Conscrypt como proveedor.
- * - Certificate Pinning (SPKI SHA-256) únicamente cuando hay pines configurados (release).
+ * - Confianza: las CAs del sistema Android (network_security_config.xml). Es el caso estándar de un backend en
+ *   DigitalOcean con un certificado público y de la app publicada en Google Play.
+ * - Certificate Pinning (SPKI SHA-256) opcional: únicamente cuando la compilación trae pines explícitos.
  */
 object TlsConfig {
+
+    /**
+     * Aplica la política de transporte al cliente base: protocolos según [enforceTlsOnly] y pinning de [host] solo si
+     * [pins] trae pines. Sin pines el cliente confía en las CAs del sistema y no bloquea ningún certificado válido.
+     */
+    fun secure(builder: OkHttpClient.Builder, enforceTlsOnly: Boolean, host: String, pins: String): OkHttpClient.Builder {
+        builder.connectionSpecs(connectionSpecs(enforceTlsOnly))
+        certificatePinner(host, pins)?.let(builder::certificatePinner)
+        return builder
+    }
 
     fun connectionSpecs(enforceTlsOnly: Boolean): List<ConnectionSpec> {
         val tls13 = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
@@ -26,7 +39,7 @@ object TlsConfig {
     }
 
     /**
-     * @param pins lista separada por comas de pines `sha256/<base64>`; vacía = sin pinning (debug).
+     * @param pins lista separada por comas de pines `sha256/<base64>`; vacía = sin pinning (CAs del sistema).
      * Mantener al menos 2 pines (activo + respaldo) para poder rotar certificados sin romper la app.
      */
     fun certificatePinner(host: String, pins: String): CertificatePinner? {

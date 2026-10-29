@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -86,7 +88,11 @@ object Confetti {
 }
 
 /**
- * Explosión suave de confeti y estrellas luminosas dibujada en `Canvas` encima del contenido (no bloquea toques).
+ * Explosión suave de confeti y estrellas luminosas dibujada en `Canvas` encima del contenido.
+ *
+ * Nunca bloquea toques: no declara `pointerInput` ni `clickable`, así que el sistema de entrada de Compose la ignora y
+ * los botones de debajo reciben el toque aunque el confeti los cubra; tampoco aparece en la accesibilidad. Se dibuja
+ * en su propia capa (`graphicsLayer`) para que cada fotograma redibuje solo el confeti y no la tarjeta de debajo.
  * Se dispara cada vez que [trigger] cambia respecto al valor con el que apareció.
  */
 @Composable
@@ -100,7 +106,7 @@ fun CelebrationBurst(trigger: Int, modifier: Modifier = Modifier, durationMs: In
         progress.snapTo(0f)
     }
     val pieces = remember(trigger) { Confetti.pieces(seed = trigger * 31 + 7) }
-    Canvas(modifier) {
+    Canvas(modifier.graphicsLayer().clearAndSetSemantics { }) {
         val p = progress.value
         if (p <= 0f) return@Canvas
         val seconds = p * durationMs / 1000f

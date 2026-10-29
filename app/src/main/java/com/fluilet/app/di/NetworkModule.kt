@@ -40,25 +40,21 @@ object NetworkModule {
     fun provideGson(): Gson = GsonBuilder().create()
 
     /**
-     * Cliente base: TLS 1.3 + pinning en release. Sin caché HTTP (cero retención local de texto).
-     * Sin Authenticator: lo usa [AuthApi] y evita recursión durante el refresh de token.
+     * Cliente base: TLS 1.3 en release, CAs del sistema y pinning solo si la compilación trae pines. Sin caché HTTP
+     * (cero retención local de texto). Sin Authenticator: lo usa [AuthApi] y evita recursión durante el refresh de token.
      */
     @Provides
     @Singleton
     @Named(PLAIN_CLIENT)
     fun providePlainOkHttpClient(): OkHttpClient {
         val builder = OkHttpClient.Builder()
-            .connectionSpecs(TlsConfig.connectionSpecs(BuildConfig.ENFORCE_TLS_ONLY))
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(IO_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(IO_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .cache(null)
-
-        TlsConfig.certificatePinner(BuildConfig.API_HOST, BuildConfig.CERT_PINS)?.let { pinner ->
-            builder.certificatePinner(pinner)
-            if (TlsConfig.hasPlaceholderPins(BuildConfig.CERT_PINS)) {
-                Log.e(TAG, "Certificate pinning con PLACEHOLDERS: reemplazar fluilet.certPins por los hashes SPKI reales.")
-            }
+        TlsConfig.secure(builder, BuildConfig.ENFORCE_TLS_ONLY, BuildConfig.API_HOST, BuildConfig.CERT_PINS)
+        if (TlsConfig.hasPlaceholderPins(BuildConfig.CERT_PINS)) {
+            Log.e(TAG, "Certificate pinning con PLACEHOLDERS: reemplazar fluilet.certPins por los hashes SPKI reales.")
         }
 
         if (BuildConfig.DEBUG) {

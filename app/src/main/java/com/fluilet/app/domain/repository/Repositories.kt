@@ -29,6 +29,15 @@ interface AuthRepository {
 
     /** Reautenticación del tutor (para restablecer el PIN). Valida la contraseña contra el backend. */
     suspend fun reauthenticate(password: String): Result<Unit>
+
+    /**
+     * Recuperación de contraseña (backend a2dd836). Cada llamada devuelve el mensaje en español del servidor.
+     * Pedir el código responde lo mismo exista o no la cuenta; un código incorrecto, vencido o bloqueado falla con
+     * [com.fluilet.app.core.network.AppError.InvalidResetCode].
+     */
+    suspend fun requestPasswordReset(email: String): Result<String>
+    suspend fun verifyResetCode(email: String, code: String): Result<String>
+    suspend fun resetPassword(email: String, code: String, newPassword: String): Result<String>
 }
 
 interface ChildRepository {

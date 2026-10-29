@@ -26,7 +26,12 @@ sealed class AppError(val userMessage: String, cause: Throwable? = null) : Excep
     class Locked(message: String = "Cuenta bloqueada temporalmente por múltiples intentos fallidos.") : AppError(message)
     class NotFound(message: String = "No encontramos lo que buscas.") : AppError(message)
     class Conflict(message: String) : AppError(message)
-    class Validation(message: String) : AppError(message)
+    /** [httpStatus]: 400 o 422 cuando viene del servidor; `null` si la detectó la propia app. */
+    class Validation(message: String, val httpStatus: Int? = null) : AppError(message)
+
+    /** Código de recuperación incorrecto, vencido, ya usado o bloqueado (HTTP 400 de la recuperación de contraseña). */
+    class InvalidResetCode(message: String = "El código es incorrecto, venció o ya no está disponible. Solicita uno nuevo si es necesario.") :
+        AppError(message)
     class Server(cause: Throwable? = null) :
         AppError("El servidor tuvo un problema. Inténtalo de nuevo en unos minutos.", cause)
 
@@ -60,7 +65,7 @@ fun Throwable.toAppError(): AppError = when (this) {
 private fun mapHttp(e: HttpException): AppError {
     val detail = e.parseDetail()
     return when (e.code()) {
-        400, 422 -> AppError.Validation(detail ?: "Revisa los datos ingresados.")
+        400, 422 -> AppError.Validation(detail ?: "Revisa los datos ingresados.", e.code())
         401 -> AppError.Unauthorized(detail ?: "Credenciales inválidas o sesión vencida.")
         403 -> AppError.Forbidden(detail ?: "No tienes permisos para realizar esta acción.")
         404 -> AppError.NotFound(detail ?: "No encontramos lo que buscas.")
@@ -84,7 +89,9 @@ private val FIELD_MESSAGES = mapOf(
     "birth_date" to "La fecha de nacimiento debe corresponder a un niño de 6 a 11 años.",
     "nivel_simplificacion_nlp" to "El nivel de simplificación no es válido.",
     "text" to "El texto no es válido.",
-    "pin" to "El PIN no es válido."
+    "pin" to "El PIN no es válido.",
+    "code" to "El código debe contener exactamente 6 dígitos numéricos.",
+    "new_password" to "La contraseña nueva no cumple los requisitos: 10 a 72 caracteres, mayúscula, minúscula, número y símbolo, sin espacios."
 )
 
 /**

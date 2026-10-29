@@ -20,17 +20,25 @@ object Validators {
     fun fullName(value: String): String? =
         if (value.trim().length in 2..150) null else "El nombre debe tener entre 2 y 150 caracteres."
 
-    /** Misma política que el backend: 10–72 caracteres, mayúscula, minúscula, dígito y símbolo, sin espacios. */
+    /**
+     * Misma política que el backend (`validar_password_fuerte`): 10–72 caracteres y como máximo 72 bytes UTF-8,
+     * mayúscula y minúscula ASCII (`[A-Z]`, `[a-z]`), dígito y símbolo, sin espacios de ningún tipo.
+     */
     fun strongPassword(value: String): String? = when {
         value.length !in 10..72 -> "La contraseña debe tener entre 10 y 72 caracteres."
-        value.contains(' ') -> "La contraseña no puede contener espacios."
-        value.none(Char::isUpperCase) -> "Incluye al menos una letra mayúscula."
-        value.none(Char::isLowerCase) -> "Incluye al menos una letra minúscula."
-        value.none(Char::isDigit) -> "Incluye al menos un dígito."
-        value.all { it.isLetterOrDigit() || it == '_' } -> "Incluye al menos un carácter especial."
+        !PasswordRequirement.LENGTH.isMet(value) -> "La contraseña admite como máximo 72 bytes: usa menos tildes o símbolos especiales."
+        !PasswordRequirement.NO_SPACES.isMet(value) -> "La contraseña no puede contener espacios."
+        !PasswordRequirement.UPPERCASE.isMet(value) -> "Incluye al menos una letra mayúscula."
+        !PasswordRequirement.LOWERCASE.isMet(value) -> "Incluye al menos una letra minúscula."
+        !PasswordRequirement.DIGIT.isMet(value) -> "Incluye al menos un dígito."
+        !PasswordRequirement.SYMBOL.isMet(value) -> "Incluye al menos un carácter especial."
         value.lowercase() in COMMON_PASSWORDS -> "Esta contraseña es demasiado común."
         else -> null
     }
+
+    /** Código de recuperación: exactamente 6 dígitos ASCII, ceros iniciales incluidos. */
+    fun resetCode(value: String): String? =
+        if (ResetCode.isValid(value)) null else "El código debe tener exactamente ${ResetCode.LENGTH} dígitos."
 
     fun childName(value: String): String? =
         if (value.trim().length in 2..100) null else "El nombre debe tener entre 2 y 100 caracteres."

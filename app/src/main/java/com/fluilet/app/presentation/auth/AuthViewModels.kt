@@ -21,7 +21,9 @@ data class LoginUiState(
     val email: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Confirmación tras recuperar la contraseña ("Tu contraseña se actualizó..."). */
+    val notice: String? = null
 ) {
     val canSubmit: Boolean get() = email.isNotBlank() && password.isNotEmpty() && !isLoading
 }
@@ -38,11 +40,16 @@ class LoginViewModel @Inject constructor(
     fun onEmail(value: String) = _state.update { it.copy(email = value, errorMessage = null) }
     fun onPassword(value: String) = _state.update { it.copy(password = value, errorMessage = null) }
 
+    /** Vuelta desde "¿Olvidaste tu contraseña?": el correo queda listo y se muestra la confirmación del servidor. */
+    fun onPasswordRecovered(email: String, message: String?) = _state.update {
+        it.copy(email = email.trim(), password = "", errorMessage = null, notice = message)
+    }
+
     fun submit() {
         val s = _state.value
         if (!s.canSubmit) return
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            _state.update { it.copy(isLoading = true, errorMessage = null, notice = null) }
             login(s.email, s.password)
                 .onFailure { e -> _state.update { it.copy(isLoading = false, errorMessage = e.toAppError().userMessage) } }
                 .onSuccess { _state.update { it.copy(isLoading = false, password = "") } }

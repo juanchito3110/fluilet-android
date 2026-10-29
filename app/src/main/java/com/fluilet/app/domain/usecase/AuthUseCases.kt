@@ -59,3 +59,26 @@ class ResetTutorPinUseCase @Inject constructor(
         }
     }
 }
+
+/**
+ * Recuperación de contraseña en 3 pasos (backend a2dd836): pedir el código de 6 dígitos por correo, verificarlo y
+ * fijar la contraseña nueva. Valida en el dispositivo lo mismo que el servidor antes de gastar uno de los 5 intentos.
+ */
+class PasswordRecoveryUseCase @Inject constructor(private val repository: AuthRepository) {
+
+    suspend fun requestCode(email: String): Result<String> {
+        Validators.email(email)?.let { return Result.failure(AppError.Validation(it)) }
+        return repository.requestPasswordReset(email)
+    }
+
+    suspend fun verifyCode(email: String, code: String): Result<String> {
+        Validators.resetCode(code)?.let { return Result.failure(AppError.Validation(it)) }
+        return repository.verifyResetCode(email, code)
+    }
+
+    suspend fun resetPassword(email: String, code: String, newPassword: String): Result<String> {
+        val error = Validators.resetCode(code) ?: Validators.strongPassword(newPassword)
+        if (error != null) return Result.failure(AppError.Validation(error))
+        return repository.resetPassword(email, code, newPassword)
+    }
+}

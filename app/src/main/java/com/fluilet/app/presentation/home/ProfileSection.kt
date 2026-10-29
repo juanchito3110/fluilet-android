@@ -69,6 +69,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import com.fluilet.app.presentation.brand.FluiletBrand
 import com.fluilet.app.presentation.brand.FluiletIsotypeLogo
 import androidx.compose.foundation.BorderStroke
@@ -208,7 +209,7 @@ private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boo
         colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
         border = BorderStroke(if (selected) 3.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             // FluiBot del niño en su etapa y con sus accesorios; el del perfil seleccionado está animado.
             FluiBotCanvas(
                 stage = FluiBotStage.entries.firstOrNull { it.number == summary?.stage } ?: FluiBotStage.NUCLEO,
@@ -218,7 +219,13 @@ private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boo
                 modifier = Modifier.fillMaxWidth().height(76.dp)
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(child.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1)
+                Text(
+                    child.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 if (selected) CheckMark()
             }
             Text(

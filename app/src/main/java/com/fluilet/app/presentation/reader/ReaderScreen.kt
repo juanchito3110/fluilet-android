@@ -73,6 +73,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -184,7 +185,7 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel, botViewMode
         if (!state.showLab) botViewModel.bind(state.ownerKey, state.baseline)
     }
     Column(
-        Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         ReaderTopBar(state, vm, bot, onBotTap = botViewModel::celebrate)
@@ -233,36 +234,60 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel, botViewMode
     }
 }
 
+/**
+ * Barra superior del lector en su propia tarjeta: FluiBot en un halo (lee, piensa mientras carga, celebra), el bloque
+ * actual y el tiempo en una píldora, y los dos botones a la derecha con aire suficiente para no encimarse.
+ */
 @Composable
 private fun ReaderTopBar(state: ReaderUiState, vm: ReaderViewModel, bot: FluiBotUiState, onBotTap: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        FluiBotCanvas(
-            stage = FluiBotStage.forXp(state.baseline.currentXp),
-            equipped = bot.equipped,
-            celebrationTick = bot.celebrationTick,
-            onTap = onBotTap,
-            mood = state.botMood,
-            modifier = Modifier.size(60.dp)
-        )
-        Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                stringResource(R.string.reader_block_of, state.chunkIndex + 1, state.chunkCount),
-                style = MaterialTheme.typography.titleMedium
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (state.lockActive) {
-                    Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Text(stringResource(R.string.reader_focus_on), style = MaterialTheme.typography.labelMedium)
-                }
-                Text(formatDuration(state.elapsedSeconds), style = MaterialTheme.typography.labelMedium)
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            Modifier.padding(start = 8.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                Modifier.size(60.dp).clip(CircleShape)
+                    .background(Brush.radialGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f), Color.Transparent))),
+                contentAlignment = Alignment.Center
+            ) {
+                FluiBotCanvas(
+                    stage = FluiBotStage.forXp(state.baseline.currentXp),
+                    equipped = bot.equipped,
+                    celebrationTick = bot.celebrationTick,
+                    onTap = onBotTap,
+                    mood = state.botMood,
+                    modifier = Modifier.size(56.dp)
+                )
             }
-        }
-        IconButton(onClick = vm::openSettings, modifier = Modifier.size(56.dp)) {
-            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.reader_settings))
-        }
-        IconButton(onClick = vm::requestExit, modifier = Modifier.size(56.dp)) {
-            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.reader_exit))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.reader_block_of, state.chunkIndex + 1, state.chunkCount),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1
+                )
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.background)
+                        .padding(horizontal = 10.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (state.lockActive) {
+                        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.reader_focus_on), modifier = Modifier.size(14.dp))
+                    }
+                    Text(formatDuration(state.elapsedSeconds), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                }
+            }
+            IconButton(onClick = vm::openSettings, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.reader_settings))
+            }
+            IconButton(onClick = vm::requestExit, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.reader_exit))
+            }
         }
     }
 }
@@ -348,7 +373,7 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Box(
-            Modifier.fillMaxSize().verticalScroll(scroll).padding(20.dp)
+            Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 22.dp, vertical = 24.dp)
                 .clickable(enabled = state.guideEnabled, onClickLabel = "Siguiente renglón", onClick = onGuideTap)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {

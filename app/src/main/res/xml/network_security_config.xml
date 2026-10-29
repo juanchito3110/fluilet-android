@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- RELEASE: cero tráfico en claro y solo CAs del sistema. El pinning por dominio se aplica
-     en OkHttp (CertificatePinner, ver di/NetworkModule.kt). La variante debug sobreescribe
-     este archivo en src/debug/res/xml/ para permitir el emulador. -->
+<!-- RELEASE: cero tráfico en claro; https con cualquier certificado emitido por una CA pública
+     que reconozca Android (p. ej. Let's Encrypt en un Droplet de DigitalOcean), sin CAs de usuario.
+     El pinning es opcional y solo existe si se compila con -Pfluilet.certPins (OkHttp CertificatePinner,
+     ver di/NetworkModule.kt). La variante debug sobreescribe este archivo en src/debug/res/xml/. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
