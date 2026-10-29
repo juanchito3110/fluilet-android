@@ -84,7 +84,9 @@ data class HomeUiState(
     /** Lección de la biblioteca que se está abriendo (`GET /adaptations/{id}`). */
     val openingLessonId: String? = null,
     /** 🧠 Auditoría del modelo reentrenado para 📊 Estadísticas. */
-    val modelAudit: ModelAudit? = null
+    val modelAudit: ModelAudit? = null,
+    /** Nivel elegido en el deslizador del niño que espera "Confirmar" o "Cancelar" (aún sin enviar al servidor). */
+    val pendingNlpLevel: NlpLevel? = null
 ) {
     val selectedChild: ChildProfile? get() = children.firstOrNull { it.id == selectedChildId }
 
@@ -121,7 +123,8 @@ private data class HomeLocal(
     /** Perfil al que pertenece `library` (evita mostrar la de otro niño mientras carga). */
     val libraryOwner: String? = null,
     val openingLessonId: String? = null,
-    val modelAudit: ModelAudit? = null
+    val modelAudit: ModelAudit? = null,
+    val pendingNlpLevel: NlpLevel? = null
 )
 
 @HiltViewModel
@@ -166,7 +169,8 @@ class HomeViewModel @Inject constructor(
             offlineDemo = l.offlineDemo,
             library = if (l.libraryOwner != null && l.libraryOwner == l.selectedChildId) l.library else emptyList(),
             openingLessonId = l.openingLessonId,
-            modelAudit = l.modelAudit
+            modelAudit = l.modelAudit,
+            pendingNlpLevel = l.pendingNlpLevel
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -209,7 +213,13 @@ class HomeViewModel @Inject constructor(
     fun refreshPin() = local.update { it.copy(pinConfigured = isPinConfigured()) }
 
     fun select(childId: String) {
-        local.update { it.copy(selectedChildId = childId, progress = EducationalProgress.empty(it.children.firstOrNull { c -> c.id == childId }?.nlpLevel?.value ?: 2), progressNote = null, progressOwner = null) }
+        local.update {
+            it.copy(
+                selectedChildId = childId,
+                progress = EducationalProgress.empty(it.children.firstOrNull { c -> c.id == childId }?.nlpLevel?.value ?: 2),
+                progressNote = null, progressOwner = null, pendingNlpLevel = null
+            )
+        }
         viewModelScope.launch {
             loadProgress()
             loadLibrary()
@@ -325,7 +335,26 @@ class HomeViewModel @Inject constructor(
         return l.childSummaries + (id to ChildSummary.of(l.progress, l.children.firstOrNull { it.id == id }?.nlpLevel?.value))
     }
 
-    fun onNlpLevel(level: NlpLevel) {
+    /**
+     * El deslizador "Nivel de simplificación" del niño solo propone el nivel: el cambio se guarda en el servidor
+     * después de "Confirmar". Así un roce al desplazar la pantalla no cambia el nivel sin querer.
+     */
+    fun requestNlpLevel(level: NlpLevel) {
+        val child = uiState.value.selectedChild ?: return
+        local.update { it.copy(pendingNlpLevel = level.takeIf { level != child.nlpLevel }) }
+    }
+
+    /** "Confirmar": guarda el nivel propuesto (`PATCH` del perfil). */
+    fun confirmNlpLevel() {
+        val level = local.value.pendingNlpLevel ?: return
+        local.update { it.copy(pendingNlpLevel = null) }
+        applyNlpLevel(level)
+    }
+
+    /** "Cancelar": el deslizador vuelve al nivel actual y no se llama al servidor. */
+    fun cancelNlpLevel() = local.update { it.copy(pendingNlpLevel = null) }
+
+    private fun applyNlpLevel(level: NlpLevel) {
         val child = uiState.value.selectedChild ?: return
         if (child.nlpLevel == level) return
         viewModelScope.launch {

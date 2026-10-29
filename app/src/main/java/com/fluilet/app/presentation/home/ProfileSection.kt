@@ -79,6 +79,11 @@ import androidx.compose.material3.CardDefaults
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.Animatable
 
 /**
  * Encabezado oficial: isotipo + "Fluilet" + eslogan, el saludo y el acceso "✨ Ver Intro / Cuenta" para repetir
@@ -134,7 +139,8 @@ internal fun ChildrenSection(
                 stringResource(R.string.home_child_summary, child.difficulty.label, child.palette.displayName, child.fontSizeSp.toInt()),
                 style = MaterialTheme.typography.bodyMedium
             )
-            NlpLevelSlider(child.nlpLevel, onNlpLevel)
+            // El cambio espera "Confirmar" (diálogo en HomeScreen); mientras tanto el deslizador muestra el nivel propuesto.
+            NlpLevelSlider(child.nlpLevel, onNlpLevel, pending = state.pendingNlpLevel)
             // Apilados: con la tipografía OpenDyslexic y su espaciado, dos botones con icono no caben en una fila.
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 SecondaryButton(stringResource(R.string.action_edit), { onEdit(child.id) }, icon = Icons.Filled.Edit)
@@ -144,16 +150,32 @@ internal fun ChildrenSection(
     }
 }
 
+/**
+ * Deslizador de nivel 1-5. Mientras se arrastra sigue al dedo; al soltar avisa [onCommit] y se acomoda con un resorte
+ * en [pending] (un nivel que aún espera confirmación) o en [level]. Si se cancela una confirmación, regresa solo.
+ */
 @Composable
-fun NlpLevelSlider(level: NlpLevel, onCommit: (NlpLevel) -> Unit) {
-    var position by remember(level) { mutableStateOf(level.value.toFloat()) }
-    val shown = NlpLevel.fromValue(position.toInt())
+fun NlpLevelSlider(level: NlpLevel, onCommit: (NlpLevel) -> Unit, pending: NlpLevel? = null) {
+    val target = (pending ?: level).value.toFloat()
+    val settled = remember { Animatable(target) }
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(target) {
+        settled.animateTo(target, spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
+    }
+    val position = dragging ?: settled.value
+    val shown = NlpLevel.fromValue(Math.round(position))
     Column {
         Text(stringResource(R.string.nlp_level_title, shown.label), style = MaterialTheme.typography.titleSmall)
         Slider(
             value = position,
-            onValueChange = { position = it },
-            onValueChangeFinished = { onCommit(NlpLevel.fromValue(Math.round(position))) },
+            onValueChange = { dragging = it },
+            onValueChangeFinished = {
+                val chosen = NlpLevel.fromValue(Math.round(dragging ?: settled.value))
+                scope.launch { settled.snapTo(chosen.value.toFloat()) }
+                dragging = null
+                onCommit(chosen)
+            },
             valueRange = 1f..5f,
             steps = 3,
             modifier = Modifier.fillMaxWidth().height(48.dp)

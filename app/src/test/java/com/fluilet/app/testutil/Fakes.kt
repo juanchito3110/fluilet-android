@@ -93,7 +93,18 @@ class FakeChildRepository(var children: List<com.fluilet.app.domain.model.ChildP
     }
     override suspend fun create(draft: com.fluilet.app.domain.model.ChildDraft) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
     override suspend fun update(id: String, draft: com.fluilet.app.domain.model.ChildDraft) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
-    override suspend fun updateNlpLevel(id: String, level: com.fluilet.app.domain.model.NlpLevel) = Result.failure<com.fluilet.app.domain.model.ChildProfile>(UnsupportedOperationException())
+    /** Cada `PATCH` de nivel recibido (id del niño y nivel). */
+    val levelUpdates = mutableListOf<Pair<String, com.fluilet.app.domain.model.NlpLevel>>()
+
+    /** Si no es `null`, el `PATCH` de nivel falla con este error. */
+    var levelError: Throwable? = null
+    override suspend fun updateNlpLevel(id: String, level: com.fluilet.app.domain.model.NlpLevel): Result<com.fluilet.app.domain.model.ChildProfile> {
+        levelUpdates += id to level
+        levelError?.let { return Result.failure(it) }
+        val updated = children.first { it.id == id }.copy(nlpLevel = level)
+        children = children.map { if (it.id == id) updated else it }
+        return Result.success(updated)
+    }
     override suspend fun delete(id: String) = Result.success(Unit)
 }
 

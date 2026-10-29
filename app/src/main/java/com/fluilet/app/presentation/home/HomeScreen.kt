@@ -135,7 +135,7 @@ fun HomeScreen(
                             onNewChild = onNewChild,
                             onEditChild = onEditChild,
                             onDeleteChild = { confirmDelete = it },
-                            onNlpLevel = viewModel::onNlpLevel,
+                            onNlpLevel = viewModel::requestNlpLevel,
                             onStartReading = {
                                 // El Modo Enfoque con niño exige tener un PIN de tutor antes de empezar.
                                 if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
@@ -196,6 +196,21 @@ fun HomeScreen(
                 if (startAfter) onStartReading()
             },
             onDismiss = { pinDialog = PinDialog.NONE }
+        )
+    }
+
+    // Cambio de nivel del niño: nada se guarda hasta "Confirmar"; "Cancelar" (o tocar fuera) lo deshace.
+    val pendingLevel = state.pendingNlpLevel
+    val levelChild = state.selectedChild
+    if (pendingLevel != null && levelChild != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelNlpLevel,
+            title = { Text(stringResource(R.string.home_level_confirm_title, levelChild.name, pendingLevel.value)) },
+            text = { Text(stringResource(R.string.home_level_confirm_body, pendingLevel.description, levelChild.name)) },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmNlpLevel) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = { TextButton(onClick = viewModel::cancelNlpLevel) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 

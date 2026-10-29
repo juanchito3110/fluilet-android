@@ -10,6 +10,7 @@ import com.fluilet.app.domain.model.LevelPreview
 import com.fluilet.app.domain.model.LexicalReplacement
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.domain.model.ReadabilityMetrics
+import com.fluilet.app.domain.text.LevelComparisons
 import com.fluilet.app.domain.text.ShortLesson
 import com.fluilet.app.domain.text.SpanishText
 import com.fluilet.app.domain.text.Szigriszt
@@ -113,6 +114,23 @@ class ShortLessonTest {
         // Tres oraciones largas se respetan aunque pasen del tope (mínimo del backend).
         val threeLong = server.copy(originalText = List(3) { "Oración larga ${letters[it]} " + "con muchas palabras ".repeat(20) + "fin." }.joinToString(" "))
         assertSame(threeLong, ShortLesson.shorten(threeLong, AgeGroup.SIX_TO_EIGHT))
+    }
+
+    @Test fun aLessonAlreadyShortFromTheServerShowsNoLocalNotesAndKeepsServerMetrics() {
+        val server = baseball(level = 1).copy(
+            chunks = TextChunker.chunkAdaptedText(text(10), NlpLevel.NIVEL_1),
+            originalText = text(9, sport = "béisbol profesional"),
+            levelPreviews = (1..5).map { lvl -> LevelPreview(lvl, text(10 - lvl), 80.0 - lvl * 5, "Fácil", 11.0, 1.9, targetMet = true) }
+        )
+
+        val shown = ShortLesson.shorten(server, AgeGroup.SIX_TO_EIGHT)
+
+        assertNull("sin aviso de lección corta", shown.shortLesson)
+        assertTrue("métricas oficiales del servidor", shown.levelPreviews.all { it.fromServer })
+        val comparison = LevelComparisons.compare(shown, shown.levelPreviews, 1, shown.originalText)!!
+        assertTrue("sin aviso de medición en el dispositivo", comparison.fromServer)
+        assertEquals(75.0, comparison.adaptedScore, 0.0)
+        assertTrue("de 4 a 6 bloques", shown.chunks.size in 4..6)
     }
 
     @Test fun theOriginalAndAllFiveLevelsAreCutAtTheSamePointAndMeasuredAgain() {

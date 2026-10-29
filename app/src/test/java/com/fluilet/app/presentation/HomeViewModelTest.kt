@@ -32,6 +32,7 @@ import com.fluilet.app.testutil.FakeSecureStore
 import com.fluilet.app.testutil.FakeTutorPin
 import com.fluilet.app.testutil.sampleAdaptation
 import com.fluilet.app.testutil.sampleChild
+import com.fluilet.app.domain.model.NlpLevel
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -618,5 +619,69 @@ class HomeViewModelTest {
         assertTrue(audit.acceptanceCriteriaMet)
         assertEquals("Catálogo 31/31 · EASIER 6/6 · Controlados 6/6 · Demos 15/15", audit.bandsSummary)
         assertEquals(1, modelInfo.calls)
+    }
+
+    // --- Cambio de nivel del niño con confirmación ----------------------------------------------------------
+
+    private fun TestScope.tutorWithSofia(): Pair<HomeViewModel, () -> HomeUiState> {
+        children.children = listOf(kid("sofia", "Sofía", 1, "6-8", 7), kid("mateo", "Mateo", 2, "9-11", 10))
+        val vm = viewModel(UserRole.TUTOR, pinConfigured = true)
+        val state = observe(vm)
+        vm.refresh()
+        vm.select("sofia")
+        return vm to state
+    }
+
+    @Test fun movingTheLevelSliderOnlyProposesTheChangeUntilTheTutorConfirms() = runTest(dispatcher) {
+        val (vm, state) = tutorWithSofia()
+
+        vm.requestNlpLevel(NlpLevel.NIVEL_3)
+
+        assertEquals(NlpLevel.NIVEL_3, state().pendingNlpLevel)
+        assertEquals("sin PATCH antes de confirmar", emptyList<Pair<String, NlpLevel>>(), children.levelUpdates)
+        assertEquals(NlpLevel.NIVEL_1, state().selectedChild!!.nlpLevel)
+
+        vm.confirmNlpLevel()
+
+        assertEquals(listOf("sofia" to NlpLevel.NIVEL_3), children.levelUpdates)
+        assertEquals(NlpLevel.NIVEL_3, state().selectedChild!!.nlpLevel)
+        assertNull(state().pendingNlpLevel)
+    }
+
+    @Test fun cancellingKeepsTheLevelAndNeverCallsTheServer() = runTest(dispatcher) {
+        val (vm, state) = tutorWithSofia()
+
+        vm.requestNlpLevel(NlpLevel.NIVEL_4)
+        vm.cancelNlpLevel()
+
+        assertNull("el deslizador vuelve al nivel actual", state().pendingNlpLevel)
+        assertEquals(NlpLevel.NIVEL_1, state().selectedChild!!.nlpLevel)
+        assertTrue(children.levelUpdates.isEmpty())
+        vm.confirmNlpLevel() // sin propuesta pendiente no hace nada
+        assertTrue(children.levelUpdates.isEmpty())
+    }
+
+    @Test fun theSameLevelOrAnotherChildLeavesNothingPending() = runTest(dispatcher) {
+        val (vm, state) = tutorWithSofia()
+
+        vm.requestNlpLevel(NlpLevel.NIVEL_1)
+        assertNull("mismo nivel: no hay nada que confirmar", state().pendingNlpLevel)
+
+        vm.requestNlpLevel(NlpLevel.NIVEL_5)
+        vm.select("mateo")
+        assertNull("al cambiar de niño se descarta la propuesta", state().pendingNlpLevel)
+        assertTrue(children.levelUpdates.isEmpty())
+    }
+
+    @Test fun aServerErrorAfterConfirmingRestoresThePreviousLevel() = runTest(dispatcher) {
+        val (vm, state) = tutorWithSofia()
+        children.levelError = com.fluilet.app.core.network.AppError.NoConnection()
+
+        vm.requestNlpLevel(NlpLevel.NIVEL_2)
+        vm.confirmNlpLevel()
+
+        assertEquals(listOf("sofia" to NlpLevel.NIVEL_2), children.levelUpdates)
+        assertEquals(NlpLevel.NIVEL_1, state().selectedChild!!.nlpLevel)
+        assertTrue(state().errorMessage!!.contains("conexión"))
     }
 }
