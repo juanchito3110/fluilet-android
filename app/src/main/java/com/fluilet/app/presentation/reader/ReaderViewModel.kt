@@ -52,6 +52,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.fluilet.app.domain.text.ShortLesson
 
 /** Pestañas del Laboratorio de Recompensas (siempre dentro del Modo Enfoque). */
 enum class LabTab(val emoji: String, val label: String) {
@@ -351,7 +352,11 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             fetchAdaptation(id)
                 .onSuccess { r ->
-                    local.update { it.copy(fetchedOriginal = r.originalText?.takeIf { t -> t.isNotBlank() }, fetchedDetail = r, originalLoading = false) }
+                    // En una lección corta, el original y los niveles recuperados se recortan igual que la lectura.
+                    val detail = ShortLesson.alignDetail(r, adaptation)
+                    local.update {
+                        it.copy(fetchedOriginal = detail.originalText?.takeIf { t -> t.isNotBlank() }, fetchedDetail = detail, originalLoading = false)
+                    }
                 }
                 .onFailure { local.update { it.copy(originalLoading = false) } }
         }

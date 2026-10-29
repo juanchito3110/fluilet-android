@@ -50,6 +50,11 @@ data class LessonSourceInfo(val provider: String, val title: String, val url: St
     val isWikipedia: Boolean get() = provider.equals("wikipedia", ignoreCase = true)
 }
 
+/** Una lección corta muestra [shownWords] de las [fullWords] palabras que adaptó el servidor. */
+data class ShortLessonInfo(val fullWords: Int, val shownWords: Int) {
+    val fraction: Double get() = if (fullWords == 0) 1.0 else shownWords.toDouble() / fullWords
+}
+
 data class AdaptationResult(
     val title: String,
     val chunks: List<TextChunk>,
@@ -94,7 +99,9 @@ data class AdaptationResult(
     /** Modelo y motor que adaptaron el texto (`model_version`, `checkpoint_name`, `engine_version`). */
     val modelVersion: String? = null,
     val checkpointName: String? = null,
-    val engineVersion: String? = null
+    val engineVersion: String? = null,
+    /** Lección generada recortada a la medida del niño ([com.fluilet.app.domain.text.ShortLesson]); `null` = completa. */
+    val shortLesson: ShortLessonInfo? = null
 ) {
     /** Puntos de facilidad ganados: los del servidor o la diferencia de puntajes. */
     val gain: Double get() = readabilityGain ?: (metrics.adaptedSzigrisztScore - metrics.originalSzigrisztScore)
@@ -113,12 +120,18 @@ data class AdaptationResult(
     val effectiveVocabulary: List<VocabularyEntry>
         get() = keyVocabulary.ifEmpty { LocalGlossary.find(chunks.joinToString(" ") { it.text }) }
 
+    /** Lección generada por tema (Wikipedia o banco), no un texto pegado o subido por el usuario. */
+    val isGeneratedLesson: Boolean get() = source != null || (category != null && category != FREE_READING_CATEGORY)
+
     /** Nivel con el que se adaptó (el pedido, o el de la lección). */
     val effectiveLevel: Int? get() = targetLevel ?: simplificationLevel
 
     companion object {
         /** `engine_version` de las adaptaciones hechas en el dispositivo por [com.fluilet.app.domain.text.TextAdapter]. */
         const val LOCAL_ENGINE_VERSION = "fluilet-local-rules-v2"
+
+        /** Categoría de los textos pegados o subidos. */
+        const val FREE_READING_CATEGORY = "lectura_libre"
 
         /** `model_version` del backend que no corresponde al modelo reentrenado. */
         val NON_RETRAINED_MODELS = setOf("unavailable", "legacy_not_retrained")

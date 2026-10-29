@@ -44,6 +44,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.fluilet.app.domain.model.AgeGroup
+import com.fluilet.app.domain.text.ShortLesson
 
 /** Lo que muestra la tarjeta de cada niño en el selector superior. */
 data class ChildSummary(val gems: Int, val xp: Int, val stage: Int, val stageName: String, val level: Int?) {
@@ -287,6 +289,8 @@ class HomeViewModel @Inject constructor(
         local.update { it.copy(openingLessonId = item.documentId, errorMessage = null) }
         viewModelScope.launch {
             fetchAdaptation(item.documentId)
+                // Una lección generada se reabre igual de corta que cuando se creó para este niño.
+                .map { lesson -> if (lesson.isGeneratedLesson) ShortLesson.shorten(lesson, selectedAgeGroup()) else lesson }
                 .onSuccess { lesson ->
                     local.update { it.copy(openingLessonId = null) }
                     openDemoLesson(lesson)
@@ -295,6 +299,9 @@ class HomeViewModel @Inject constructor(
                 .onFailure { e -> local.update { it.copy(openingLessonId = null, errorMessage = e.toAppError().userMessage) } }
         }
     }
+
+    private fun selectedAgeGroup(): AgeGroup? =
+        uiState.value.selectedChild?.let { AgeGroup.fromCode(it.ageGroup) ?: AgeGroup.fromAge(it.ageYears()) }
 
     /** Sin servidor, `tutor@fluilet.com` conserva a Sofía, Mateo, Diego y Valentina con sus fases y saldos. */
     private fun useLocalDemoChildren() {

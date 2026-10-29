@@ -124,13 +124,20 @@ internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifi
             }
             comparison?.let {
                 BandLine(it)
-                FichaTecnicaCard(it)
+                FichaTecnicaCard(it, shortLesson = adaptation?.shortLesson != null)
                 LexicalTransformations(it.replacements)
             }
             adaptation?.source?.let { src ->
                 Text(
                     stringResource(R.string.compare_source, if (src.isWikipedia) "Wikipedia" else "Banco Fluilet", src.title),
                     style = MaterialTheme.typography.bodySmall
+                )
+            }
+            adaptation?.shortLesson?.let { info ->
+                Text(
+                    stringResource(R.string.compare_short_lesson, info.shownWords, info.fullWords),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -288,7 +295,7 @@ private fun BandLine(c: LevelComparison) {
 
 /** 🔬 Ficha Técnica del Motor NLP Szigriszt-Pazos del nivel elegido; sus cifras se animan al cambiar de nivel. */
 @Composable
-private fun FichaTecnicaCard(c: LevelComparison) {
+private fun FichaTecnicaCard(c: LevelComparison, shortLesson: Boolean = false) {
     val score by animateFloatAsState(c.adaptedScore.toFloat(), tween(650), label = "score")
     val gainValue by animateFloatAsState(c.gain.toFloat(), tween(650), label = "gain")
     val wps by animateFloatAsState(c.adaptedWordsPerSentence.toFloat(), tween(650), label = "wps")
@@ -324,7 +331,12 @@ private fun FichaTecnicaCard(c: LevelComparison) {
                 stringResource(R.string.compare_spw_label),
                 stringResource(R.string.compare_spw_values, twoDecimals(c.originalSyllablesPerWord), twoDecimals(spw.toDouble()))
             )
-            if (!c.fromServer) Text(stringResource(R.string.compare_measured_locally), style = MaterialTheme.typography.bodySmall)
+            if (!c.fromServer) {
+                Text(
+                    stringResource(if (shortLesson) R.string.compare_measured_short else R.string.compare_measured_locally),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }

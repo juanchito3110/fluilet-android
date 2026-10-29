@@ -17,6 +17,7 @@ import com.fluilet.app.domain.model.LessonRequest
 import com.fluilet.app.domain.repository.AdaptationRepository
 import com.fluilet.app.domain.repository.ReadingSessionRepository
 import javax.inject.Inject
+import com.fluilet.app.domain.text.ShortLesson
 
 class AdaptTextUseCase @Inject constructor(private val repository: AdaptationRepository) {
     /** [ageGroup]: edad didáctica del perfil infantil activo; se envía siempre junto al nivel. */
@@ -88,7 +89,8 @@ class GenerateLessonUseCase @Inject constructor(private val repository: Adaptati
         if (request.topic != null && request.topic.isNotBlank() && topic == null) {
             return Result.failure(AppError.Validation("El tema contiene caracteres no válidos."))
         }
-        return repository.generate(request.copy(topic = topic), childId)
+        // Lección corta: para un niño se queda con las primeras oraciones que caben en el tope de su edad.
+        return repository.generate(request.copy(topic = topic), childId).map { ShortLesson.shorten(it, request.ageGroup) }
     }
 }
 

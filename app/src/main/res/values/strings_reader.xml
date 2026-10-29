@@ -85,4 +85,6 @@
     <string name="glossary_listen">🔊 Escuchar palabra</string>
     <string name="compare_original_loading">Buscando el texto original en el servidor…</string>
     <string name="compare_source">Fuente: %1$s — %2$s</string>
+    <string name="compare_short_lesson">Lección corta para su edad: %1$d de las %2$d palabras que adaptó el modelo.</string>
+    <string name="compare_measured_short">Medido en el dispositivo sobre la lección corta (texto adaptado por el modelo del servidor).</string>
 </resources>
