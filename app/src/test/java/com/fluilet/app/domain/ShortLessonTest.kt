@@ -102,6 +102,19 @@ class ShortLessonTest {
         assertSame("no se recorta dos veces", once, ShortLesson.shorten(once, AgeGroup.NINE_TO_ELEVEN))
     }
 
+    @Test fun aLessonTheServerAlreadyCutToTheAgeBudgetIsNotCutAgain() {
+        // El backend recortó la fuente a 120 palabras (10 oraciones); el Nivel 1 la alargó a 15 oraciones.
+        val server = baseball(level = 1).copy(
+            chunks = TextChunker.chunkAdaptedText(text(15), NlpLevel.NIVEL_1),
+            originalText = text(10, sport = "béisbol")
+        )
+        assertSame(server, ShortLesson.shorten(server, AgeGroup.SIX_TO_EIGHT))
+
+        // Tres oraciones largas se respetan aunque pasen del tope (mínimo del backend).
+        val threeLong = server.copy(originalText = List(3) { "Oración larga ${letters[it]} " + "con muchas palabras ".repeat(20) + "fin." }.joinToString(" "))
+        assertSame(threeLong, ShortLesson.shorten(threeLong, AgeGroup.SIX_TO_EIGHT))
+    }
+
     @Test fun theOriginalAndAllFiveLevelsAreCutAtTheSamePointAndMeasuredAgain() {
         val short = ShortLesson.shorten(baseball(level = 1), AgeGroup.SIX_TO_EIGHT)
         val info = short.shortLesson!!

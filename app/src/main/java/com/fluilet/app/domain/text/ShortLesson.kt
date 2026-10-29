@@ -10,9 +10,10 @@ import com.fluilet.app.domain.model.ShortLessonInfo
 import kotlin.math.ceil
 
 /**
- * Lecciones cortas para niños. El servidor adapta hasta 1200 palabras de la introducción de Wikipedia, así que un tema
- * como "béisbol" llegaba con 16 bloques. Una lección generada para un niño se queda con sus primeras oraciones
- * completas hasta el tope de su edad (unos 4 a 6 bloques).
+ * Lecciones cortas para niños. Antes el servidor adaptaba hasta 1200 palabras de la introducción de Wikipedia, así que
+ * un tema como "béisbol" llegaba con 16 bloques. Una lección generada para un niño se queda con sus primeras oraciones
+ * completas hasta el tope de su edad (unos 4 a 6 bloques). Ahora el backend ya recorta la fuente con los mismos topes;
+ * esto cubre las lecciones guardadas antes de ese cambio y cualquier servidor que no recorte.
  *
  * Todo se recorta en el mismo punto: la lectura, el original y los 5 niveles del comparador (mismo porcentaje del
  * texto, en oraciones completas). Sus métricas Szigriszt-Pazos se vuelven a medir sobre el texto que se muestra y el
@@ -36,9 +37,10 @@ object ShortLesson {
     /** Recorta una lección generada para un niño de [ageGroup]; sin edad (adulto) o ya corta, la deja igual. */
     fun shorten(result: AdaptationResult, ageGroup: AgeGroup?): AdaptationResult {
         if (ageGroup == null || result.shortLesson != null) return result
+        val budget = wordBudget(ageGroup)
+        if (cutByServer(result.originalText, budget)) return result
         val full = readingText(result)
         val fullWords = SpanishText.wordCount(full)
-        val budget = wordBudget(ageGroup)
         if (fullWords <= budget * TOLERANCE) return result
         val shown = cut(full, budget)
         val shownWords = SpanishText.wordCount(shown)
@@ -74,6 +76,16 @@ object ShortLesson {
         // "¿qué completa esta idea: «Los equipos tienen ___ jugadores»?": el fragmento completo debe seguir ahí.
         val quoted = Regex("«([^»]*___[^»]*)»").find(question.question)?.groupValues?.get(1) ?: return true
         return " ${plain(quoted.replace("___", " $answer "))} " in haystack
+    }
+
+    /**
+     * El backend ya recorta la fuente al mismo tope por edad antes de adaptarla (con un mínimo de 3 oraciones), y sus
+     * métricas, niveles y preguntas salen de ese extracto: no se vuelve a cortar aunque el Nivel 1 alargue un poco el
+     * texto. Solo las lecciones guardadas antes de ese cambio llegan con el original completo.
+     */
+    private fun cutByServer(original: String?, budget: Int): Boolean {
+        if (original.isNullOrBlank()) return false
+        return SpanishText.wordCount(original) <= budget * TOLERANCE || SpanishText.sentenceCount(original) <= MIN_SENTENCES
     }
 
     private fun readingText(result: AdaptationResult): String = result.chunks.joinToString("\n\n") { it.text }
