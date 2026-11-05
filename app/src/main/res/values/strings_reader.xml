@@ -12,11 +12,10 @@
     <string name="reader_pause">Pausar</string>
     <string name="reader_resume">Reanudar</string>
     <string name="reader_stop">Detener</string>
-    <string name="reader_speed_slow">0.8x Pausado</string>
+    <string name="reader_speed_slow">0.8x Lento</string>
     <string name="reader_speed_normal">1.0x Normal</string>
     <string name="reader_speed_fast">1.2x Ágil</string>
     <string name="reader_finish">Terminar lectura</string>
-    <string name="reader_install_voice">Instalar voz en español</string>
     <string name="reader_again">Leer de nuevo</string>
     <string name="reader_font_size">Tamaño de letra</string>
     <string name="reader_line_spacing">Interlineado</string>
@@ -87,4 +86,13 @@
     <string name="compare_source">Fuente: %1$s — %2$s</string>
     <string name="compare_short_lesson">Lección corta para su edad: %1$d de las %2$d palabras que adaptó el modelo.</string>
     <string name="compare_measured_short">Medido en el dispositivo sobre la lección corta (texto adaptado por el modelo del servidor).</string>
+    <!-- Ventanita de ayuda de la voz -->
+    <string name="voice_help_title_volume">Sube el volumen para escuchar</string>
+    <string name="voice_help_title_engine">Activemos la voz del teléfono</string>
+    <string name="voice_help_body_volume">El volumen multimedia está al %1$d %%. Súbelo y la lectura sonará en voz alta.</string>
+    <string name="voice_help_body_engine">Para leer en voz alta, el teléfono necesita su motor de voz en español activo. Actívalo o instala la voz y vuelve a la lectura.</string>
+    <string name="voice_help_lock_note">Con el Modo Enfoque activo, quizá el tutor deba desfijar la pantalla para abrir los ajustes de voz.</string>
+    <string name="voice_help_raise">Subir volumen y escuchar</string>
+    <string name="voice_help_activate">Activar motor de voz del teléfono</string>
+    <string name="voice_help_close">Cerrar</string>
 </resources>

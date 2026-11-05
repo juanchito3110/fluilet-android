@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -69,8 +68,14 @@ import androidx.compose.ui.text.style.TextDecoration
 import java.util.Locale
 import com.fluilet.app.presentation.common.SelectableChip
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.AlertDialog
+import com.fluilet.app.domain.model.ReadingSettings
+import androidx.compose.runtime.getValue
 
 /** Tope de caracteres del original que se dibujan en la comparación (el texto vive solo en RAM). */
 private const val MAX_ORIGINAL_CHARS = 6_000
@@ -100,13 +105,7 @@ internal fun FunFactCard(fact: String, modifier: Modifier = Modifier) {
 @Composable
 internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifier: Modifier = Modifier) {
     val settings = state.settings
-    val bodyStyle = TextStyle(
-        fontFamily = OpenDyslexicFontFamily,
-        fontSize = settings.fontSizeSp.sp,
-        lineHeight = (settings.fontSizeSp * settings.lineSpacing).sp,
-        letterSpacing = settings.letterSpacingEm.em,
-        color = MaterialTheme.colorScheme.onBackground
-    )
+    val bodyStyle = readingTextStyle(settings, MaterialTheme.colorScheme.onBackground)
     val adaptation = state.reading?.adaptation
     val comparison = state.comparison
     Card(
@@ -417,45 +416,56 @@ private fun twoDecimals(value: Double) = String.format(Locale.US, "%.2f", value)
 private const val MAX_CHIPS = 16
 private const val MAX_CHIP_WORDS = 6
 
-/** 🔍 Glosario Mágico: palabras clave tocables; cada una muestra definición, ejemplo y "Escuchar palabra". */
+/**
+ * "Palabras clave de esta lectura" compacto: título pequeño y los chips en una sola fila deslizable (con margen a los
+ * lados para que ninguno quede cortado). La definición se abre en una ventanita, sin quitarle altura al texto.
+ */
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
 internal fun GlossaryBar(state: ReaderUiState, vm: ReaderViewModel, modifier: Modifier = Modifier) {
     if (state.vocabulary.isEmpty()) return
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(R.string.glossary_title), style = MaterialTheme.typography.titleSmall)
-        // FlowRow: todas las palabras clave visibles completas, sin chips cortados en los bordes.
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            state.vocabulary.forEach { entry ->
-                SelectableChip(
-                    selected = entry.word == state.selectedWord?.word,
-                    onClick = { vm.selectWord(entry.word) },
-                    label = { Text(entry.word, style = MaterialTheme.typography.labelLarge) },
-                    modifier = Modifier.height(48.dp)
-                )
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(R.string.glossary_title), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                items(state.vocabulary, key = { it.word }) { entry ->
+                    ToolChip(selected = entry.word == state.selectedWord?.word, onClick = { vm.selectWord(entry.word) }, label = entry.word)
+                }
             }
         }
-        state.selectedWord?.let { WordCard(it.word, it.definition, it.example, onSpeak = { vm.speakWord(it.word) }, onClose = vm::clearWord) }
     }
+    state.selectedWord?.let { WordDialog(it.word, it.definition, it.example, onSpeak = { vm.speakWord(it.word) }, onClose = vm::clearWord) }
 }
 
+/** Definición de una palabra clave en una ventanita, con "Escuchar palabra". */
 @Composable
-private fun WordCard(word: String, definition: String, example: String, onSpeak: () -> Unit, onClose: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
-        Column(Modifier.padding(12.dp).heightIn(max = 220.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(word, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = onClose) { Text(stringResource(R.string.glossary_close)) }
+private fun WordDialog(word: String, definition: String, example: String, onSpeak: () -> Unit, onClose: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(word, style = MaterialTheme.typography.headlineSmall) },
+        text = {
+            Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(definition, style = MaterialTheme.typography.bodyLarge)
+                if (example.isNotBlank()) Text(stringResource(R.string.glossary_example, example), style = MaterialTheme.typography.bodyMedium)
             }
-            Text(definition, style = MaterialTheme.typography.bodyMedium)
-            if (example.isNotBlank()) Text(stringResource(R.string.glossary_example, example), style = MaterialTheme.typography.bodySmall)
-            Button(onClick = onSpeak, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
-                Text(stringResource(R.string.glossary_listen), style = MaterialTheme.typography.labelLarge)
-            }
-        }
-    }
+        },
+        confirmButton = {
+            Button(onClick = onSpeak, shape = RoundedCornerShape(14.dp)) { Text(stringResource(R.string.glossary_listen), style = MaterialTheme.typography.labelLarge) }
+        },
+        dismissButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.glossary_close)) } }
+    )
 }
+
+/** Estilo del texto de lectura: OpenDyslexic grande (nunca menor de [READER_MIN_FONT_SP]) con el interlineado del perfil. */
+internal fun readingTextStyle(settings: ReadingSettings, color: Color): TextStyle {
+    val size = settings.fontSizeSp.coerceAtLeast(READER_MIN_FONT_SP)
+    return TextStyle(
+        fontFamily = OpenDyslexicFontFamily,
+        fontSize = size.sp,
+        lineHeight = (size * settings.lineSpacing).sp,
+        letterSpacing = settings.letterSpacingEm.em,
+        color = color
+    )
+}
+
+/** Tamaño mínimo de la letra de lectura: el párrafo es el protagonista de la pantalla. */
+internal const val READER_MIN_FONT_SP = 22f

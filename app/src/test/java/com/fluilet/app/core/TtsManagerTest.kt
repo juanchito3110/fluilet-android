@@ -274,5 +274,31 @@ class TtsManagerTest {
         )
         assertNull(com.fluilet.app.core.tts.SpanishVoices.firstSupported { -2 })
     }
+
+    @Test fun afterActivatingTheVoiceInSettingsTheEngineIsCreatedAgainKeepingTheChunk() {
+        val broken = FakeSpeechEngine(SpeechEngineInit.Unavailable("Falta la voz", missingVoiceData = true))
+        val fixed = FakeSpeechEngine()
+        val engines = ArrayDeque(listOf(broken, fixed))
+        val manager = TtsManager { engines.removeFirst() }
+        manager.initialize()
+        manager.load(chunks)
+        manager.seekToChunk(1)
+        assertEquals(TtsStatus.Unavailable, manager.state.value.status)
+
+        manager.reinitialize()
+
+        assertTrue(broken.shutdownCalled)
+        assertEquals(TtsStatus.Idle, manager.state.value.status)
+        assertEquals(1, manager.state.value.chunkIndex)
+        manager.play()
+        assertEquals("Segundo bloque corto.", fixed.last.text)
+    }
+
+    @Test fun reinitializeDoesNothingWhenTheVoiceWorks() {
+        val (manager, engine) = ready()
+        manager.reinitialize()
+        assertFalse(engine.shutdownCalled)
+        assertEquals(TtsStatus.Idle, manager.state.value.status)
+    }
 }
 

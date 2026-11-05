@@ -2,6 +2,7 @@ package com.fluilet.app.core.tts
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -12,30 +13,72 @@ import android.util.Log
 import java.util.Locale
 
 /**
- * Motor nativo `android.speech.tts.TextToSpeech` en español, solo para el reproductor del lector. Primero busca
- * una voz instalada que NO requiera red ([Voice.isNetworkConnectionRequired] == false); si no hay, prueba el
- * español en cascada ([SpanishVoices]). El audio sale como contenido hablado de medios (AudioAttributes) y el
- * resaltado palabra por palabra llega por `onRangeStart` (API 26+). Requiere el `<queries>` de TTS_SERVICE del
- * manifiesto en Android 11+.
+ * Motor nativo `android.speech.tts.TextToSpeech` en español, solo para el reproductor del lector.
+ *
+ * - Primero usa el motor predeterminado del teléfono; si no inicia, no tiene español o no llega a sonar, se reintenta
+ *   una vez con el motor de Google ([GOOGLE_TTS]), que viene en casi todos los Android.
+ * - Elige una voz instalada que no requiera red y, si no hay, prueba el español en cascada ([SpanishVoices]).
+ * - El audio sale como contenido hablado de medios (AudioAttributes y `KEY_PARAM_STREAM`), con un `utteranceId` siempre
+ *   presente y el texto limpio de saltos de línea y caracteres invisibles ([SpeechText.clean]).
+ * - Un vigilante tolerante: cualquier señal de síntesis (inicio, síntesis, audio, palabra o fin) cuenta como "sonando";
+ *   solo una locución sin ninguna señal en [START_TIMEOUT_MS] pasa al motor de Google o se informa como error.
+ *
+ * Requiere el `<queries>` de TTS_SERVICE y del paquete de Google en el manifiesto (Android 11+).
  */
 class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
 
     override var listener: SpeechEngineListener? = null
 
     private var tts: TextToSpeech? = null
-    private val watchdog = Handler(Looper.getMainLooper())
-    /** Locuciones que ya empezaron a sonar (el vigilante solo avisa de las que siguen en silencio). */
+    private var enginePackage: String? = null
+    private val main = Handler(Looper.getMainLooper())
+
+    /** Locuciones con alguna señal de síntesis (el vigilante solo actúa sobre las que siguen en silencio). */
     private val started = mutableSetOf<String>()
 
-    override fun initialize(onResult: (SpeechEngineInit) -> Unit) {
-        tts = TextToSpeech(context) { status ->
+    /** Última locución pedida, para repetirla tal cual tras cambiar al motor de Google. */
+    private var lastRequest: Triple<String, String, Float>? = null
+
+    override fun initialize(onResult: (SpeechEngineInit) -> Unit) = start(null, onResult)
+
+    /**
+     * Crea el motor ([pkg] `null` = el predeterminado) y entrega el resultado a [onResult]; si falla sin haber probado
+     * Google, reintenta antes con Google.
+     */
+    private fun start(pkg: String?, onResult: (SpeechEngineInit) -> Unit) {
+        enginePackage = pkg
+        tts = TextToSpeech(context, { status ->
             val engine = tts
-            if (status != TextToSpeech.SUCCESS || engine == null) {
-                onResult(SpeechEngineInit.Unavailable("No se pudo iniciar el motor de voz del dispositivo."))
+            val result = if (status != TextToSpeech.SUCCESS || engine == null) {
+                SpeechEngineInit.Unavailable("No se pudo iniciar el motor de voz del teléfono.")
+            } else configure(engine)
+            if (result is SpeechEngineInit.Unavailable && canSwitchToGoogle(engine)) {
+                Log.i(TAG, "Motor predeterminado sin español utilizable: se reintenta con Google")
+                engine?.shutdown()
+                start(GOOGLE_TTS, onResult)
             } else {
-                onResult(configure(engine))
+                onResult(result)
             }
+        }, pkg)
+    }
+
+    /** Hay motor de Google instalado y el actual no lo es. */
+    private fun canSwitchToGoogle(engine: TextToSpeech?): Boolean {
+        if (enginePackage == GOOGLE_TTS) return false
+        val current = engine?.defaultEngine
+        if (current == GOOGLE_TTS) return false
+        return try {
+            engine?.engines?.any { it.name == GOOGLE_TTS } ?: isInstalled(GOOGLE_TTS)
+        } catch (_: Exception) {
+            isInstalled(GOOGLE_TTS)
         }
+    }
+
+    private fun isInstalled(pkg: String): Boolean = try {
+        context.packageManager.getPackageInfo(pkg, 0)
+        true
+    } catch (_: Exception) {
+        false
     }
 
     private fun configure(engine: TextToSpeech): SpeechEngineInit {
@@ -49,12 +92,23 @@ class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {
                 utteranceId ?: return
-                synchronized(started) { started += utteranceId }
+                markStarted(utteranceId)
                 listener?.onStart(utteranceId)
             }
 
+            // Algunos motores OEM avisan la síntesis o el audio antes (o en lugar) de onStart.
+            override fun onBeginSynthesis(utteranceId: String?, sampleRateInHz: Int, audioFormat: Int, channelCount: Int) {
+                utteranceId?.let(::markStarted)
+            }
+
+            override fun onAudioAvailable(utteranceId: String?, audio: ByteArray?) {
+                utteranceId?.let(::markStarted)
+            }
+
             override fun onDone(utteranceId: String?) {
-                utteranceId?.let { listener?.onDone(it) }
+                utteranceId ?: return
+                markStarted(utteranceId)
+                listener?.onDone(utteranceId)
             }
 
             @Deprecated("Requerido por la interfaz; se usa la variante con código de error.")
@@ -68,7 +122,9 @@ class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
             }
 
             override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
-                utteranceId?.let { listener?.onRangeStart(it, start, end) }
+                utteranceId ?: return
+                markStarted(utteranceId)
+                listener?.onRangeStart(utteranceId, start, end)
             }
         })
 
@@ -83,9 +139,13 @@ class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
         val chosen = SpanishVoices.firstSupported { locale -> engine.setLanguage(locale).also(results::add) }
         return if (chosen != null) SpeechEngineInit.Ready
         else SpeechEngineInit.Unavailable(
-            "Falta la voz en español. Instálala desde los ajustes de síntesis de voz del teléfono.",
+            "Falta la voz en español. Activa o instala el motor de voz del teléfono.",
             missingVoiceData = TextToSpeech.LANG_MISSING_DATA in results
         )
+    }
+
+    private fun markStarted(utteranceId: String) {
+        synchronized(started) { started += utteranceId }
     }
 
     private fun pickOfflineSpanishVoice(engine: TextToSpeech): Voice? {
@@ -106,23 +166,42 @@ class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
 
     override fun speak(text: String, utteranceId: String, rate: Float) {
         val engine = tts ?: return
+        lastRequest = Triple(text, utteranceId, rate)
         engine.setSpeechRate(rate)
-        val result = engine.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle.EMPTY, utteranceId)
+        val params = Bundle().apply {
+            putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
+            putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
+            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1f)
+        }
+        val result = engine.speak(SpeechText.clean(text), TextToSpeech.QUEUE_FLUSH, params, utteranceId)
         if (result == TextToSpeech.ERROR) {
             listener?.onError(utteranceId)
             return
         }
-        // Algunos teléfonos aceptan la locución y nunca la reproducen (motor sin enlazar o sin audio): si no empieza
-        // a sonar a tiempo se informa como error en lugar de mostrar "reproduciendo" en silencio.
-        watchdog.postDelayed({
-            val silent = synchronized(started) { !started.remove(utteranceId) }
-            if (silent && tts != null) listener?.onError(utteranceId)
-        }, START_TIMEOUT_MS)
+        main.postDelayed({ checkSilent(utteranceId) }, START_TIMEOUT_MS)
+    }
+
+    /** La locución no dio ninguna señal: se intenta una vez con el motor de Google; si ya era Google, es un error. */
+    private fun checkSilent(utteranceId: String) {
+        val silent = synchronized(started) { !started.remove(utteranceId) }
+        if (!silent || tts == null || lastRequest?.second != utteranceId) return
+        val engine = tts
+        if (canSwitchToGoogle(engine)) {
+            Log.i(TAG, "Sin audio del motor predeterminado: se cambia al motor de Google")
+            val (text, id, rate) = lastRequest ?: return
+            engine?.stop()
+            engine?.shutdown()
+            // El lector sigue "reproduciendo": la misma locución (mismo id) se repite con Google al estar listo.
+            start(GOOGLE_TTS) { result -> if (result == SpeechEngineInit.Ready) speak(text, id, rate) else listener?.onError(id) }
+        } else {
+            listener?.onError(utteranceId)
+        }
     }
 
     override fun stop() {
-        watchdog.removeCallbacksAndMessages(null)
+        main.removeCallbacksAndMessages(null)
         synchronized(started) { started.clear() }
+        lastRequest = null
         tts?.stop()
     }
 
@@ -132,10 +211,32 @@ class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
         tts = null
     }
 
-    private companion object {
-        const val TAG = "AndroidSpeechEngine"
-        /** Tiempo máximo para que una locución empiece a sonar. */
-        const val START_TIMEOUT_MS = 6_000L
+    companion object {
+        private const val TAG = "AndroidSpeechEngine"
+        const val GOOGLE_TTS = "com.google.android.tts"
+
+        /** Tiempo máximo sin ninguna señal de síntesis antes de cambiar de motor o informar el error. */
+        const val START_TIMEOUT_MS = 10_000L
+    }
+}
+
+/** Texto apto para el motor de voz sin mover posiciones (el resaltado de palabras usa los mismos índices). */
+object SpeechText {
+    /**
+     * Cambia saltos de línea, tabuladores, espacios raros y caracteres invisibles (de control o de formato, como el
+     * espacio de ancho cero) por espacios normales: misma longitud, mismas posiciones de cada palabra.
+     */
+    fun clean(text: String): String = buildString(text.length) {
+        for (c in text) {
+            append(
+                when {
+                    c == '\n' || c == '\r' || c == '\t' -> ' '
+                    Character.isSpaceChar(c) -> ' '
+                    Character.getType(c) == Character.CONTROL.toInt() || Character.getType(c) == Character.FORMAT.toInt() -> ' '
+                    else -> c
+                }
+            )
+        }
     }
 }
 

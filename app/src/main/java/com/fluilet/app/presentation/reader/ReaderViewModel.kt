@@ -293,6 +293,12 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun stopSpeech() = tts.stop()
+
+    /** Cierra la ventanita de ayuda de la voz (el aviso ya se mostró). */
+    fun dismissVoiceError() = tts.consumeError()
+
+    /** Al volver de los ajustes de voz del teléfono: si no había voz, se intenta de nuevo. */
+    fun retryVoice() = tts.reinitialize()
     fun next() = seek(uiState.value.chunkIndex + 1)
     fun previous() = seek(uiState.value.chunkIndex - 1)
     fun restart() {

@@ -178,6 +178,18 @@ class TtsManager internal constructor(
         current.speak(word, "word-${++wordCounter}", _state.value.speechRate)
     }
 
+    /**
+     * Vuelve a crear el motor si quedó sin voz (p. ej. al regresar de activar o instalar la voz en los ajustes del
+     * teléfono). Conserva los bloques y el bloque actual.
+     */
+    fun reinitialize() = synchronized(lock) {
+        if (_state.value.status != TtsStatus.Unavailable) return@synchronized
+        engine?.shutdown()
+        engine = null
+        _state.update { it.copy(status = TtsStatus.Uninitialized, errorMessage = null, missingVoiceData = false) }
+        initialize()
+    }
+
     fun release() = synchronized(lock) {
         haltEngine()
         engine?.shutdown()

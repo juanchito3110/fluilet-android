@@ -8,10 +8,18 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Android 11+: sin esta consulta el sistema oculta el motor de voz (TextToSpeech) y el lector no suena. -->
+    <!-- Android 11+: sin estas consultas el sistema oculta el motor de voz (TextToSpeech) y el lector no suena.
+         Incluye el motor de Google (respaldo explícito) y las pantallas para revisar e instalar datos de voz. -->
     <queries>
+        <package android:name="com.google.android.tts" />
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.tts.engine.CHECK_TTS_DATA" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.tts.engine.INSTALL_TTS_DATA" />
         </intent>
     </queries>
 

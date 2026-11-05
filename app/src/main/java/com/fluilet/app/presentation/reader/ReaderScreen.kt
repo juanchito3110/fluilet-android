@@ -1,11 +1,8 @@
 package com.fluilet.app.presentation.reader
 
 import android.Manifest
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.speech.tts.TextToSpeech
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,8 +49,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
-import com.fluilet.app.presentation.common.SelectableChip
-import com.fluilet.app.presentation.common.CheckMark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -63,13 +58,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,9 +91,7 @@ import com.fluilet.app.domain.model.AgeGroup
 import com.fluilet.app.domain.model.ReadingSettings
 import com.fluilet.app.domain.model.effectiveHint
 import com.fluilet.app.domain.model.explanationFor
-import com.fluilet.app.presentation.common.SelectableChip
 import com.fluilet.app.domain.quiz.ComprehensionQuiz
-import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.formatDuration
@@ -114,13 +104,20 @@ import com.fluilet.app.presentation.parentalgate.GateMode
 import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
 import com.fluilet.app.presentation.theme.FluiletTheme
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.material3.CircularProgressIndicator
 import com.fluilet.app.presentation.common.FitText
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 @Composable
 fun ReaderScreen(onExit: () -> Unit, viewModel: ReaderViewModel = hiltViewModel()) {
@@ -191,6 +188,9 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel, botViewMode
     LaunchedEffect(state.ownerKey, state.baseline, state.showLab) {
         if (!state.showLab) botViewModel.bind(state.ownerKey, state.baseline)
     }
+    // Problemas de voz (volumen en 0, motor sin español o sin audio): ventanita emergente, nunca un aviso en la pantalla.
+    val voiceHelp = rememberVoiceHelp(state, vm)
+    VoiceHelpDialog(voiceHelp, state)
     Column(
         Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -235,8 +235,7 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel, botViewMode
                 if (state.showOriginal) ComparisonCard(state, onLevel = vm::selectComparisonLevel) else ChunkCard(state, onGuideTap = vm::guideNext)
             }
             GlossaryBar(state, vm)
-            SpeechUnavailableBanner(state)
-            ReaderControls(state, vm)
+            ReaderControls(state, vm, onPlayPause = { voiceHelp.playOrPause(state) })
         }
     }
 }
@@ -299,40 +298,58 @@ private fun ReaderTopBar(state: ReaderUiState, vm: ReaderViewModel, bot: FluiBot
     }
 }
 
-/** Chip "Guía de renglón" (con flechas para mover la franja cuando está activa). */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Herramientas de lectura en UNA fila compacta y deslizable: "Guía de renglón", "Adaptado vs. Original" y, con la guía
+ * activa, las flechas para moverla. Nunca se apilan ni le quitan altura a la tarjeta del texto.
+ */
 @Composable
 private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
-    // FlowRow: si no caben en una fila bajan a la siguiente (nunca "Adapt…" cortado).
-    FlowRow(
-        Modifier.fillMaxWidth(),
-        itemVerticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        SelectableChip(
-            selected = state.guideEnabled,
-            onClick = vm::toggleGuide,
-            label = { Text(stringResource(R.string.reader_guide), style = MaterialTheme.typography.labelLarge) },
-            modifier = Modifier.semantics { contentDescription = "Guía de renglón, ${if (state.guideEnabled) "activada" else "desactivada"}" }
-        )
-        SelectableChip(
-            selected = state.showOriginal,
-            onClick = vm::toggleOriginal,
-            label = { Text(stringResource(R.string.reader_compare), style = MaterialTheme.typography.labelLarge) },
-            modifier = Modifier.semantics {
-                contentDescription = "Adaptado contra original, ${if (state.showOriginal) "activado" else "desactivado"}"
-            }
-        )
-        if (state.guideEnabled && !state.showOriginal) {
-            IconButton(onClick = vm::guidePrevious, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.reader_guide_previous))
-            }
-            IconButton(onClick = vm::guideNext, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.reader_guide_next))
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ToolChip(
+                selected = state.guideEnabled,
+                onClick = vm::toggleGuide,
+                label = stringResource(R.string.reader_guide),
+                description = "Guía de renglón, ${if (state.guideEnabled) "activada" else "desactivada"}"
+            )
+            ToolChip(
+                selected = state.showOriginal,
+                onClick = vm::toggleOriginal,
+                label = stringResource(R.string.reader_compare),
+                description = "Adaptado contra original, ${if (state.showOriginal) "activado" else "desactivado"}"
+            )
+            if (state.guideEnabled && !state.showOriginal) {
+                IconButton(onClick = vm::guidePrevious, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.reader_guide_previous))
+                }
+                IconButton(onClick = vm::guideNext, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.reader_guide_next))
+                }
             }
         }
     }
+}
+
+/** Chip compacto (36 dp) de una sola línea para la barra de herramientas del lector. */
+@Composable
+internal fun ToolChip(selected: Boolean, onClick: () -> Unit, label: String, description: String? = null) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false) },
+        leadingIcon = if (selected) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }) else null,
+        shape = RoundedCornerShape(12.dp),
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+        ),
+        modifier = Modifier.height(36.dp).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
+    )
 }
 
 @Composable
@@ -399,13 +416,7 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
                             }
                         }
                     },
-                    style = TextStyle(
-                        fontFamily = OpenDyslexicFontFamily,
-                        fontSize = settings.fontSizeSp.sp,
-                        lineHeight = (settings.fontSizeSp * settings.lineSpacing).sp,
-                        letterSpacing = settings.letterSpacingEm.em,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    style = readingTextStyle(settings, MaterialTheme.colorScheme.onBackground)
                 )
                 // "¿Sabías que...?" cierra la lectura: solo al final del último bloque.
                 val fact = state.funFact
@@ -421,26 +432,23 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
 private fun rememberScrollStateKeyed(key: Any) = androidx.compose.runtime.key(key) { rememberScrollState() }
 
 @Composable
-private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
+private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel, onPlayPause: () -> Unit) {
     val playing = state.tts.status == TtsStatus.Playing
-    // "Reproducir" funciona aunque el motor aún esté iniciando: queda en cola y suena en cuanto esté listo.
-    val voiceReady = state.tts.status != TtsStatus.Unavailable
+    // "Reproducir" queda en cola mientras el motor inicia; si falta voz o volumen, abre la ventanita de ayuda.
     val preparing = state.tts.pendingPlay
 
-    Column(Modifier.navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ErrorMessage(state.tts.errorMessage.takeIf { state.tts.status != TtsStatus.Unavailable })
+    Column(Modifier.navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            FilledTonalIconButton(onClick = vm::previous, enabled = state.chunkIndex > 0, modifier = Modifier.size(64.dp)) {
+            FilledTonalIconButton(onClick = vm::previous, enabled = state.chunkIndex > 0, modifier = Modifier.size(52.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.reader_previous))
             }
             FilledIconButton(
-                onClick = vm::togglePlayPause,
-                enabled = voiceReady,
-                modifier = Modifier.size(80.dp),
+                onClick = onPlayPause,
+                modifier = Modifier.size(64.dp),
                 colors = IconButtonDefaults.filledIconButtonColors()
             ) {
                 if (preparing) {
-                    CircularProgressIndicator(Modifier.size(34.dp), strokeWidth = 3.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp, color = MaterialTheme.colorScheme.onPrimary)
                 } else Icon(
                     if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     contentDescription = stringResource(
@@ -450,26 +458,26 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
                             else -> R.string.reader_play
                         }
                     ),
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(34.dp)
                 )
             }
             FilledTonalIconButton(
                 onClick = vm::stopSpeech,
                 enabled = state.tts.status == TtsStatus.Playing || state.tts.status == TtsStatus.Paused,
-                modifier = Modifier.size(64.dp)
+                modifier = Modifier.size(52.dp)
             ) {
                 Icon(Icons.Filled.Stop, contentDescription = stringResource(R.string.reader_stop))
             }
-            FilledTonalIconButton(onClick = vm::next, enabled = !state.isLastChunk, modifier = Modifier.size(64.dp)) {
+            FilledTonalIconButton(onClick = vm::next, enabled = !state.isLastChunk, modifier = Modifier.size(52.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.reader_next))
             }
         }
 
-        // Tres velocidades del mismo ancho; el texto se ajusta antes de cortarse ("1.0x Normal" completo).
+        // Tres velocidades del mismo ancho, texto corto de 12 sp que se ajusta antes de cortarse.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SpeedChip(R.string.reader_speed_slow, 0.8f, state, vm, Modifier.weight(1f))
-            SpeedChip(R.string.reader_speed_normal, 1.0f, state, vm, Modifier.weight(1f))
-            SpeedChip(R.string.reader_speed_fast, 1.2f, state, vm, Modifier.weight(1f))
+            SpeedButton(R.string.reader_speed_slow, 0.8f, state, vm, Modifier.weight(1f))
+            SpeedButton(R.string.reader_speed_normal, 1.0f, state, vm, Modifier.weight(1f))
+            SpeedButton(R.string.reader_speed_fast, 1.2f, state, vm, Modifier.weight(1f))
         }
 
         if (state.isLastChunk) {
@@ -479,14 +487,18 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
 }
 
 @Composable
-private fun SpeedChip(label: Int, rate: Float, state: ReaderUiState, vm: ReaderViewModel, modifier: Modifier = Modifier) {
+private fun SpeedButton(label: Int, rate: Float, state: ReaderUiState, vm: ReaderViewModel, modifier: Modifier = Modifier) {
     val selected = kotlin.math.abs(state.settings.speechRate - rate) < 0.03f
-    SelectableChip(
-        selected = selected,
-        onClick = { vm.onSpeechRate(rate) },
-        label = { FitText(stringResource(label), Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge) },
-        modifier = modifier.height(48.dp)
-    )
+    val text: @Composable () -> Unit = {
+        FitText(stringResource(label), Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp), minSize = 9.sp)
+    }
+    val padding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+    val shape = RoundedCornerShape(12.dp)
+    if (selected) {
+        Button(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.height(44.dp), contentPadding = padding, shape = shape) { text() }
+    } else {
+        OutlinedButton(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.height(44.dp), contentPadding = padding, shape = shape) { text() }
+    }
 }
 
 /** Rectángulos de cada renglón que ocupa [range] (para dibujar la franja de la guía de renglón). */
@@ -503,24 +515,6 @@ private fun guideBands(layout: TextLayoutResult, range: IntRange): List<Rect> {
     }
 }
 
-@Composable
-private fun SpeechUnavailableBanner(state: ReaderUiState) {
-    if (state.tts.status != TtsStatus.Unavailable) return
-    val context = LocalContext.current
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        ErrorMessage(state.tts.errorMessage)
-        if (state.tts.missingVoiceData) {
-            TextButton(onClick = {
-                try {
-                    context.startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                } catch (_: ActivityNotFoundException) {
-                    // El dispositivo no ofrece instalador de voces; la lectura sigue sin audio.
-                }
-            }) { Text(stringResource(R.string.reader_install_voice)) }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsSheet(settings: ReadingSettings, vm: ReaderViewModel) {
@@ -530,7 +524,9 @@ private fun SettingsSheet(settings: ReadingSettings, vm: ReaderViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(stringResource(R.string.reader_settings), style = MaterialTheme.typography.titleLarge)
-            SettingSlider(R.string.reader_font_size, settings.fontSizeSp, ReadingSettings.MIN_FONT_SIZE..ReadingSettings.MAX_FONT_SIZE, "${settings.fontSizeSp.toInt()} pt", vm::onFontSize)
+            // En el lector la letra nunca baja de READER_MIN_FONT_SP: el deslizador empieza ahí.
+            val shownSize = settings.fontSizeSp.coerceAtLeast(READER_MIN_FONT_SP)
+            SettingSlider(R.string.reader_font_size, shownSize, READER_MIN_FONT_SP..ReadingSettings.MAX_FONT_SIZE, "${shownSize.toInt()} pt", vm::onFontSize)
             SettingSlider(R.string.reader_line_spacing, settings.lineSpacing, ReadingSettings.MIN_LINE_SPACING..ReadingSettings.MAX_LINE_SPACING, "%.1fx".format(settings.lineSpacing), vm::onLineSpacing)
             SettingSlider(R.string.reader_letter_spacing, settings.letterSpacingEm, ReadingSettings.MIN_LETTER_SPACING..ReadingSettings.MAX_LETTER_SPACING, "%.2f".format(settings.letterSpacingEm), vm::onLetterSpacing)
             SettingSlider(R.string.reader_speech_rate, settings.speechRate, ReadingSettings.MIN_SPEECH_RATE..ReadingSettings.MAX_SPEECH_RATE, "%.2fx".format(settings.speechRate), vm::onSpeechRate)
