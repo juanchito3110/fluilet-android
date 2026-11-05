@@ -9,9 +9,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Android 11+: sin estas consultas el sistema oculta el motor de voz (TextToSpeech) y el lector no suena.
-         Incluye el motor de Google (respaldo explícito) y las pantallas para revisar e instalar datos de voz. -->
+         Incluye el motor de Google (respaldo explícito), los de otras marcas y las pantallas para revisar e
+         instalar datos de voz. -->
     <queries>
         <package android:name="com.google.android.tts" />
+        <!-- Motores de voz de otras marcas (Huawei, iFlytek, Samsung) para poder consultarlos en Android 11+. -->
+        <package android:name="com.huawei.hiai" />
+        <package android:name="com.huawei.HwTts" />
+        <package android:name="com.iflytek.speechcloud" />
+        <package android:name="com.samsung.SMT" />
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>

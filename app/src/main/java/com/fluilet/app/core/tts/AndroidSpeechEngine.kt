@@ -39,6 +39,11 @@ class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
     /** Última locución pedida, para repetirla tal cual tras cambiar al motor de Google. */
     private var lastRequest: Triple<String, String, Float>? = null
 
+    /** El motor actual tiene una voz en español descargada localmente (ver [SpanishVoices.pickInstalled]). */
+    @Volatile private var installedSpanishVoice = false
+
+    override fun hasInstalledSpanishVoice(): Boolean = installedSpanishVoice
+
     override fun initialize(onResult: (SpeechEngineInit) -> Unit) = start(null, onResult)
 
     /**
@@ -128,7 +133,10 @@ class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
             }
         })
 
-        val voice = pickOfflineSpanishVoice(engine)
+        // Primero una voz en español YA DESCARGADA: algunos motores (p. ej. el de Huawei) dicen "Español (México)
+        // admitido" aunque el modelo de voz siga sin descargar, y entonces no suenan.
+        val voice = pickInstalledSpanishVoice(engine)
+        installedSpanishVoice = voice != null
         if (voice != null) {
             engine.voice = voice
             return SpeechEngineInit.Ready
@@ -148,20 +156,25 @@ class AndroidSpeechEngine(private val context: Context) : SpeechEngine {
         synchronized(started) { started += utteranceId }
     }
 
-    private fun pickOfflineSpanishVoice(engine: TextToSpeech): Voice? {
+    private fun pickInstalledSpanishVoice(engine: TextToSpeech): Voice? {
         val voices = try {
-            engine.voices.orEmpty()
+            engine.voices.orEmpty().toList()
         } catch (_: Exception) {
-            emptySet()
+            emptyList()
         }
-        val candidates = voices.filter {
-            it.locale.language == "es" &&
-                !it.isNetworkConnectionRequired &&
-                !it.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
+        val options = voices.map { voice ->
+            val features = voice.features.orEmpty()
+            SpanishVoices.Option(
+                locale = voice.locale,
+                installed = TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in features,
+                network = voice.isNetworkConnectionRequired ||
+                    TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS in features ||
+                    TextToSpeech.Engine.KEY_FEATURE_NETWORK_TIMEOUT_MS in features ||
+                    TextToSpeech.Engine.KEY_FEATURE_NETWORK_RETRIES_COUNT in features
+            )
         }
-        return SpanishVoices.COUNTRIES.firstNotNullOfOrNull { country ->
-            candidates.firstOrNull { it.locale.country == country }
-        } ?: candidates.firstOrNull()
+        val chosen = SpanishVoices.pickInstalled(options) ?: return null
+        return voices[options.indexOf(chosen)]
     }
 
     override fun speak(text: String, utteranceId: String, rate: Float) {
@@ -251,8 +264,19 @@ object SpanishVoices {
         Locale.forLanguageTag("es")
     )
 
-    /** Países preferidos al elegir entre las voces instaladas. */
-    val COUNTRIES = listOf("MX", "US", "419", "CO", "ES")
+    /** Una voz del motor: su idioma, si está descargada y si necesita red para hablar. */
+    data class Option(val locale: Locale, val installed: Boolean, val network: Boolean)
+
+    /**
+     * Voz en español descargada localmente, en el orden de [LOCALES] (México, EE. UU., Latinoamérica, España y luego
+     * cualquier otro español). Descarta las que tienen `KEY_FEATURE_NOT_INSTALLED` y las que dependen de red.
+     */
+    fun pickInstalled(voices: List<Option>): Option? {
+        val local = voices.filter { it.locale.language == "es" && it.installed && !it.network }
+        return LOCALES.firstNotNullOfOrNull { wanted ->
+            local.firstOrNull { wanted.country.isEmpty() || it.locale.country == wanted.country }
+        }
+    }
 
     /**
      * Primer idioma que el motor acepta. [setLanguage] devuelve el código de `TextToSpeech.setLanguage`: 0, 1 o 2

@@ -30,6 +30,11 @@ class FakeSpeechEngine(private val init: SpeechEngineInit? = SpeechEngineInit.Re
         if (init != null) onResult(init) else pendingInit = onResult
     }
     fun finishInit(result: SpeechEngineInit = SpeechEngineInit.Ready) = pendingInit!!.invoke(result)
+
+    /** `false` = el motor admite español pero sin voz descargada (caso Huawei). */
+    var localVoice = true
+    override fun hasInstalledSpanishVoice(): Boolean = localVoice
+    fun started(id: String = last.id) = listener!!.onStart(id)
     override fun speak(text: String, utteranceId: String, rate: Float) { spoken += Spoken(text, utteranceId, rate) }
     override fun stop() { stopCount++ }
     override fun shutdown() { shutdownCalled = true }

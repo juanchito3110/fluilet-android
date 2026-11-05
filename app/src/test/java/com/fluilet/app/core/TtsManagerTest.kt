@@ -300,5 +300,76 @@ class TtsManagerTest {
         assertFalse(engine.shutdownCalled)
         assertEquals(TtsStatus.Idle, manager.state.value.status)
     }
+
+    // --- Voz descargada, verificación guardada y "Probar voz ahora" -------------------------------------
+
+    @Test fun anEngineThatOnlyClaimsSpanishIsReportedWithoutALocalVoice() {
+        val engine = FakeSpeechEngine().apply { localVoice = false }
+        val manager = TtsManager { engine }
+        manager.initialize()
+        assertEquals(TtsStatus.Idle, manager.state.value.status)
+        assertEquals(false, manager.state.value.localVoiceReady)
+        val (ok, _) = ready()
+        assertEquals(true, ok.state.value.localVoiceReady)
+    }
+
+    @Test fun theFirstTimeTheVoiceSoundsItIsRememberedOnTheDevice() {
+        val store = com.fluilet.app.core.tts.InMemoryVoiceCheckStore()
+        val engine = FakeSpeechEngine()
+        val manager = TtsManager(store) { engine }
+        manager.initialize()
+        manager.load(chunks)
+        assertFalse(manager.state.value.voiceVerified)
+
+        manager.play()
+        engine.started()
+
+        assertTrue(manager.state.value.voiceVerified)
+        assertTrue("guardado para la próxima lectura", store.isVerified())
+        assertTrue(TtsManager(store) { FakeSpeechEngine() }.state.value.voiceVerified)
+    }
+
+    @Test fun theVoiceTestPassesWhenItStartsAndFailsOnError() {
+        val store = com.fluilet.app.core.tts.InMemoryVoiceCheckStore()
+        val engine = FakeSpeechEngine()
+        val manager = TtsManager(store) { engine }
+        manager.initialize()
+        manager.load(chunks)
+
+        manager.speakTest("Hola, la voz de Fluilet está lista")
+        assertEquals(com.fluilet.app.core.tts.VoiceTest.RUNNING, manager.state.value.voiceTest)
+        assertEquals("Hola, la voz de Fluilet está lista", engine.last.text)
+        engine.done()
+        assertEquals(com.fluilet.app.core.tts.VoiceTest.PASSED, manager.state.value.voiceTest)
+        assertTrue(store.isVerified())
+        assertEquals("la prueba no mueve la lectura", 0, manager.state.value.chunkIndex)
+
+        manager.speakTest("Otra vez")
+        engine.error()
+        assertEquals(com.fluilet.app.core.tts.VoiceTest.FAILED, manager.state.value.voiceTest)
+        assertEquals(TtsStatus.Idle, manager.state.value.status)
+    }
+
+    @Test fun theVoiceTestFailsRightAwayWithoutAnEngine() {
+        val manager = TtsManager { FakeSpeechEngine(SpeechEngineInit.Unavailable("Sin voz")) }
+        manager.initialize()
+        manager.speakTest("Hola")
+        assertEquals(com.fluilet.app.core.tts.VoiceTest.FAILED, manager.state.value.voiceTest)
+    }
+
+    @Test fun afterDownloadingTheVoiceTheEngineIsCheckedAgain() {
+        val first = FakeSpeechEngine().apply { localVoice = false }
+        val second = FakeSpeechEngine()
+        val engines = ArrayDeque(listOf(first, second))
+        val manager = TtsManager { engines.removeFirst() }
+        manager.initialize()
+        manager.load(chunks)
+        assertEquals(false, manager.state.value.localVoiceReady)
+
+        manager.reinitialize()
+
+        assertTrue(first.shutdownCalled)
+        assertEquals(true, manager.state.value.localVoiceReady)
+    }
 }
 

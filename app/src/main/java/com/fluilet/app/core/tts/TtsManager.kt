@@ -23,8 +23,16 @@ data class TtsState(
     val errorMessage: String? = null,
     val missingVoiceData: Boolean = false,
     /** Se pulsó "reproducir" antes de que el motor estuviera listo: sonará en cuanto termine de iniciar. */
-    val pendingPlay: Boolean = false
+    val pendingPlay: Boolean = false,
+    /** Hay una voz en español descargada en el teléfono; `null` = el motor aún no inicia. */
+    val localVoiceReady: Boolean? = null,
+    /** La voz ya sonó bien en este teléfono alguna vez (se guarda en el dispositivo). */
+    val voiceVerified: Boolean = false,
+    /** Resultado de "Probar voz ahora". */
+    val voiceTest: VoiceTest = VoiceTest.NONE
 )
+
+enum class VoiceTest { NONE, RUNNING, PASSED, FAILED }
 
 /**
  * Lectura guiada por voz con resaltado sincronizado palabra por palabra.
@@ -36,11 +44,12 @@ data class TtsState(
  */
 @Singleton
 class TtsManager internal constructor(
+    private val voiceCheck: VoiceCheckStore = InMemoryVoiceCheckStore(),
     private val engineFactory: () -> SpeechEngine
 ) : SpeechEngineListener {
 
     @Inject
-    constructor(@ApplicationContext context: Context) : this({ AndroidSpeechEngine(context) })
+    constructor(@ApplicationContext context: Context) : this(PrefsVoiceCheckStore(context), { AndroidSpeechEngine(context) })
 
     private val lock = Any()
     private var engine: SpeechEngine? = null
@@ -52,7 +61,11 @@ class TtsManager internal constructor(
     private var utteranceCounter = 0L
     private var wordCounter = 0L
 
-    private val _state = MutableStateFlow(TtsState())
+    /** Locución de "Probar voz ahora" en curso. */
+    private var currentTestId: String? = null
+    private var testCounter = 0L
+
+    private val _state = MutableStateFlow(TtsState(voiceVerified = voiceCheck.isVerified()))
     val state: StateFlow<TtsState> = _state.asStateFlow()
 
     fun initialize() {
@@ -68,7 +81,12 @@ class TtsManager internal constructor(
                     when (result) {
                         SpeechEngineInit.Ready -> {
                             val queued = _state.value.pendingPlay
-                            _state.update { it.copy(status = TtsStatus.Idle, errorMessage = null, missingVoiceData = false, pendingPlay = false) }
+                            _state.update {
+                                it.copy(
+                                    status = TtsStatus.Idle, errorMessage = null, missingVoiceData = false, pendingPlay = false,
+                                    localVoiceReady = created.hasInstalledSpanishVoice()
+                                )
+                            }
                             // "Reproducir" pulsado mientras arrancaba el motor: empieza ahora, sin volver a tocarlo.
                             if (queued && chunks.isNotEmpty()) speakChunk(_state.value.chunkIndex, 0)
                         }
@@ -78,7 +96,8 @@ class TtsManager internal constructor(
                                     status = TtsStatus.Unavailable,
                                     errorMessage = result.reason,
                                     missingVoiceData = result.missingVoiceData,
-                                    pendingPlay = false
+                                    pendingPlay = false,
+                                    localVoiceReady = false
                                 )
                             }
                     }
@@ -183,11 +202,41 @@ class TtsManager internal constructor(
      * teléfono). Conserva los bloques y el bloque actual.
      */
     fun reinitialize() = synchronized(lock) {
-        if (_state.value.status != TtsStatus.Unavailable) return@synchronized
+        // Sin voz, o con el idioma "admitido" pero sin la voz descargada (se acaba de descargar en los ajustes).
+        if (_state.value.status != TtsStatus.Unavailable && _state.value.localVoiceReady != false) return@synchronized
+        if (_state.value.status == TtsStatus.Playing || _state.value.status == TtsStatus.Paused) haltEngine()
         engine?.shutdown()
         engine = null
-        _state.update { it.copy(status = TtsStatus.Uninitialized, errorMessage = null, missingVoiceData = false) }
+        _state.update { it.copy(status = TtsStatus.Uninitialized, errorMessage = null, missingVoiceData = false, localVoiceReady = null) }
         initialize()
+    }
+
+    /**
+     * "Probar voz ahora": pronuncia una frase corta. Si empieza a sonar (o termina) la voz queda verificada en el
+     * teléfono; si falla, [TtsState.voiceTest] pasa a FAILED. No mueve el bloque ni el resaltado de la lectura.
+     */
+    fun speakTest(text: String) = synchronized(lock) {
+        val current = engine
+        val status = _state.value.status
+        if (current == null || status == TtsStatus.Unavailable || status == TtsStatus.Uninitialized || status == TtsStatus.Initializing) {
+            _state.update { it.copy(voiceTest = VoiceTest.FAILED) }
+            return@synchronized
+        }
+        if (status == TtsStatus.Playing) pause()
+        val id = "test-${++testCounter}"
+        currentTestId = id
+        _state.update { it.copy(voiceTest = VoiceTest.RUNNING) }
+        current.speak(text, id, _state.value.speechRate)
+    }
+
+    /** La voz sonó: se recuerda en el teléfono y la prueba en curso, si la hay, pasa. */
+    private fun markVoiceWorks(utteranceId: String) {
+        if (!_state.value.voiceVerified) voiceCheck.markVerified()
+        val passedTest = utteranceId == currentTestId
+        if (passedTest) currentTestId = null
+        _state.update {
+            it.copy(voiceVerified = true, voiceTest = if (passedTest) VoiceTest.PASSED else it.voiceTest)
+        }
     }
 
     fun release() = synchronized(lock) {
@@ -200,11 +249,20 @@ class TtsManager internal constructor(
 
     // --- Eventos del motor ---------------------------------------------------------------
 
-    override fun onStart(utteranceId: String) = Unit
+    override fun onStart(utteranceId: String) {
+        synchronized(lock) {
+            if (utteranceId == currentUtteranceId || utteranceId == currentTestId) markVoiceWorks(utteranceId)
+        }
+    }
 
     override fun onRangeStart(utteranceId: String, start: Int, end: Int) {
         synchronized(lock) {
+            if (utteranceId == currentTestId) {
+                markVoiceWorks(utteranceId)
+                return
+            }
             if (utteranceId != currentUtteranceId) return
+            if (!_state.value.voiceVerified) markVoiceWorks(utteranceId)
             val absStart = utteranceBaseOffset + start
             val absEnd = utteranceBaseOffset + end
             val textLength = chunks.getOrNull(_state.value.chunkIndex)?.length ?: return
@@ -216,7 +274,12 @@ class TtsManager internal constructor(
 
     override fun onDone(utteranceId: String) {
         synchronized(lock) {
+            if (utteranceId == currentTestId) {
+                markVoiceWorks(utteranceId)
+                return
+            }
             if (utteranceId != currentUtteranceId) return
+            if (!_state.value.voiceVerified) markVoiceWorks(utteranceId)
             currentUtteranceId = null
             lastWordStart = 0
             val next = _state.value.chunkIndex + 1
@@ -230,6 +293,11 @@ class TtsManager internal constructor(
 
     override fun onError(utteranceId: String) {
         synchronized(lock) {
+            if (utteranceId == currentTestId) {
+                currentTestId = null
+                _state.update { it.copy(voiceTest = VoiceTest.FAILED) }
+                return
+            }
             if (utteranceId != currentUtteranceId) return
             currentUtteranceId = null
             _state.update {

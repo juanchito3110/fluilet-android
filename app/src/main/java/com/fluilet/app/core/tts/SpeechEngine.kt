@@ -23,4 +23,7 @@ interface SpeechEngine {
     fun speak(text: String, utteranceId: String, rate: Float)
     fun stop()
     fun shutdown()
+
+    /** Tras iniciar: hay una voz en español descargada en el teléfono (no solo "idioma admitido"). */
+    fun hasInstalledSpanishVoice(): Boolean = true
 }

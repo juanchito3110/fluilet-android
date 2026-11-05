@@ -1000,4 +1000,24 @@ class ReaderViewModelTest {
         vm.selectComparisonLevel(1)
         assertEquals(83.32, probe.state().comparison!!.adaptedScore, 0.01)
     }
+
+    // --- Preparar la voz antes de fijar la pantalla ----------------------------------------------------
+
+    @Test fun preparingTheVoiceDoesNotPinTheScreenUntilTheReadingBegins() = readerTest {
+        val vm = viewModel(childId = "child-1")
+        vm.prepare()
+
+        assertFalse("sin Modo Enfoque mientras se prepara la voz", focus.state.value.isActive)
+        assertFalse(vm.readingStarted)
+        assertTrue("el motor de voz ya inició", tts.state.value.status != com.fluilet.app.core.tts.TtsStatus.Uninitialized)
+
+        vm.beginReading()
+
+        assertTrue(focus.state.value.isActive)
+        assertTrue(focus.state.value.lockRequested)
+        assertTrue(vm.readingStarted)
+        vm.beginReading() // idempotente
+        assertTrue(focus.state.value.isActive)
+    }
 }
+

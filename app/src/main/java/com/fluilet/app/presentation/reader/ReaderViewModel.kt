@@ -197,6 +197,7 @@ class ReaderViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val local = MutableStateFlow(Local(settings = holder.current.value?.settings ?: ReadingSettings()))
+    private var prepared = false
     private var started = false
 
     /** Id de la sesión en el servidor (`null` si no hay seguimiento). Vive en el alcance de la app. */
@@ -255,11 +256,23 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    /** Idempotente: prepara voz, bloques y la sesión de Modo Enfoque. */
+    /** La lectura ya empezó (Modo Enfoque y sesión): la ventana de preparación de voz no vuelve a aparecer. */
+    val readingStarted: Boolean get() = started
+
+    /** Prepara voz, bloques y la sesión de Modo Enfoque de una vez (lecturas sin verificación previa de la voz). */
     fun start() {
+        prepare()
+        beginReading()
+    }
+
+    /**
+     * Paso 1, idempotente: inicia el motor de voz y carga bloques, mini-reto y avance, SIN fijar la pantalla. Así la
+     * ventana "Preparar dictado por voz" puede abrir los ajustes del teléfono antes de que el Modo Enfoque los bloquee.
+     */
+    fun prepare() {
         val reading = holder.current.value ?: return
-        if (started) return
-        started = true
+        if (prepared) return
+        prepared = true
         tts.initialize()
         tts.load(reading.adaptation.chunks.map { it.text })
         tts.setSpeechRate(local.value.settings.speechRate)
@@ -270,6 +283,14 @@ class ReaderViewModel @Inject constructor(
                 local.update { it.copy(baseline = progress) }
             }
         }
+    }
+
+    /** Paso 2, idempotente: empieza la lectura (Modo Enfoque, sesión en el servidor y avance periódico). */
+    fun beginReading() {
+        val reading = holder.current.value ?: return
+        prepare()
+        if (started) return
+        started = true
         // Con perfil de niño: Screen Pinning + PIN del tutor para salir. Adulto independiente: sin bloqueo.
         focus.begin(childId = reading.childId, lockTask = reading.childId != null)
 
@@ -293,6 +314,9 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun stopSpeech() = tts.stop()
+
+    /** "Probar voz ahora" de la ventana "Preparar dictado por voz". */
+    fun testVoice() = tts.speakTest(VOICE_TEST_PHRASE)
 
     /** Cierra la ventanita de ayuda de la voz (el aviso ya se mostró). */
     fun dismissVoiceError() = tts.consumeError()
@@ -538,6 +562,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     private companion object {
+        const val VOICE_TEST_PHRASE = "Hola, la voz de Fluilet está lista"
         const val PROGRESS_INTERVAL_MS = 30_000L
         const val DEFAULT_BASELINE_LEVEL = 2
     }

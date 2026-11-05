@@ -125,13 +125,14 @@ fun ReaderScreen(onExit: () -> Unit, viewModel: ReaderViewModel = hiltViewModel(
     val context = LocalContext.current
 
     // POST_NOTIFICATIONS (API 33+): permite ver la notificación del servicio. La lectura inicia igual.
+    // Primero solo se prepara (voz y bloques): el Modo Enfoque empieza tras la ventana "Preparar dictado por voz".
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        viewModel.start()
+        viewModel.prepare()
     }
     LaunchedEffect(Unit) {
         val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        if (needsPermission) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else viewModel.start()
+        if (needsPermission) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else viewModel.prepare()
     }
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -191,6 +192,8 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel, botViewMode
     // Problemas de voz (volumen en 0, motor sin español o sin audio): ventanita emergente, nunca un aviso en la pantalla.
     val voiceHelp = rememberVoiceHelp(state, vm)
     VoiceHelpDialog(voiceHelp, state)
+    // Antes de fijar la pantalla: comprobar que la voz en español esté descargada y se escuche.
+    VoicePrepGate(voiceHelp, state)
     Column(
         Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)

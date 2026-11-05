@@ -45,3 +45,24 @@ object VoiceHelp {
 
     fun percent(volume: Int, maxVolume: Int): Int = if (maxVolume <= 0) 0 else (volume * 100f / maxVolume).roundToInt()
 }
+
+/**
+ * Ventana "Preparar dictado por voz" al entrar a una lectura, ANTES de fijar la pantalla del Modo Enfoque (que
+ * bloquea los ajustes del teléfono). `true` = mostrarla; `false` = empezar ya; `null` = el motor aún está iniciando.
+ */
+object VoicePrep {
+    fun needed(tts: TtsState, volume: Int, maxVolume: Int): Boolean? = when {
+        tts.status == TtsStatus.Uninitialized || tts.status == TtsStatus.Initializing -> null
+        tts.status == TtsStatus.Unavailable -> true
+        // "Español (México) admitido" pero sin voz descargada (caso Huawei): no sonaría.
+        tts.localVoiceReady == false -> true
+        VoiceHelp.isLow(volume, maxVolume) -> true
+        // Hasta que la voz suene bien una vez en este teléfono.
+        !tts.voiceVerified -> true
+        else -> false
+    }
+
+    /** Si el motor sigue iniciando tras este tiempo, se muestra la ventana igualmente (nunca se queda esperando). */
+    const val MAX_WAIT_MS = 4_000L
+}
+

@@ -95,4 +95,18 @@
     <string name="voice_help_raise">Subir volumen y escuchar</string>
     <string name="voice_help_activate">Activar motor de voz del teléfono</string>
     <string name="voice_help_close">Cerrar</string>
+    <!-- Ventana "Preparar dictado por voz" (antes del Modo Enfoque) -->
+    <string name="voice_prep_title">Preparar dictado por voz</string>
+    <string name="voice_prep_body">Para escuchar la lectura en voz alta, el teléfono necesita su motor de voz activo y el paquete «Español (México)» o «Español» descargado. Hazlo ahora: al empezar la lectura, el Modo Enfoque fija la pantalla y ya no se pueden abrir los ajustes.</string>
+    <string name="voice_prep_status_no_local">Este teléfono todavía no tiene una voz en español descargada.</string>
+    <string name="voice_prep_status_unavailable">El motor de voz del teléfono no está activo o no tiene español.</string>
+    <string name="voice_prep_status_volume">El volumen multimedia está al %1$d %%.</string>
+    <string name="voice_prep_status_unverified">Prueba la voz una vez para confirmar que se escucha.</string>
+    <string name="voice_prep_status_starting">Iniciando el motor de voz del teléfono…</string>
+    <string name="voice_prep_test">Probar voz ahora</string>
+    <string name="voice_prep_testing">Probando la voz…</string>
+    <string name="voice_prep_passed">¡Se escuchó! La voz de Fluilet está lista.</string>
+    <string name="voice_prep_failed">No se escuchó la voz. Descarga o activa la voz en español y vuelve a probar.</string>
+    <string name="voice_prep_download">Descargar / Activar voz en el teléfono</string>
+    <string name="voice_prep_continue">Continuar a la lectura</string>
 </resources>
