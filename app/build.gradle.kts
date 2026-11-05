@@ -1,4 +1,6 @@
+import java.io.StringReader
 import java.net.URI
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -13,9 +15,11 @@ plugins {
 //   ./gradlew assembleDebug -PFLUILET_API_BASE_URL=http://203.0.113.10:8000     (IP directa, HTTP)
 //   ./gradlew assembleDebug -PFLUILET_API_BASE_URL=https://api.midominio.com     (dominio con TLS)
 //   FLUILET_API_BASE_URL=https://api.midominio.com ./gradlew assembleRelease
-// Prioridad: -P o gradle.properties > variable de entorno > fluilet.apiBaseUrl (nombre anterior) > valor por defecto
-// (debug: http://10.0.2.2:8000/, el backend local visto desde el emulador; release: el placeholder de abajo).
-// Con una URL http:// fuera del emulador se usa network_security_config_http.xml (HTTP en claro permitido).
+// Prioridad: -P > gradle.properties > variable de entorno > fluilet.apiBaseUrl (nombre anterior) > valor por defecto.
+// gradle.properties apunta debug y release al Droplet de producción (http://67.205.150.186/); sin esa línea, debug
+// usaría http://10.0.2.2:8000/ (backend local visto desde el emulador) y release el placeholder de abajo.
+// Con una URL http:// fuera del emulador se usa network_security_config_http.xml, que permite HTTP en claro SOLO
+// hacia los hosts que declara; si el host no está en esa lista, la compilación se detiene con un aviso.
 //
 // Release con https (DigitalOcean + certificado de una CA pública, el caso estándar para Google Play) funciona SIN pines:
 // confía en las autoridades certificadoras del sistema Android (network_security_config.xml) con TLS 1.3. El certificate
@@ -52,13 +56,43 @@ val releaseCertPins = certPins(
     providers.gradleProperty("fluilet.certPins").orElse(providers.environmentVariable("FLUILET_CERT_PINS")).orElse("").get()
 )
 
+// Firma de release (APK y .aab para Google Play). El keystore y sus contraseñas viven FUERA de los repositorios, en
+// ../release-keys/keystore.properties (storeFile, storePassword, keyAlias, keyPassword; storeFile relativo a ese
+// archivo). Otra ubicación: -Pfluilet.keystoreProperties=/ruta/keystore.properties o FLUILET_KEYSTORE_PROPERTIES.
+// Sin ese archivo, release se compila sin firmar y Gradle lo avisa.
+val keystorePropertiesFile = rootProject.layout.projectDirectory.file(
+    providers.gradleProperty("fluilet.keystoreProperties")
+        .orElse(providers.environmentVariable("FLUILET_KEYSTORE_PROPERTIES"))
+        .getOrElse("../release-keys/keystore.properties")
+)
+val releaseSigning: Properties? = providers.fileContents(keystorePropertiesFile).asText.orNull
+    ?.let { text -> Properties().apply { load(StringReader(text)) } }
+    ?.also { props ->
+        listOf("storeFile", "storePassword", "keyAlias", "keyPassword").forEach { key ->
+            require(!props.getProperty(key).isNullOrBlank()) { "Falta '$key' en ${keystorePropertiesFile.asFile}" }
+        }
+    }
+if (releaseSigning == null) {
+    logger.warn("Fluilet: no se encontró ${keystorePropertiesFile.asFile}; las variantes release saldrán SIN firmar.")
+}
+
 // Hosts con HTTP que ya admite la configuración de red de debug (emulador y `adb reverse`).
 val debugCleartextHosts = setOf("10.0.2.2", "127.0.0.1", "localhost")
 
+// Hosts a los que network_security_config_http.xml permite HTTP en claro (se leen del propio XML).
+val httpConfigHosts: Set<String> = Regex("<domain[^>]*>\\s*([^<\\s]+)\\s*</domain>")
+    .findAll(providers.fileContents(layout.projectDirectory.file("src/main/res/xml/network_security_config_http.xml")).asText.get())
+    .map { it.groupValues[1] }.toSet()
+
 /** Configuración de red del manifiesto: la estricta salvo que el backend elegido sea HTTP fuera de esos hosts. */
 fun networkSecurityConfig(api: ApiEndpoint, debug: Boolean): String =
-    if (api.cleartext && !(debug && api.host in debugCleartextHosts)) "@xml/network_security_config_http"
-    else "@xml/network_security_config"
+    if (api.cleartext && !(debug && api.host in debugCleartextHosts)) {
+        require(api.host in httpConfigHosts) {
+            "El backend http://${api.host} no está permitido en src/main/res/xml/network_security_config_http.xml " +
+                "(hosts con HTTP: $httpConfigHosts). Añádelo ahí o usa https://."
+        }
+        "@xml/network_security_config_http"
+    } else "@xml/network_security_config"
 
 android {
     namespace = "com.fluilet.app"
@@ -74,6 +108,17 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        releaseSigning?.let { props ->
+            create("release") {
+                storeFile = keystorePropertiesFile.asFile.parentFile.resolve(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -94,6 +139,7 @@ android {
                 enable = true
             }
             proguardFiles("proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
             buildConfigField("String", "API_BASE_URL", "\"${releaseApi.baseUrl}\"")
             buildConfigField("String", "API_HOST", "\"${releaseApi.host}\"")
             buildConfigField("String", "CERT_PINS", "\"$releaseCertPins\"")

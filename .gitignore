@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Firma de release: el keystore y sus contraseñas nunca van al repositorio (viven en ../release-keys/).
+*.jks
+*.keystore
+keystore.properties
+release-keys/
