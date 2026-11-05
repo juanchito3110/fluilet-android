@@ -59,10 +59,13 @@ import com.fluilet.app.presentation.common.CelebrationBurst
 import com.fluilet.app.presentation.common.SectionCard
 import com.fluilet.app.presentation.common.SpringProgressBar
 import com.fluilet.app.presentation.home.BadgeGallery
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
+import com.fluilet.app.presentation.common.CategoryArtwork
 
-private val BronzeColor = Color(0xFFB45309)
-private val SilverColor = Color(0xFF94A3B8)
-private val GoldColor = Color(0xFFF59E0B)
 private val XpCyan = Color(0xFF22D3EE)
 
 /** Barra de XP con física de resorte: `current_xp / next_stage_xp`. */
@@ -383,59 +386,146 @@ private fun missionProgressText(m: com.fluilet.app.domain.gamification.DailyMiss
 
 // --- Álbum -----------------------------------------------------------------------------------------
 
-private fun rarityColor(rarity: CardRarity?): Color = when (rarity) {
-    CardRarity.BRONCE -> BronzeColor
-    CardRarity.PLATA -> SilverColor
-    CardRarity.ORO -> GoldColor
-    null -> Color(0xFF9CA3AF)
-}
-
-/** Álbum de cartas coleccionables (6 categorías) seguido de las 5 insignias. */
+/**
+ * Álbum de cartas coleccionables (6 categorías), una carta grande por fila para que ningún título ni dato se parta,
+ * seguido de las 5 insignias.
+ */
 @Composable
 fun AlbumSection(cards: List<CollectibleCard>, badges: List<EducationalBadge>) {
-    SectionCard(stringResource(R.string.album_title)) {
-        Text(
-            stringResource(R.string.album_cards_count, cards.count { it.unlocked }, cards.size),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        cards.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { CollectibleCardTile(it, Modifier.weight(1f).fillMaxHeight()) }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.album_title), style = MaterialTheme.typography.titleLarge)
+            Text(
+                stringResource(R.string.album_cards_count, cards.count { it.unlocked }, cards.size),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+        cards.forEach { CollectibleCardTile(it) }
     }
     BadgeGallery(badges)
 }
 
+/** Acabado del marco según la rareza: degradado metálico, borde, insignia y estrellas. */
+private data class CardFinish(
+    val frame: List<Color>,
+    val edge: Color,
+    val badge: Color,
+    val onBadge: Color,
+    val stars: Int
+)
+
+private fun finishFor(rarity: CardRarity?): CardFinish = when (rarity) {
+    CardRarity.ORO -> CardFinish(
+        listOf(Color(0xFFFFF3B0), Color(0xFFF5C542), Color(0xFFC98A0B), Color(0xFFF8DA6E)),
+        Color(0xFF8A5A00), Color(0xFFF5C542), Color(0xFF3F2800), 3
+    )
+    CardRarity.PLATA -> CardFinish(
+        listOf(Color(0xFFF8FAFC), Color(0xFFCBD5E1), Color(0xFF8F9BB0), Color(0xFFE2E8F0)),
+        Color(0xFF475569), Color(0xFFDDE3EC), Color(0xFF1E293B), 2
+    )
+    CardRarity.BRONCE -> CardFinish(
+        listOf(Color(0xFFF6C08E), Color(0xFFCD7F32), Color(0xFF8B4A17), Color(0xFFE8A86A)),
+        Color(0xFF5E2E0C), Color(0xFFCD7F32), Color.White, 1
+    )
+    null -> CardFinish(
+        listOf(Color(0xFFB8BEC8), Color(0xFF7C8494), Color(0xFFA3AAB6)),
+        Color(0xFF4B5563), Color(0xFF6B7280), Color.White, 0
+    )
+}
+
+private val CardInk = Color(0xFF17132E)
+private val ParchmentPaper = Color(0xFFFFF4D6)
+private val ParchmentEdge = Color(0xFFE2C27A)
+private val ParchmentInk = Color(0xFF4A3410)
+
+/**
+ * Carta coleccionable con estética de trading card: marco metálico de su rareza, cabecera con la insignia ("ORO") y
+ * sus estrellas, título completo, ventana de arte con el fondo temático de la categoría y una ficha inferior con la
+ * categoría, las lecciones completadas y el dato curioso en un recuadro tipo pergamino.
+ */
 @Composable
 fun CollectibleCardTile(card: CollectibleCard, modifier: Modifier = Modifier) {
-    val color = rarityColor(card.rarity)
+    val finish = finishFor(card.rarity)
     val rarityName = card.rarity?.displayName ?: stringResource(R.string.album_locked)
-    Card(
-        modifier = modifier.fillMaxWidth().alpha(if (card.unlocked) 1f else 0.6f).semantics(mergeDescendants = true) {
-            contentDescription = "Carta ${card.title}, rareza $rarityName, ${card.lessonsCompleted} lecciones completadas"
-        },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-        border = BorderStroke(if (card.rarity == CardRarity.ORO) 4.dp else 3.dp, color)
+    val categoryName = LessonCategory.displayNameFor(card.categoryCode)
+    val headingStyle = MaterialTheme.typography.titleLarge.copy(lineBreak = LineBreak.Heading, hyphens = Hyphens.None)
+    Box(
+        modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(Brush.linearGradient(finish.frame))
+            .border(2.dp, finish.edge, RoundedCornerShape(28.dp))
+            .padding(9.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Carta ${card.title}, rareza $rarityName, categoría $categoryName, ${card.lessonsCompleted} lecciones completadas"
+            }
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            // La rareza va en su propia línea: en tarjetas angostas no se encima con el título.
-            Box(Modifier.clip(RoundedCornerShape(10.dp)).background(color).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (!card.unlocked) Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                    Text(rarityName, style = MaterialTheme.typography.labelMedium, color = Color.White)
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(21.dp)).background(CardInk).alpha(if (card.unlocked) 1f else 0.92f),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Cabecera: rareza y estrellas.
+            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(finish.badge).border(1.dp, finish.edge, RoundedCornerShape(50))
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (!card.unlocked) Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(14.dp), tint = finish.onBadge)
+                    Text(rarityName.uppercase(), style = MaterialTheme.typography.labelLarge, color = finish.onBadge, maxLines = 1, softWrap = false)
+                }
+                Spacer(Modifier.weight(1f))
+                repeat(3) { index ->
+                    Icon(
+                        if (index < finish.stars) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                        contentDescription = null,
+                        tint = if (index < finish.stars) Color(0xFFFBBF24) else Color.White.copy(alpha = 0.35f),
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
-            Text(card.title, style = MaterialTheme.typography.titleMedium)
-            Text(LessonCategory.displayNameFor(card.categoryCode), style = MaterialTheme.typography.labelLarge)
-            Text(stringResource(R.string.album_lessons_completed, card.lessonsCompleted), style = MaterialTheme.typography.bodyMedium)
-            if (card.unlocked) {
-                Text(stringResource(R.string.album_fun_fact_title), style = MaterialTheme.typography.labelLarge, color = color)
-                Text(card.funFact, style = MaterialTheme.typography.bodyMedium)
-            } else {
-                Text(stringResource(R.string.album_locked_hint), style = MaterialTheme.typography.bodySmall)
+            Text(
+                card.title,
+                style = headingStyle,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            )
+            // Ventana de arte de la carta.
+            Box(
+                Modifier.padding(horizontal = 14.dp).fillMaxWidth().aspectRatio(1.55f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .border(2.dp, finish.frame[1], RoundedCornerShape(18.dp))
+            ) {
+                CategoryArtwork(card.categoryCode, Modifier.fillMaxSize(), iconSize = 76.dp, locked = !card.unlocked)
+                // Brillo diagonal de carta impresa.
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.16f), Color.Transparent, Color.Transparent, Color.White.copy(alpha = 0.08f)))
+                    )
+                )
+            }
+            // Ficha inferior.
+            Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(categoryName, style = MaterialTheme.typography.titleMedium.copy(lineBreak = LineBreak.Heading, hyphens = Hyphens.None), color = finish.frame[1])
+                Text(
+                    stringResource(R.string.album_lessons_completed, card.lessonsCompleted),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(ParchmentPaper)
+                        .border(1.5.dp, ParchmentEdge, RoundedCornerShape(14.dp)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (card.unlocked) {
+                        Text("📜 " + stringResource(R.string.album_fun_fact_title), style = MaterialTheme.typography.labelLarge, color = ParchmentInk)
+                        Text(card.funFact, style = MaterialTheme.typography.bodyMedium, color = ParchmentInk)
+                    } else {
+                        Text(stringResource(R.string.album_locked_hint), style = MaterialTheme.typography.bodyMedium, color = ParchmentInk)
+                    }
+                }
             }
         }
     }

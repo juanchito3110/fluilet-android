@@ -10,14 +10,16 @@ import com.fluilet.app.domain.model.TextChunk
  */
 object TextChunker {
 
-    private const val MAX_SENTENCES_PER_CHUNK = 4
+    /** Uno o dos enunciados por bloque: el niño ve poco texto a la vez, con letra grande y sin renglones cortados. */
+    const val MAX_SENTENCES_PER_CHUNK = 2
 
+    /** Palabras por bloque (20 a 32): más bloques, pero más cortos, en los niveles más sencillos. */
     fun maxWordsFor(level: NlpLevel): Int = when (level) {
-        NlpLevel.NIVEL_1 -> 28
-        NlpLevel.NIVEL_2 -> 38
-        NlpLevel.NIVEL_3 -> 50
-        NlpLevel.NIVEL_4 -> 62
-        NlpLevel.NIVEL_5 -> 75
+        NlpLevel.NIVEL_1 -> 20
+        NlpLevel.NIVEL_2 -> 24
+        NlpLevel.NIVEL_3 -> 28
+        NlpLevel.NIVEL_4 -> 30
+        NlpLevel.NIVEL_5 -> 32
     }
 
     /** Divide el texto adaptado respetando párrafos y oraciones. */
@@ -53,10 +55,30 @@ object TextChunker {
         return chunks
     }
 
-    /** Una "oración" sin puntuación y más larga que el tope se corta por palabras (sin perder texto). */
-    private fun hardSplit(sentence: String, maxWords: Int): List<String> {
+    /**
+     * Una oración más larga que el tope se reparte sin perder texto: se corta tras una coma, punto y coma o dos puntos
+     * cercanos al límite (sin dejar trozos de menos de [MIN_PIECE_WORDS] palabras) y, si no hay, en partes parejas.
+     */
+    internal fun hardSplit(sentence: String, maxWords: Int): List<String> {
         val tokens = sentence.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
         if (tokens.size <= maxWords) return listOf(sentence.trim())
-        return tokens.chunked(maxWords).map { it.joinToString(" ") }
+        val pieces = mutableListOf<List<String>>()
+        var rest = tokens
+        while (rest.size > maxWords) {
+            val clause = (maxWords - 1 downTo MIN_PIECE_WORDS - 1).firstOrNull { i ->
+                rest[i].last() in CLAUSE_MARKS && rest.size - (i + 1) >= MIN_PIECE_WORDS
+            }
+            // Sin pausa natural: partes de tamaño parecido (no una de 32 palabras y otra de 3).
+            val parts = (rest.size + maxWords - 1) / maxWords
+            val even = (rest.size + parts - 1) / parts
+            val cut = clause?.plus(1) ?: even
+            pieces += rest.take(cut)
+            rest = rest.drop(cut)
+        }
+        if (rest.isNotEmpty()) pieces += rest
+        return pieces.map { it.joinToString(" ") }
     }
+
+    private const val MIN_PIECE_WORDS = 4
+    private val CLAUSE_MARKS = setOf(',', ';', ':')
 }

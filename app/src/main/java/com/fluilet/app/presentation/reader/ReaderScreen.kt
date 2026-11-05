@@ -114,6 +114,13 @@ import com.fluilet.app.presentation.parentalgate.GateMode
 import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
 import com.fluilet.app.presentation.theme.FluiletTheme
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.material3.CircularProgressIndicator
+import com.fluilet.app.presentation.common.FitText
 
 @Composable
 fun ReaderScreen(onExit: () -> Unit, viewModel: ReaderViewModel = hiltViewModel()) {
@@ -293,12 +300,15 @@ private fun ReaderTopBar(state: ReaderUiState, vm: ReaderViewModel, bot: FluiBot
 }
 
 /** Chip "Guía de renglón" (con flechas para mover la franja cuando está activa). */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    // FlowRow: si no caben en una fila bajan a la siguiente (nunca "Adapt…" cortado).
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        itemVerticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         SelectableChip(
             selected = state.guideEnabled,
@@ -338,13 +348,13 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
     val guide = state.guideRange
     val textColor = MaterialTheme.colorScheme.onBackground
     val guideBand = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-    val annotated = remember(text, highlight, highlightColor, guide, textColor, guideBand) {
+    val annotated = remember(text, highlight, highlightColor, guide, textColor) {
         buildAnnotatedString {
             append(text)
-            // Guía de renglón: se atenúa todo el bloque y la oración activa recupera el contraste y una franja suave.
+            // Guía de renglón: se atenúa suavemente el resto del bloque y la oración activa conserva todo su contraste.
             if (guide != null && guide.last < text.length) {
-                addStyle(SpanStyle(color = textColor.copy(alpha = 0.42f)), 0, text.length)
-                addStyle(SpanStyle(color = textColor, background = guideBand), guide.first, guide.last + 1)
+                addStyle(SpanStyle(color = textColor.copy(alpha = 0.38f)), 0, text.length)
+                addStyle(SpanStyle(color = textColor), guide.first, guide.last + 1)
             }
             if (highlight != null && highlight.first in text.indices) {
                 addStyle(SpanStyle(background = highlightColor), highlight.first, (highlight.last + 1).coerceAtMost(text.length))
@@ -373,13 +383,22 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Box(
-            Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 22.dp, vertical = 24.dp)
+            Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 24.dp, vertical = 26.dp)
                 .clickable(enabled = state.guideEnabled, onClickLabel = "Siguiente renglón", onClick = onGuideTap)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 androidx.compose.material3.Text(
                     text = annotated,
                     onTextLayout = { layout = it },
+                    // Franja redondeada detrás de cada renglón de la oración activa (como una regla de lectura).
+                    modifier = Modifier.drawBehind {
+                        val l = layout
+                        if (guide != null && l != null && guide.last < l.layoutInput.text.length) {
+                            guideBands(l, guide).forEach { band ->
+                                drawRoundRect(guideBand, topLeft = band.topLeft, size = band.size, cornerRadius = CornerRadius(12.dp.toPx()))
+                            }
+                        }
+                    },
                     style = TextStyle(
                         fontFamily = OpenDyslexicFontFamily,
                         fontSize = settings.fontSizeSp.sp,
@@ -391,6 +410,8 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
                 // "¿Sabías que...?" cierra la lectura: solo al final del último bloque.
                 val fact = state.funFact
                 if (state.isLastChunk && fact != null) FunFactCard(fact)
+                // Aire al final: el último renglón nunca queda pegado al borde de la tarjeta.
+                Spacer(Modifier.height(12.dp))
             }
         }
     }
@@ -402,8 +423,9 @@ private fun rememberScrollStateKeyed(key: Any) = androidx.compose.runtime.key(ke
 @Composable
 private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
     val playing = state.tts.status == TtsStatus.Playing
-    val voiceReady = state.tts.status != TtsStatus.Unavailable && state.tts.status != TtsStatus.Initializing &&
-        state.tts.status != TtsStatus.Uninitialized
+    // "Reproducir" funciona aunque el motor aún esté iniciando: queda en cola y suena en cuanto esté listo.
+    val voiceReady = state.tts.status != TtsStatus.Unavailable
+    val preparing = state.tts.pendingPlay
 
     Column(Modifier.navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ErrorMessage(state.tts.errorMessage.takeIf { state.tts.status != TtsStatus.Unavailable })
@@ -417,7 +439,9 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
                 modifier = Modifier.size(80.dp),
                 colors = IconButtonDefaults.filledIconButtonColors()
             ) {
-                Icon(
+                if (preparing) {
+                    CircularProgressIndicator(Modifier.size(34.dp), strokeWidth = 3.dp, color = MaterialTheme.colorScheme.onPrimary)
+                } else Icon(
                     if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     contentDescription = stringResource(
                         when {
@@ -441,10 +465,11 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
             }
         }
 
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SpeedChip(R.string.reader_speed_slow, 0.8f, state, vm)
-            SpeedChip(R.string.reader_speed_normal, 1.0f, state, vm)
-            SpeedChip(R.string.reader_speed_fast, 1.2f, state, vm)
+        // Tres velocidades del mismo ancho; el texto se ajusta antes de cortarse ("1.0x Normal" completo).
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SpeedChip(R.string.reader_speed_slow, 0.8f, state, vm, Modifier.weight(1f))
+            SpeedChip(R.string.reader_speed_normal, 1.0f, state, vm, Modifier.weight(1f))
+            SpeedChip(R.string.reader_speed_fast, 1.2f, state, vm, Modifier.weight(1f))
         }
 
         if (state.isLastChunk) {
@@ -454,14 +479,28 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel) {
 }
 
 @Composable
-private fun SpeedChip(label: Int, rate: Float, state: ReaderUiState, vm: ReaderViewModel) {
+private fun SpeedChip(label: Int, rate: Float, state: ReaderUiState, vm: ReaderViewModel, modifier: Modifier = Modifier) {
     val selected = kotlin.math.abs(state.settings.speechRate - rate) < 0.03f
     SelectableChip(
         selected = selected,
         onClick = { vm.onSpeechRate(rate) },
-        label = { Text(stringResource(label), style = MaterialTheme.typography.labelLarge) },
-        modifier = Modifier.height(48.dp)
+        label = { FitText(stringResource(label), Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge) },
+        modifier = modifier.height(48.dp)
     )
+}
+
+/** Rectángulos de cada renglón que ocupa [range] (para dibujar la franja de la guía de renglón). */
+private fun guideBands(layout: TextLayoutResult, range: IntRange): List<Rect> {
+    val first = layout.getLineForOffset(range.first)
+    val last = layout.getLineForOffset(range.last)
+    return (first..last).map { line ->
+        val start = maxOf(range.first, layout.getLineStart(line))
+        val end = minOf(range.last + 1, layout.getLineEnd(line, visibleEnd = true))
+        val left = layout.getHorizontalPosition(start, usePrimaryDirection = true)
+        val right = if (end >= layout.getLineEnd(line, visibleEnd = true)) layout.getLineRight(line)
+        else layout.getHorizontalPosition(end, usePrimaryDirection = true)
+        Rect(minOf(left, right) - 8f, layout.getLineTop(line) + 2f, maxOf(left, right) + 8f, layout.getLineBottom(line) - 2f)
+    }
 }
 
 @Composable

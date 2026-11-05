@@ -47,6 +47,16 @@ import com.fluilet.app.presentation.common.ModelAuditCard
 import com.fluilet.app.presentation.fluibot.FluiBotViewModel
 import com.fluilet.app.presentation.parentalgate.GateMode
 import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.sp
+import com.fluilet.app.presentation.common.FitText
 
 internal enum class PinDialog { NONE, SETUP_FOR_START, SETUP, CHANGE }
 
@@ -72,21 +82,15 @@ fun HomeScreen(
     // FluiBot, Colección y Estadísticas comparten el mismo inventario del perfil seleccionado.
     LaunchedEffect(state.ownerKey, state.progress) { botViewModel.bind(state.ownerKey, state.progress) }
 
+    // Un "Iniciar lectura" con niño exige antes un PIN de tutor (Modo Enfoque).
+    val startReading: () -> Unit = {
+        val now = viewModel.uiState.value
+        if (now.isTutor && !now.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-                HomeTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = tab == state.selectedTab,
-                        onClick = { viewModel.selectTab(tab) },
-                        icon = { Text(tab.emoji, style = MaterialTheme.typography.titleLarge) },
-                        label = { Text(tab.label, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
-                        alwaysShowLabel = true
-                    )
-                }
-            }
-        }
+        bottomBar = { HomeNavigationBar(state.selectedTab, viewModel::selectTab) }
     ) { padding ->
         // consumeWindowInsets: el Scaffold ya reservó barra de estado y navegación; safeDrawingPadding solo añade lo que
         // falte (teclado, recortes de cámara) en lugar de duplicar esos márgenes.
@@ -96,26 +100,13 @@ fun HomeScreen(
                 return@Box
             }
             Column(
-                Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                Modifier.safeDrawingPadding().verticalScroll(rememberScrollState())
+                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                Header(state, onLogout = viewModel::logout, onShowIntro = onShowIntro)
+                if (state.selectedTab == HomeTab.INICIO) Header(state, onLogout = viewModel::logout, onShowIntro = onShowIntro)
                 ErrorMessage(state.errorMessage)
-                ChildCardsRow(
-                    state,
-                    onSelect = viewModel::select,
-                    onNew = onNewChild,
-                    currentEquipped = bot.equipped,
-                    equippedFor = botViewModel::equippedFor
-                )
                 if (state.offlineDemo) Text(stringResource(R.string.child_offline_demo), style = MaterialTheme.typography.bodySmall)
-                AnimatedVisibility(
-                    visible = state.selectedTab == HomeTab.LECTURAS,
-                    enter = fadeIn(tween(300)) + expandVertically(tween(300)),
-                    exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
-                ) {
-                    HomeHeroCard(state, bot, onCelebrate = botViewModel::celebrate)
-                }
 
                 // Cambio de apartado con un fundido y un leve deslizamiento.
                 AnimatedContent(
@@ -129,57 +120,57 @@ fun HomeScreen(
                     label = "homeTab"
                 ) { tab ->
                     when (tab) {
-                        HomeTab.LECTURAS -> ReadingsTab(
+                        HomeTab.INICIO -> InicioTab(
                             state = state,
+                            bot = bot,
                             onSelect = viewModel::select,
                             onNewChild = onNewChild,
                             onEditChild = onEditChild,
                             onDeleteChild = { confirmDelete = it },
                             onNlpLevel = viewModel::requestNlpLevel,
-                            onStartReading = {
-                                // El Modo Enfoque con niño exige tener un PIN de tutor antes de empezar.
-                                if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
-                            },
-                            onReadingSaved = viewModel::refresh,
                             onPin = { pinDialog = if (state.pinConfigured) PinDialog.CHANGE else PinDialog.SETUP },
-                            // "Empezar ahora" ya pasó por la configuración de PIN dentro del creador de lecturas.
-                            onNewReadingStart = onStartReading,
                             onLoadDemo = viewModel::loadDemoData,
+                            onCelebrate = botViewModel::celebrate,
+                            onStartReading = startReading,
+                            currentEquipped = bot.equipped,
+                            equippedFor = botViewModel::equippedFor
+                        )
+                        HomeTab.LECTURAS -> LecturasTab(
+                            state = state,
+                            onSelect = viewModel::select,
+                            onStartReading = startReading,
+                            onLoadDemo = viewModel::loadDemoData,
+                            onGoAdapt = { viewModel.selectTab(HomeTab.ADAPTAR) },
                             onOpenDemoLesson = { lesson ->
                                 viewModel.openDemoLesson(lesson)
-                                if (state.isTutor && !state.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
+                                startReading()
                             },
-                            onOpenLibraryLesson = { item ->
-                                viewModel.openLibraryLesson(item) {
-                                    val now = viewModel.uiState.value
-                                    if (now.isTutor && !now.pinConfigured) pinDialog = PinDialog.SETUP_FOR_START else onStartReading()
-                                }
-                            }
+                            onOpenLibraryLesson = { item -> viewModel.openLibraryLesson(item) { startReading() } }
                         )
-                        HomeTab.FLUIBOT -> FluiBotTab(
+                        HomeTab.ADAPTAR -> AdaptarTab(
+                            state = state,
+                            onSelect = viewModel::select,
+                            onReadingSaved = viewModel::refresh,
+                            // "Empezar ahora" ya pasó por la configuración de PIN dentro del estudio.
+                            onNewReadingStart = onStartReading
+                        )
+                        HomeTab.AVATAR -> AvatarTab(
+                            state = state,
                             bot = bot,
+                            onSelect = viewModel::select,
                             onCelebrate = botViewModel::celebrate,
                             onBuyAccessory = botViewModel::buy,
                             onToggleAccessory = botViewModel::toggleEquip,
                             onBuyScenario = botViewModel::buyScenario,
-                            onEquipScenario = botViewModel::equipScenario
-                        )
-                        HomeTab.COLECCION -> CollectionTab(
-                            bot = bot,
-                            progress = state.progress,
+                            onEquipScenario = botViewModel::equipScenario,
                             // Las misiones del servidor se confirman con su endpoint (ya abonadas); las locales suman al instante.
-                            onClaim = { id ->
+                            onClaimMission = { id ->
                                 if (state.progress.serverMissions?.any { it.id == id } == true) {
                                     viewModel.claimServerMission(id, onBackendUnavailable = { botViewModel.claimMissionOffline(id) })
-                                }
-                                else botViewModel.claimMission(id)
+                                } else botViewModel.claimMission(id)
                             }
                         )
-                        HomeTab.ESTADISTICAS -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            DemoDataCard(state, viewModel::loadDemoData)
-                            ProgressDashboard(state.progress, state.progressNote)
-                            state.modelAudit?.let { ModelAuditCard(it) }
-                        }
+                        HomeTab.CARTAS -> CartasTab(state, bot, onSelect = viewModel::select, audit = state.modelAudit)
                     }
                 }
             }
@@ -227,4 +218,28 @@ fun HomeScreen(
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
+}
+
+/** Barra inferior de 5 apartados: ícono y UNA palabra que se ajusta antes de cortarse en pantallas angostas. */
+@Composable
+private fun HomeNavigationBar(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+        HomeTab.entries.forEach { tab ->
+            NavigationBarItem(
+                selected = tab == selected,
+                onClick = { onSelect(tab) },
+                icon = { Icon(tab.icon(), contentDescription = null) },
+                label = { FitText(tab.label, style = MaterialTheme.typography.labelMedium, minSize = 8.sp) },
+                alwaysShowLabel = true
+            )
+        }
+    }
+}
+
+private fun HomeTab.icon(): ImageVector = when (this) {
+    HomeTab.INICIO -> Icons.Filled.Home
+    HomeTab.LECTURAS -> Icons.AutoMirrored.Filled.MenuBook
+    HomeTab.ADAPTAR -> Icons.Filled.AutoFixHigh
+    HomeTab.AVATAR -> Icons.Filled.SmartToy
+    HomeTab.CARTAS -> Icons.Filled.Style
 }

@@ -1,22 +1,20 @@
 package com.fluilet.app.presentation.home
 
-/** Los 4 apartados de la navegación principal, cada uno en su propia pantalla. */
-enum class HomeTab(val emoji: String, val label: String) {
-    LECTURAS("📚", "Lecturas"),
-    FLUIBOT("🤖", "Mi FluiBot"),
-    COLECCION("🃏", "Colección"),
-    ESTADISTICAS("📊", "Estadísticas");
-
-    /** Título completo del apartado (la barra inferior usa la etiqueta corta). */
-    val title: String
-        get() = when (this) {
-            LECTURAS -> "Lecturas"
-            FLUIBOT -> "Mi FluiBot"
-            COLECCION -> "Colección y Misiones"
-            ESTADISTICAS -> "Estadísticas"
-        }
+/**
+ * Los 5 apartados de la barra inferior. Cada etiqueta es UNA palabra corta para que nunca se corte en pantallas
+ * angostas; [title] es el encabezado completo dentro del apartado.
+ */
+enum class HomeTab(val label: String, val title: String) {
+    INICIO("Inicio", "Inicio"),
+    LECTURAS("Lecturas", "Biblioteca de lecturas"),
+    ADAPTAR("Adaptar", "Estudio de adaptación"),
+    AVATAR("Avatar", "Avatar FluiBot"),
+    CARTAS("Cartas", "Cartas y estadísticas");
 
     companion object {
-        val DEFAULT = LECTURAS
+        val DEFAULT = INICIO
     }
 }
+
+/** Vista del apartado Cartas: el álbum de cartas coleccionables o el progreso pedagógico. */
+enum class CardsView(val label: String) { ALBUM("Álbum de cartas"), ESTADISTICAS("Estadísticas") }

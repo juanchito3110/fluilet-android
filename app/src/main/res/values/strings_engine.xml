@@ -21,10 +21,6 @@
     <string name="audit_source_fallback">Sin conexión: valores verificados del commit 42482e0 del backend.</string>
 
     <!-- Biblioteca del niño (GET /children/{id}/library) -->
-    <string name="library_title">📚 Lecciones de %1$s</string>
-    <string name="library_hint">Lecturas guardadas en el servidor para este perfil. Ábrelas con su original, sus 5 niveles y la ficha técnica.</string>
-    <string name="library_row">%1$s · Nivel %2$d</string>
     <string name="library_scores">Szigriszt-Pazos %1$s ➔ %2$s</string>
-    <string name="library_open">📖 Abrir lección</string>
     <string name="library_opening">Abriendo…</string>
 </resources>

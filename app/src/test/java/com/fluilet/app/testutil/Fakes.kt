@@ -16,7 +16,8 @@ class FakeSecureStore : SecureStore {
 }
 
 /** Motor de voz de prueba: registra lo que se habla y deja disparar eventos a mano. */
-class FakeSpeechEngine(private val init: SpeechEngineInit = SpeechEngineInit.Ready) : SpeechEngine {
+/** [init] `null` = el motor tarda en iniciar: la prueba lo completa con [finishInit]. */
+class FakeSpeechEngine(private val init: SpeechEngineInit? = SpeechEngineInit.Ready) : SpeechEngine {
     data class Spoken(val text: String, val id: String, val rate: Float)
 
     override var listener: SpeechEngineListener? = null
@@ -24,7 +25,11 @@ class FakeSpeechEngine(private val init: SpeechEngineInit = SpeechEngineInit.Rea
     var stopCount = 0
     var shutdownCalled = false
 
-    override fun initialize(onResult: (SpeechEngineInit) -> Unit) = onResult(init)
+    private var pendingInit: ((SpeechEngineInit) -> Unit)? = null
+    override fun initialize(onResult: (SpeechEngineInit) -> Unit) {
+        if (init != null) onResult(init) else pendingInit = onResult
+    }
+    fun finishInit(result: SpeechEngineInit = SpeechEngineInit.Ready) = pendingInit!!.invoke(result)
     override fun speak(text: String, utteranceId: String, rate: Float) { spoken += Spoken(text, utteranceId, rate) }
     override fun stop() { stopCount++ }
     override fun shutdown() { shutdownCalled = true }

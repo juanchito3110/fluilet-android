@@ -283,11 +283,12 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    /** Reproducir / pausar. Antes de que el motor esté listo, "reproducir" queda en cola y un segundo toque la cancela. */
     fun togglePlayPause() {
-        when (tts.state.value.status) {
-            TtsStatus.Playing -> tts.pause()
-            TtsStatus.Idle, TtsStatus.Paused -> tts.play()
-            else -> Unit
+        val tts = tts.state.value
+        when {
+            tts.status == TtsStatus.Playing || tts.pendingPlay -> this.tts.pause()
+            tts.status != TtsStatus.Unavailable -> this.tts.play()
         }
     }
 

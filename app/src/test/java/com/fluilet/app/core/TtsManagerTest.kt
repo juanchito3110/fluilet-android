@@ -191,4 +191,88 @@ class TtsManagerTest {
         TtsManager { engine }.speakWord("estrella")
         assertTrue(engine.spoken.isEmpty())
     }
+
+    // --- Play antes de que el motor termine de iniciar (teléfonos físicos lentos) -----------------------
+
+    private fun slow(): Pair<TtsManager, FakeSpeechEngine> {
+        val engine = FakeSpeechEngine(init = null)
+        val manager = TtsManager { engine }
+        manager.initialize()
+        manager.load(chunks)
+        return manager to engine
+    }
+
+    @Test fun playBeforeTheEngineIsReadyIsQueuedAndSpeaksAsSoonAsItIs() {
+        val (manager, engine) = slow()
+        assertEquals(TtsStatus.Initializing, manager.state.value.status)
+
+        manager.play()
+
+        assertTrue("queda en cola", manager.state.value.pendingPlay)
+        assertTrue("aún no habla", engine.spoken.isEmpty())
+        engine.finishInit()
+        assertEquals(TtsStatus.Playing, manager.state.value.status)
+        assertFalse(manager.state.value.pendingPlay)
+        assertEquals("Hola mundo feliz.", engine.last.text)
+    }
+
+    @Test fun pausingOrStoppingWhileQueuedCancelsTheQueuedPlay() {
+        val (manager, engine) = slow()
+        manager.play()
+        manager.pause()
+        assertFalse(manager.state.value.pendingPlay)
+        manager.play()
+        manager.stop()
+        assertFalse(manager.state.value.pendingPlay)
+
+        engine.finishInit()
+
+        assertEquals(TtsStatus.Idle, manager.state.value.status)
+        assertTrue(engine.spoken.isEmpty())
+    }
+
+    @Test fun aQueuedPlayIsDroppedIfTheVoiceTurnsOutUnavailable() {
+        val (manager, engine) = slow()
+        manager.play()
+        engine.finishInit(SpeechEngineInit.Unavailable("Falta la voz", missingVoiceData = true))
+        assertEquals(TtsStatus.Unavailable, manager.state.value.status)
+        assertFalse(manager.state.value.pendingPlay)
+        assertTrue(engine.spoken.isEmpty())
+    }
+
+    @Test fun theQueuedPlayStartsFromTheChunkChosenWithTheArrows() {
+        val (manager, engine) = slow()
+        manager.seekToChunk(1)
+        manager.play()
+        engine.finishInit()
+        assertEquals("Segundo bloque corto.", engine.last.text)
+        assertEquals(1, manager.state.value.chunkIndex)
+    }
+
+    @Test fun aSpeedChangeWhilePlayingIsAppliedLiveAndWhilePausedOnResume() {
+        val (manager, engine) = ready()
+        manager.play()
+        manager.setSpeechRate(0.8f)
+        assertEquals(0.8f, engine.last.rate, 0f)
+        manager.pause()
+        manager.setSpeechRate(1.0f)
+        manager.play()
+        assertEquals(1.0f, engine.last.rate, 0f)
+    }
+
+    @Test fun spanishIsTriedInCascadeUntilTheEngineAcceptsOne() {
+        val tried = mutableListOf<String>()
+        val chosen = com.fluilet.app.core.tts.SpanishVoices.firstSupported { locale ->
+            tried += locale.toLanguageTag()
+            if (locale.toLanguageTag() == "es-419") 1 else -1
+        }
+        assertEquals(listOf("es-MX", "es-US", "es-419"), tried)
+        assertEquals("es-419", chosen?.toLanguageTag())
+        assertEquals(
+            listOf("es-MX", "es-US", "es-419", "es-ES", "es"),
+            com.fluilet.app.core.tts.SpanishVoices.LOCALES.map { it.toLanguageTag() }
+        )
+        assertNull(com.fluilet.app.core.tts.SpanishVoices.firstSupported { -2 })
+    }
 }
+

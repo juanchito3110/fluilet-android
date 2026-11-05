@@ -25,14 +25,15 @@ import java.time.ZoneOffset
 /** Los 4 apartados, los 5 escenarios, las misiones diarias, el glosario, los datos curiosos y las sugerencias. */
 class ModulesDomainTest {
 
-    // --- Navegación de 4 apartados ----------------------------------------------------------
+    // --- Navegación de 5 apartados ----------------------------------------------------------
 
-    @Test fun thereAreFourIndependentSectionsAndLecturasIsTheDefault() {
-        assertEquals(listOf("LECTURAS", "FLUIBOT", "COLECCION", "ESTADISTICAS"), HomeTab.entries.map { it.name })
-        assertEquals(HomeTab.LECTURAS, HomeTab.DEFAULT)
-        assertEquals(listOf("Lecturas", "Mi FluiBot", "Colección", "Estadísticas"), HomeTab.entries.map { it.label })
-        assertEquals("Colección y Misiones", HomeTab.COLECCION.title)
-        assertEquals(4, HomeTab.entries.map { it.emoji }.toSet().size)
+    @Test fun thereAreFiveSectionsWithOneShortWordEachAndInicioIsTheDefault() {
+        assertEquals(listOf("INICIO", "LECTURAS", "ADAPTAR", "AVATAR", "CARTAS"), HomeTab.entries.map { it.name })
+        assertEquals(HomeTab.INICIO, HomeTab.DEFAULT)
+        assertEquals(listOf("Inicio", "Lecturas", "Adaptar", "Avatar", "Cartas"), HomeTab.entries.map { it.label })
+        // Una sola palabra corta por etiqueta: la barra inferior nunca corta "Mi" ni "Estadísti".
+        assertTrue(HomeTab.entries.all { ' ' !in it.label && it.label.length <= 8 })
+        assertEquals(listOf("Álbum de cartas", "Estadísticas"), com.fluilet.app.presentation.home.CardsView.entries.map { it.label })
     }
 
     // --- Escenarios ---------------------------------------------------------------------------

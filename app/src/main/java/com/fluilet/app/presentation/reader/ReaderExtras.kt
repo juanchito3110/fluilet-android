@@ -69,6 +69,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import java.util.Locale
 import com.fluilet.app.presentation.common.SelectableChip
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 
 /** Tope de caracteres del original que se dibujan en la comparación (el texto vive solo en RAM). */
 private const val MAX_ORIGINAL_CHARS = 6_000
@@ -417,11 +419,13 @@ private const val MAX_CHIP_WORDS = 6
 
 /** 🔍 Glosario Mágico: palabras clave tocables; cada una muestra definición, ejemplo y "Escuchar palabra". */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 internal fun GlossaryBar(state: ReaderUiState, vm: ReaderViewModel, modifier: Modifier = Modifier) {
     if (state.vocabulary.isEmpty()) return
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.glossary_title), style = MaterialTheme.typography.titleSmall)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // FlowRow: todas las palabras clave visibles completas, sin chips cortados en los bordes.
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             state.vocabulary.forEach { entry ->
                 SelectableChip(
                     selected = entry.word == state.selectedWord?.word,

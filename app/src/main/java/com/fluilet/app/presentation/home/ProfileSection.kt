@@ -84,39 +84,47 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.Animatable
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.text.style.TextAlign
 
 /**
- * Encabezado oficial: isotipo + "Fluilet" + eslogan, el saludo y el acceso "✨ Ver Intro / Cuenta" para repetir
- * la animación del logo y la pantalla de Iniciar Sesión / Crear Cuenta en cualquier momento.
+ * Encabezado institucional: arriba la marca (isotipo, "Fluilet" y eslogan) con dos botones compactos (introducción y
+ * cuenta, cerrar sesión); debajo, en su propia fila y a todo el ancho, el saludo y el rol. Así el saludo nunca se
+ * aplasta letra por letra junto a un botón.
  */
 @Composable
 internal fun Header(state: HomeUiState, onLogout: () -> Unit, onShowIntro: () -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FluiletIsotypeLogo(Modifier.size(44.dp))
+            FluiletIsotypeLogo(Modifier.size(42.dp))
             Column(Modifier.weight(1f)) {
-                Text(FluiletBrand.NAME, color = FluiletBrand.Purple, fontWeight = FontWeight.Bold, fontFamily = FontFamily.SansSerif, fontSize = 24.sp)
-                Text(FluiletBrand.SLOGAN, color = FluiletBrand.SloganPurple, fontFamily = FontFamily.SansSerif, fontSize = 13.sp)
+                Text(FluiletBrand.NAME, color = FluiletBrand.Purple, fontWeight = FontWeight.Bold, fontFamily = FontFamily.SansSerif, fontSize = 24.sp, maxLines = 1)
+                Text(FluiletBrand.SLOGAN, color = FluiletBrand.SloganPurple, fontFamily = FontFamily.SansSerif, fontSize = 13.sp, maxLines = 1)
             }
-            IconButton(onClick = onLogout) {
+            FilledTonalIconButton(onClick = onShowIntro, modifier = Modifier.size(44.dp)) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = stringResource(R.string.home_intro_action))
+            }
+            FilledTonalIconButton(onClick = onLogout, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = stringResource(R.string.home_logout))
             }
         }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    if (state.userName.isBlank()) stringResource(R.string.home_hello_plain)
-                    else stringResource(R.string.home_hello, state.userName),
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    stringResource(if (state.isTutor) R.string.home_role_tutor else R.string.home_role_adult),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            TextButton(onClick = onShowIntro, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.home_show_intro), style = MaterialTheme.typography.labelLarge)
-            }
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                if (state.userName.isBlank()) stringResource(R.string.home_hello_plain) else stringResource(R.string.home_hello, state.userName),
+                style = MaterialTheme.typography.headlineSmall
+            )
+            Text(
+                stringResource(if (state.isTutor) R.string.home_greeting_sub_tutor else R.string.home_greeting_sub_adult),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -200,7 +208,7 @@ internal fun ChildCardsRow(
     equippedFor: (String) -> Set<String> = { emptySet() }
 ) {
     if (!state.isTutor) return
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         state.children.forEach { child ->
             // Los accesorios del perfil seleccionado se actualizan en vivo al equiparlos en la tienda.
             val equipped = remember(child.id, currentEquipped) { equippedFor(child.id) }
@@ -216,6 +224,11 @@ internal fun ChildCardsRow(
     }
 }
 
+/**
+ * Tarjeta de un lector: FluiBot del niño enmarcado (animado si está seleccionado), nombre completo (hasta 2 renglones,
+ * nunca cortado), edad y grupo, e insignias de nivel, etapa y gemas que se ajustan antes de cortarse.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boolean, equipped: Set<String>, onClick: () -> Unit) {
     val level = summary?.level ?: child.nlpLevel.value
@@ -224,42 +237,50 @@ private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boo
         summary?.let { append(", etapa ${it.stage}, ${it.gems} gemas") }
         append(if (selected) ", seleccionado" else "")
     }
+    val scheme = MaterialTheme.colorScheme
     Card(
         onClick = onClick,
-        modifier = Modifier.width(176.dp).semantics(mergeDescendants = true) { contentDescription = description },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
-        border = BorderStroke(if (selected) 3.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+        modifier = Modifier.width(248.dp).fillMaxHeight().semantics(mergeDescendants = true) { contentDescription = description },
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = if (selected) scheme.primaryContainer else scheme.surfaceVariant),
+        border = BorderStroke(if (selected) 2.5.dp else 1.dp, if (selected) scheme.primary else scheme.outlineVariant)
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            // FluiBot del niño en su etapa y con sus accesorios; el del perfil seleccionado está animado.
-            FluiBotCanvas(
-                stage = FluiBotStage.entries.firstOrNull { it.number == summary?.stage } ?: FluiBotStage.NUCLEO,
-                equipped = equipped,
-                animated = selected,
-                interactive = false,
-                modifier = Modifier.fillMaxWidth().height(76.dp)
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    child.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    Modifier.size(68.dp).clip(CircleShape)
+                        .background(Brush.radialGradient(listOf(FluiletBrand.Lavender, FluiletBrand.Purple.copy(alpha = 0.35f))))
+                        .border(2.dp, if (selected) scheme.primary else Color.White.copy(alpha = 0.6f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // FluiBot del niño en su etapa y con sus accesorios; el del perfil seleccionado está animado.
+                    FluiBotCanvas(
+                        stage = FluiBotStage.entries.firstOrNull { it.number == summary?.stage } ?: FluiBotStage.NUCLEO,
+                        equipped = equipped,
+                        animated = selected,
+                        interactive = false,
+                        modifier = Modifier.size(62.dp)
+                    )
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(child.name, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                    Text(
+                        child.ageGroup?.let { stringResource(R.string.child_card_age_group, child.ageYears(), it) }
+                            ?: stringResource(R.string.child_card_age, child.ageYears()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant
+                    )
+                }
                 if (selected) CheckMark()
             }
-            Text(
-                stringResource(R.string.child_card_age, child.ageYears()) + (child.ageGroup?.let { " · $it" } ?: ""),
-                style = MaterialTheme.typography.bodySmall
-            )
-            Text(stringResource(R.string.child_card_level, level), style = MaterialTheme.typography.labelLarge)
-            Text(
-                summary?.let { stringResource(R.string.child_card_stage, it.stage) } ?: stringResource(R.string.child_card_loading),
-                style = MaterialTheme.typography.bodySmall
-            )
-            Text(summary?.let { "💎 ${it.gems}" } ?: "💎 …", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Pill(stringResource(R.string.child_card_level, level), scheme.primary, scheme.onPrimary)
+                Pill(
+                    summary?.let { stringResource(R.string.child_card_stage_short, it.stage) } ?: stringResource(R.string.child_card_loading),
+                    scheme.background, scheme.onBackground
+                )
+                Pill("💎 " + (summary?.gems?.toString() ?: "…"), FluiletBrand.Mint.copy(alpha = 0.22f), scheme.onBackground)
+            }
         }
     }
 }
@@ -268,14 +289,20 @@ private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boo
 private fun NewChildCard(onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        modifier = Modifier.width(120.dp).height(IntrinsicSize.Max).semantics { contentDescription = "Crear un niño nuevo" },
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.width(132.dp).height(IntrinsicSize.Max).semantics { contentDescription = "Crear un niño nuevo" },
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
     ) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(Icons.Filled.Add, contentDescription = null)
-            Text(stringResource(R.string.home_new_child), style = MaterialTheme.typography.labelLarge)
+        Column(
+            Modifier.fillMaxWidth().fillMaxHeight().padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)
+        ) {
+            Box(Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            }
+            Text(stringResource(R.string.home_new_child), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
         }
     }
 }

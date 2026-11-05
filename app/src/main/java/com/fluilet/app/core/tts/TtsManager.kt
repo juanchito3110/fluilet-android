@@ -21,7 +21,9 @@ data class TtsState(
     val finished: Boolean = false,
     val speechRate: Float = 1.0f,
     val errorMessage: String? = null,
-    val missingVoiceData: Boolean = false
+    val missingVoiceData: Boolean = false,
+    /** Se pulsó "reproducir" antes de que el motor estuviera listo: sonará en cuanto termine de iniciar. */
+    val pendingPlay: Boolean = false
 )
 
 /**
@@ -64,14 +66,19 @@ class TtsManager internal constructor(
                 synchronized(lock) {
                     if (engine !== created) return@initialize
                     when (result) {
-                        SpeechEngineInit.Ready ->
-                            _state.update { it.copy(status = TtsStatus.Idle, errorMessage = null, missingVoiceData = false) }
+                        SpeechEngineInit.Ready -> {
+                            val queued = _state.value.pendingPlay
+                            _state.update { it.copy(status = TtsStatus.Idle, errorMessage = null, missingVoiceData = false, pendingPlay = false) }
+                            // "Reproducir" pulsado mientras arrancaba el motor: empieza ahora, sin volver a tocarlo.
+                            if (queued && chunks.isNotEmpty()) speakChunk(_state.value.chunkIndex, 0)
+                        }
                         is SpeechEngineInit.Unavailable ->
                             _state.update {
                                 it.copy(
                                     status = TtsStatus.Unavailable,
                                     errorMessage = result.reason,
-                                    missingVoiceData = result.missingVoiceData
+                                    missingVoiceData = result.missingVoiceData,
+                                    pendingPlay = false
                                 )
                             }
                     }
@@ -94,6 +101,12 @@ class TtsManager internal constructor(
 
     fun play() = synchronized(lock) {
         val s = _state.value
+        if (s.status == TtsStatus.Uninitialized || s.status == TtsStatus.Initializing) {
+            // Cola: se reproduce el bloque actual en cuanto el motor responda que está listo.
+            if (chunks.isNotEmpty()) _state.update { it.copy(pendingPlay = true) }
+            if (s.status == TtsStatus.Uninitialized) initialize()
+            return@synchronized
+        }
         if (s.status != TtsStatus.Idle && s.status != TtsStatus.Paused) return@synchronized
         if (chunks.isEmpty()) return@synchronized
         val resumeFrom = if (s.status == TtsStatus.Paused) lastWordStart else 0
@@ -102,6 +115,10 @@ class TtsManager internal constructor(
     }
 
     fun pause() = synchronized(lock) {
+        if (_state.value.pendingPlay) {
+            _state.update { it.copy(pendingPlay = false) }
+            return@synchronized
+        }
         if (_state.value.status != TtsStatus.Playing) return@synchronized
         haltEngine()
         _state.update { it.copy(status = TtsStatus.Paused) }
@@ -111,6 +128,7 @@ class TtsManager internal constructor(
 
     /** Detiene la voz y quita el resaltado; el bloque actual se conserva. */
     fun stop() = synchronized(lock) {
+        if (_state.value.pendingPlay) _state.update { it.copy(pendingPlay = false) }
         if (_state.value.status != TtsStatus.Playing && _state.value.status != TtsStatus.Paused) return@synchronized
         haltEngine()
         lastWordStart = 0
@@ -206,7 +224,7 @@ class TtsManager internal constructor(
                 it.copy(
                     status = TtsStatus.Idle,
                     highlight = null,
-                    errorMessage = "No se pudo reproducir la voz. Inténtalo de nuevo."
+                    errorMessage = "No se escuchó la voz. Sube el volumen multimedia o revisa el motor de voz del teléfono e inténtalo de nuevo."
                 )
             }
         }

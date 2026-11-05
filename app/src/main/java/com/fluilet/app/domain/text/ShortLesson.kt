@@ -12,7 +12,7 @@ import kotlin.math.ceil
 /**
  * Lecciones cortas para niños. Antes el servidor adaptaba hasta 1200 palabras de la introducción de Wikipedia, así que
  * un tema como "béisbol" llegaba con 16 bloques. Una lección generada para un niño se queda con sus primeras oraciones
- * completas hasta el tope de su edad (unos 4 a 6 bloques). Ahora el backend ya recorta la fuente con los mismos topes;
+ * completas hasta el tope de su edad, repartidas en bloques cortos de 1 o 2 oraciones. Ahora el backend ya recorta la fuente con los mismos topes;
  * esto cubre las lecciones guardadas antes de ese cambio y cualquier servidor que no recorte.
  *
  * Todo se recorta en el mismo punto: la lectura, el original y los 5 niveles del comparador (mismo porcentaje del

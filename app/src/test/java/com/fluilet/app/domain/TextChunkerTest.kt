@@ -37,4 +37,27 @@ class TextChunkerTest {
     @Test fun blankTextGivesNoChunks() {
         assertTrue(TextChunker.chunkAdaptedText("  \n\n ", NlpLevel.NIVEL_3).isEmpty())
     }
+
+    @Test fun blocksAreShortWithAtMostTwoSentences() {
+        val text = List(12) { "El equipo de la escuela corre feliz por el campo verde cada tarde." }.joinToString(" ")
+        val chunks = TextChunker.chunkAdaptedText(text, NlpLevel.NIVEL_1)
+        assertTrue(chunks.all { SpanishText.sentenceCount(it.text) <= TextChunker.MAX_SENTENCES_PER_CHUNK })
+        assertTrue(chunks.all { SpanishText.wordCount(it.text) <= TextChunker.maxWordsFor(NlpLevel.NIVEL_1) })
+        assertEquals(listOf(20, 24, 28, 30, 32), NlpLevel.entries.map(TextChunker::maxWordsFor))
+    }
+
+    @Test fun aLongSentenceIsCutAfterACommaNotInTheMiddleOfAPhrase() {
+        val long = "Los jugadores de béisbol entrenan cada mañana en el estadio de la ciudad, " +
+            "y después de comer repasan las jugadas con su entrenador favorito mientras el sol se esconde detrás de las montañas lejanas."
+        val pieces = TextChunker.hardSplit(long, 20)
+        assertTrue(pieces.first().endsWith("ciudad,"))
+        assertEquals(SpanishText.wordCount(long), pieces.sumOf { SpanishText.wordCount(it) })
+        assertTrue(pieces.all { SpanishText.wordCount(it) <= 20 })
+    }
+
+    @Test fun withoutAPauseALongSentenceIsSplitIntoEvenParts() {
+        val words = List(45) { "palabra" }.joinToString(" ")
+        assertEquals(listOf(15, 15, 15), TextChunker.hardSplit(words, 20).map { SpanishText.wordCount(it) })
+    }
 }
+

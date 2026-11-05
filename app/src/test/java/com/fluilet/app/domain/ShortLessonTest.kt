@@ -73,7 +73,9 @@ class ShortLessonTest {
 
         val reading = short.chunks.joinToString(" ") { it.text }
         assertTrue(SpanishText.wordCount(reading) <= ShortLesson.wordBudget(AgeGroup.SIX_TO_EIGHT))
-        assertTrue("de 4 a 6 bloques: ${short.chunks.size}", short.chunks.size in 4..6)
+        // Bloques cortos de una oración (máximo 20 palabras en Nivel 1).
+        assertEquals(10, short.chunks.size)
+        assertTrue(short.chunks.all { SpanishText.wordCount(it.text) <= TextChunker.maxWordsFor(NlpLevel.NIVEL_1) })
         assertTrue("empieza por el principio", reading.startsWith(sentence(0)))
         assertTrue("termina en una oración completa", reading.endsWith("."))
         assertEquals(text(SpanishText.sentenceCount(reading)), reading)
@@ -87,8 +89,10 @@ class ShortLessonTest {
         val twelve = ShortLesson.shorten(baseball(level = 4), AgeGroup.TWELVE_PLUS)
         assertEquals(180, nine.shortLesson!!.shownWords)
         assertEquals(240, twelve.shortLesson!!.shownWords)
-        assertTrue(nine.chunks.size <= 5)
-        assertTrue(twelve.chunks.size <= 5)
+        // Dos oraciones por bloque como máximo: 15 oraciones → 8 bloques; 20 oraciones → 10 bloques.
+        assertEquals(8, nine.chunks.size)
+        assertEquals(10, twelve.chunks.size)
+        assertTrue((nine.chunks + twelve.chunks).all { SpanishText.sentenceCount(it.text) <= TextChunker.MAX_SENTENCES_PER_CHUNK })
     }
 
     @Test fun adultsAndAlreadyShortLessonsAreLeftAlone() {
@@ -130,7 +134,7 @@ class ShortLessonTest {
         val comparison = LevelComparisons.compare(shown, shown.levelPreviews, 1, shown.originalText)!!
         assertTrue("sin aviso de medición en el dispositivo", comparison.fromServer)
         assertEquals(75.0, comparison.adaptedScore, 0.0)
-        assertTrue("de 4 a 6 bloques", shown.chunks.size in 4..6)
+        assertEquals("bloques cortos de una oración", 10, shown.chunks.size)
     }
 
     @Test fun theOriginalAndAllFiveLevelsAreCutAtTheSamePointAndMeasuredAgain() {
