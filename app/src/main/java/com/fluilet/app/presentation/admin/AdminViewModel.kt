@@ -18,9 +18,10 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** Secciones del Sistema de Control Maestro. */
-enum class AdminTab(val emoji: String, val label: String) {
-    CHILDREN("👦", "Gestión y Otorgamiento a Niños"),
-    TUTORS("👤", "Gestión de Usuarios / Tutores")
+/** Vistas del panel: etiquetas cortas que caben completas en el selector. */
+enum class AdminTab(val label: String) {
+    CHILDREN("Perfiles de niños"),
+    TUTORS("Cuentas de tutores")
 }
 
 data class AdminUiState(

@@ -51,7 +51,6 @@ import com.fluilet.app.R
 import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.LevelPreview
 import com.fluilet.app.domain.model.LexicalReplacement
-import com.fluilet.app.domain.model.ModelAudit
 import com.fluilet.app.domain.text.LevelComparison
 import com.fluilet.app.domain.text.LexicalDiff
 import androidx.compose.foundation.background
@@ -118,7 +117,7 @@ internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifi
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(stringResource(R.string.compare_heading), style = MaterialTheme.typography.titleLarge)
-            if (adaptation != null) ModelSeal(adaptation, state.modelAudit)
+            if (adaptation != null) ModelSeal(adaptation)
 
             if (state.levelPreviews.isNotEmpty()) {
                 LevelSelector(state.levelPreviews, state.comparisonLevel, onLevel)
@@ -218,7 +217,7 @@ private fun highlighted(text: String, terms: List<String>, style: SpanStyle): An
 
 /** 🧠 Sello del motor que adaptó la lectura: modelo reentrenado (con sus cifras), motor local u otro motor. */
 @Composable
-private fun ModelSeal(adaptation: AdaptationResult, audit: ModelAudit?) {
+private fun ModelSeal(adaptation: AdaptationResult) {
     val retrained = adaptation.isRetrainedModel
     Card(
         modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { },
@@ -228,25 +227,15 @@ private fun ModelSeal(adaptation: AdaptationResult, audit: ModelAudit?) {
         )
     ) {
         val onColor = if (retrained) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+        // Sello sencillo para el lector y el tutor: qué adaptó el texto, sin versiones, métricas internas ni rutas.
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             when {
-                retrained -> {
-                    Text(stringResource(R.string.compare_model_active), style = MaterialTheme.typography.titleMedium, color = onColor)
-                    val version = listOfNotNull(adaptation.modelVersion, adaptation.checkpointName).joinToString(" / ")
-                    Text(version, style = MaterialTheme.typography.labelMedium, color = onColor)
-                    audit?.takeIf { it.active }?.let {
-                        Text(it.badgeLine, style = MaterialTheme.typography.labelLarge, color = onColor)
-                        if (!it.fromServer) Text(stringResource(R.string.compare_model_offline_values), style = MaterialTheme.typography.bodySmall, color = onColor)
-                    }
-                }
+                retrained -> Text(stringResource(R.string.compare_model_active), style = MaterialTheme.typography.titleMedium, color = onColor)
                 adaptation.isLocalEngine -> {
                     Text(stringResource(R.string.compare_model_local), style = MaterialTheme.typography.titleMedium, color = onColor)
                     Text(stringResource(R.string.compare_model_local_body), style = MaterialTheme.typography.bodySmall, color = onColor)
                 }
-                else -> Text(
-                    stringResource(R.string.compare_model_other, adaptation.modelVersion ?: adaptation.engineVersion ?: "—"),
-                    style = MaterialTheme.typography.titleSmall, color = onColor
-                )
+                else -> Text(stringResource(R.string.compare_model_other), style = MaterialTheme.typography.titleSmall, color = onColor)
             }
         }
     }

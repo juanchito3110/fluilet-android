@@ -43,7 +43,6 @@ import com.fluilet.app.R
 import com.fluilet.app.domain.model.ChildProfile
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.FullScreenLoading
-import com.fluilet.app.presentation.common.ModelAuditCard
 import com.fluilet.app.presentation.fluibot.FluiBotViewModel
 import com.fluilet.app.presentation.parentalgate.GateMode
 import com.fluilet.app.presentation.parentalgate.ParentalGateDialog
@@ -170,7 +169,7 @@ fun HomeScreen(
                                 } else botViewModel.claimMission(id)
                             }
                         )
-                        HomeTab.CARTAS -> CartasTab(state, bot, onSelect = viewModel::select, audit = state.modelAudit)
+                        HomeTab.CARTAS -> CartasTab(state, bot, onSelect = viewModel::select)
                     }
                 }
             }

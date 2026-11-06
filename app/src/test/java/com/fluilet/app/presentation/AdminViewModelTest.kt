@@ -82,7 +82,9 @@ class AdminViewModelTest {
 
     @Test fun thereAreTwoSectionsAndTheyCanBeSwitched() = runTest(dispatcher) {
         val vm = viewModel()
-        assertEquals(listOf("👦 Gestión y Otorgamiento a Niños", "👤 Gestión de Usuarios / Tutores"), AdminTab.entries.map { "${it.emoji} ${it.label}" })
+        // Etiquetas cortas que caben completas en el selector del panel (sin "Gestión y Otorgamiento de…" cortado).
+        assertEquals(listOf("Perfiles de niños", "Cuentas de tutores"), AdminTab.entries.map { it.label })
+        assertTrue(AdminTab.entries.all { it.label.length <= 18 })
         vm.selectTab(AdminTab.TUTORS)
         assertEquals(AdminTab.TUTORS, vm.state.value.tab)
     }

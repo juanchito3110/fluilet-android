@@ -41,11 +41,10 @@
     <string name="reader_compare">🔄 Adaptado vs. Original</string>
     <!-- Super-comparador "🔄 Adaptado vs. Original" (backend 42482e0) -->
     <string name="compare_heading">🔄 Adaptado vs. Original</string>
-    <string name="compare_model_active">🧠 Modelo IA Reentrenado Activo</string>
-    <string name="compare_model_offline_values">Métricas verificadas del commit 42482e0 (el servidor no respondió).</string>
+    <string name="compare_model_active">🧠 Adaptado con la IA de Fluilet</string>
     <string name="compare_model_local">📴 Motor local de respaldo (sin conexión)</string>
     <string name="compare_model_local_body">Reglas en el dispositivo con las mismas métricas Szigriszt-Pazos. Al volver la red, el modelo reentrenado del servidor adapta de nuevo.</string>
-    <string name="compare_model_other">⚙️ Motor del servidor: %1$s</string>
+    <string name="compare_model_other">⚙️ Adaptado por el servidor de Fluilet</string>
     <string name="compare_levels_title">Elige el nivel y mira el cambio en vivo</string>
     <string name="compare_level_1">Nivel 1 (6-8)</string>
     <string name="compare_level_n">Nivel %1$d</string>

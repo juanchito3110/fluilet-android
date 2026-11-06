@@ -70,11 +70,9 @@ import com.fluilet.app.domain.model.ChildProfile
 import com.fluilet.app.domain.model.LessonCategory
 import com.fluilet.app.domain.model.LibraryItem
 import com.fluilet.app.domain.model.NlpLevel
-import com.fluilet.app.domain.model.ModelAudit
 import com.fluilet.app.presentation.brand.FluiletBrand
 import com.fluilet.app.presentation.common.CategoryArtwork
 import com.fluilet.app.presentation.common.FitText
-import com.fluilet.app.presentation.common.ModelAuditCard
 import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.SectionCard
@@ -450,7 +448,7 @@ internal fun AvatarTab(
 // --- Cartas --------------------------------------------------------------------------------------------
 
 @Composable
-internal fun CartasTab(state: HomeUiState, bot: FluiBotUiState, onSelect: (String) -> Unit, audit: ModelAudit?) {
+internal fun CartasTab(state: HomeUiState, bot: FluiBotUiState, onSelect: (String) -> Unit) {
     var view by rememberSaveable { mutableStateOf(CardsView.ALBUM) }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         TabHeader(HomeTab.CARTAS.title, stringResource(R.string.cards_header_sub))
@@ -468,10 +466,7 @@ internal fun CartasTab(state: HomeUiState, bot: FluiBotUiState, onSelect: (Strin
         }
         when (view) {
             CardsView.ALBUM -> AlbumSection(bot.cards.ifEmpty { state.progress.cards }, bot.badges.ifEmpty { state.progress.badges })
-            CardsView.ESTADISTICAS -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                ProgressDashboard(state.progress, state.progressNote)
-                audit?.let { ModelAuditCard(it) }
-            }
+            CardsView.ESTADISTICAS -> ProgressDashboard(state.progress, state.progressNote)
         }
     }
 }
