@@ -57,6 +57,18 @@
     <string name="reader_compare">🔄 Adaptado vs. Original</string>
     <!-- Super-comparador "🔄 Adaptado vs. Original" (backend 42482e0) -->
     <string name="compare_heading">🔄 Adaptado vs. Original</string>
+    <string name="reader_guide_short">📏 Guía</string>
+    <string name="reader_guide_plain">Guía</string>
+    <string name="reader_compare_short">🔄 Comparar</string>
+    <string name="reader_compare_plain">Comparar</string>
+    <string name="compare_tab_adapted">🧠 Adaptado IA</string>
+    <string name="compare_tab_adapted_plain">Adaptado IA</string>
+    <string name="compare_tab_original">📄 Original</string>
+    <string name="compare_tab_original_plain">Original</string>
+    <string name="compare_view_together">Ver juntos</string>
+    <string name="compare_close">✕ Cerrar</string>
+    <string name="compare_details_title">🔬 Detalles de la adaptación</string>
+    <string name="compare_details_sub">Motor, nivel, Ficha Técnica y palabras simplificadas.</string>
     <string name="compare_model_active">🧠 Adaptado con la IA de Fluilet</string>
     <string name="compare_model_local">📴 Motor local de respaldo (sin conexión)</string>
     <string name="compare_model_local_body">Reglas en el dispositivo con las mismas métricas Szigriszt-Pazos. Al volver la red, el modelo reentrenado del servidor adapta de nuevo.</string>
@@ -93,7 +105,7 @@
     <string name="compare_highlight_hint">Resaltado: los términos que el motor simplificó.</string>
     <string name="compare_original_unavailable">Esta lección no tiene un texto original que mostrar (se generó o vino de un PDF). Por privacidad, el texto no se guarda en el dispositivo.</string>
     <string name="funfact_title">🧠 ¿Sabías que...?</string>
-    <string name="glossary_title">🔍 Palabras clave de esta lectura</string>
+    <string name="glossary_title">🔍 Palabras clave</string>
     <string name="glossary_close">Cerrar</string>
     <string name="glossary_example">Ejemplo: %1$s</string>
     <string name="glossary_listen">🔊 Escuchar palabra</string>

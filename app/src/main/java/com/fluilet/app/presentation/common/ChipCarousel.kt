@@ -41,6 +41,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fluilet.app.R
 import kotlinx.coroutines.launch
 
@@ -101,7 +102,8 @@ fun <T> ChipCarousel(
     style: TextStyle = MaterialTheme.typography.labelLarge,
     minHeight: Dp = 44.dp,
     gap: Dp = 8.dp,
-    followSelection: Boolean = true
+    followSelection: Boolean = true,
+    compactHeader: Boolean = false
 ) {
     if (items.isEmpty()) return
     BoxWithConstraints(modifier.fillMaxWidth()) {
@@ -115,15 +117,22 @@ fun <T> ChipCarousel(
         LaunchedEffect(selectedIndex, pages.size) {
             if (followSelection && selectedIndex >= 0) state.animateScrollToPage(ChipPaging.pageOf(selectedIndex, pages))
         }
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compactHeader) 4.dp else 6.dp)) {
             if (title != null || pages.size > 1) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (title != null) {
-                        AdaptiveText(title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } else {
-                        Spacer(Modifier.weight(1f))
+                    when {
+                        // Encabezado compacto: el título en UNA línea de 13 sp junto a ◀ ● ▶ (se ajusta antes de cortarse).
+                        title != null && compactHeader -> AdaptiveSingleLineText(
+                            title,
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Start
+                        )
+                        title != null -> AdaptiveText(title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else -> Spacer(Modifier.weight(1f))
                     }
-                    if (pages.size > 1) MiniPagerNav(state)
+                    if (pages.size > 1) MiniPagerNav(state, arrowSize = if (compactHeader) CompactArrow else 36.dp)
                 }
             }
             val row: @Composable (IntRange) -> Unit = { range ->
@@ -237,19 +246,22 @@ fun <T> InlineChipStrip(
 /** Ancho máximo de la etiqueta de una tira en línea: "Lector activo" baja a dos renglones cortos si hace falta. */
 private val InlineLabelMaxWidth = 72.dp
 
+/** Flechas del encabezado compacto (palabras clave del lector): 30 dp, sin alargar la fila. */
+private val CompactArrow = 30.dp
+
 /** ◀ · puntos · ▶ compacto para las tiras de chips. */
 @Composable
-private fun MiniPagerNav(state: PagerState) {
+private fun MiniPagerNav(state: PagerState, arrowSize: Dp = 36.dp) {
     val scope = rememberCoroutineScope()
     val current = state.currentPage
     val count = state.pageCount
     val pageText = stringResource(R.string.carousel_page, current + 1, count)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        CarouselArrow(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.carousel_previous), enabled = current > 0, size = 36.dp) {
+        CarouselArrow(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.carousel_previous), enabled = current > 0, size = arrowSize) {
             scope.launch { state.animateScrollToPage(current - 1) }
         }
         Box(Modifier.semantics { contentDescription = pageText }) { PageDots(current, count) }
-        CarouselArrow(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.carousel_next), enabled = current < count - 1, size = 36.dp) {
+        CarouselArrow(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.carousel_next), enabled = current < count - 1, size = arrowSize) {
             scope.launch { state.animateScrollToPage(current + 1) }
         }
     }

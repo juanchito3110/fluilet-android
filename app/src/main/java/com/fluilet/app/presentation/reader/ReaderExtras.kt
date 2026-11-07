@@ -1,13 +1,9 @@
 package com.fluilet.app.presentation.reader
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -72,8 +68,29 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.runtime.key
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.fluilet.app.presentation.common.CollapsibleCard
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.material3.OutlinedButton
@@ -87,8 +104,6 @@ import com.fluilet.app.presentation.common.ChipCarousel
 import com.fluilet.app.domain.model.ReadingSettings
 import androidx.compose.runtime.getValue
 
-/** Tope de caracteres del original que se dibujan en la comparación (el texto vive solo en RAM). */
-private const val MAX_ORIGINAL_CHARS = 6_000
 
 /** 🧠 "¿Sabías que...?" al final del texto. */
 @Composable
@@ -106,93 +121,193 @@ internal fun FunFactCard(fact: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** Pestaña del comparador dentro de la tarjeta de lectura. */
+enum class CompareTab { ADAPTED, ORIGINAL }
+
 /**
- * 🔄 Super-comparador "Adaptado vs. Original", disponible en TODAS las lecturas (demo, por tema, texto pegado o
- * archivo): sello del modelo reentrenado, selector en vivo de los 5 niveles (`level_previews`), Ficha Técnica
- * Szigriszt-Pazos del nivel elegido, transformaciones léxicas y el original frente al adaptado con los términos
- * simplificados resaltados. Todo el texto vive solo en RAM.
+ * 🔄 "Adaptado vs. Original" dentro de la tarjeta de lectura, sin títulos ni botones grandes: arriba solo una barra de
+ * 34 dp ("🧠 Adaptado IA" | "📄 Original" | "Ver juntos") y debajo el texto completo de la pestaña elegida, con la misma
+ * letra del lector (A-/A+) y los términos simplificados resaltados. El texto es el protagonista (8 a 10 renglones en un
+ * teléfono común). "Ver juntos" abre ambos textos a pantalla completa con la ficha técnica. Todo vive solo en RAM.
  */
 @Composable
 internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val settings = state.settings
-    val bodyStyle = readingTextStyle(settings, MaterialTheme.colorScheme.onBackground)
-    val adaptation = state.reading?.adaptation
-    val comparison = state.comparison
+    var tab by rememberSaveable { mutableStateOf(CompareTab.ADAPTED) }
+    var together by rememberSaveable { mutableStateOf(false) }
+    val bodyStyle = readingTextStyle(state.settings, MaterialTheme.colorScheme.onBackground)
+    val cardColor = MaterialTheme.colorScheme.surfaceVariant
     Card(
         modifier = modifier.fillMaxSize(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(stringResource(R.string.compare_heading), style = MaterialTheme.typography.titleLarge)
-            if (adaptation != null) ModelSeal(adaptation)
-
-            if (state.levelPreviews.isNotEmpty()) {
-                LevelSelector(state.levelPreviews, state.comparisonLevel, onLevel)
-            }
-            comparison?.let {
-                BandLine(it)
-                FichaTecnicaCard(it, shortLesson = adaptation?.shortLesson != null)
-                LexicalTransformations(it.replacements)
-            }
-            adaptation?.source?.let { src ->
-                Text(
-                    stringResource(R.string.compare_source, if (src.isWikipedia) "Wikipedia" else "Banco Fluilet", src.title),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            adaptation?.shortLesson?.let { info ->
-                Text(
-                    stringResource(R.string.compare_short_lesson, info.shownWords, info.fullWords),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            val replaced = comparison?.replacements.orEmpty()
-            // Original y adaptado, cada uno en su panel delimitado para leerlos (y compararlos) sin confundirlos.
-            TextPane(stringResource(R.string.compare_original_title), MaterialTheme.colorScheme.outline) {
-                val original = state.originalText
-                when {
-                    !original.isNullOrBlank() -> {
-                        val shown = if (original.length > MAX_ORIGINAL_CHARS) original.take(MAX_ORIGINAL_CHARS) + "…" else original
-                        val mark = SpanStyle(background = MaterialTheme.colorScheme.errorContainer, textDecoration = TextDecoration.Underline)
-                        val annotated = remember(shown, replaced, mark) { highlighted(shown, replaced.map { it.original }, mark) }
-                        Text(annotated, style = bodyStyle)
+        Column(Modifier.fillMaxSize()) {
+            CompareBar(tab, onTab = { tab = it }, onTogether = { together = true }, Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp))
+            Crossfade(tab, Modifier.weight(1f).fillMaxWidth(), label = "compareTab") { shown ->
+                val scroll = rememberScrollState()
+                Box(Modifier.fillMaxSize()) {
+                    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(start = 16.dp, end = 20.dp, top = 12.dp, bottom = 12.dp)) {
+                        when (shown) {
+                            CompareTab.ADAPTED -> AdaptedComparisonText(state, bodyStyle)
+                            CompareTab.ORIGINAL -> OriginalComparisonText(state, bodyStyle)
+                        }
+                        Spacer(Modifier.height(if (scroll.maxValue > 0) 44.dp else 8.dp))
                     }
-                    state.originalLoading -> Text(stringResource(R.string.compare_original_loading), style = MaterialTheme.typography.bodyMedium)
-                    else -> Text(stringResource(R.string.compare_original_unavailable), style = MaterialTheme.typography.bodyMedium)
+                    ReadingScrollIndicator(scroll, cardColor, Modifier.matchParentSize())
                 }
             }
+        }
+    }
+    if (together) CompareTogetherDialog(state, onLevel, onClose = { together = false })
+}
 
-            val level = comparison?.level ?: adaptation?.effectiveLevel ?: 0
-            TextPane(stringResource(R.string.compare_adapted_title, level), MaterialTheme.colorScheme.primary) {
-                val adaptedText = comparison?.adaptedText ?: state.currentText
-                val shownAdapted = if (adaptedText.length > MAX_ORIGINAL_CHARS) adaptedText.take(MAX_ORIGINAL_CHARS) + "…" else adaptedText
-                val good = SpanStyle(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), fontWeight = FontWeight.Bold)
-                val annotatedAdapted = remember(shownAdapted, replaced, good) { highlighted(shownAdapted, replaced.map { it.adapted }, good) }
-                // Al cambiar de nivel, el texto adaptado entra con un fundido y un leve deslizamiento.
-                AnimatedContent(
-                    targetState = AdaptedPane(level, annotatedAdapted),
-                    contentKey = { it.level },
-                    transitionSpec = {
-                        val down = targetState.level > initialState.level
-                        (fadeIn(tween(380)) + slideInVertically(tween(380)) { if (down) it / 10 else -it / 10 })
-                            .togetherWith(fadeOut(tween(180)))
-                            .using(SizeTransform(clip = false))
-                    },
-                    label = "adaptedText"
-                ) { pane -> Text(pane.text, style = bodyStyle) }
+/** "🧠 Adaptado IA" | "📄 Original" lado a lado y el botón compacto "Ver juntos", en una sola línea de 34 dp (13 sp). */
+@Composable
+private fun CompareBar(tab: CompareTab, onTab: (CompareTab) -> Unit, onTogether: () -> Unit, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier.fillMaxWidth().height(ReaderToolbar.CompareBarHeight)) {
+        val emoji = ReaderToolbar.compareEmoji(maxWidth)
+        val iconOnly = ReaderToolbar.compareButtonIconOnly(maxWidth)
+        val shape = RoundedCornerShape(10.dp)
+        val labelStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp)
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier.weight(1f).fillMaxHeight().clip(shape).border(1.dp, MaterialTheme.colorScheme.outline, shape).selectableGroup()
+            ) {
+                listOf(
+                    CompareTab.ADAPTED to (if (emoji) R.string.compare_tab_adapted else R.string.compare_tab_adapted_plain),
+                    CompareTab.ORIGINAL to (if (emoji) R.string.compare_tab_original else R.string.compare_tab_original_plain)
+                ).forEach { (option, label) ->
+                    val selected = option == tab
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight()
+                            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                            .selectable(selected = selected, role = Role.Tab, onClick = { onTab(option) }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AdaptiveSingleLineText(
+                            stringResource(label),
+                            Modifier.padding(horizontal = 4.dp),
+                            style = labelStyle,
+                            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
             }
-            if (replaced.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.compare_highlight_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            val together = stringResource(R.string.compare_view_together)
+            Row(
+                Modifier.fillMaxHeight().clip(shape).background(MaterialTheme.colorScheme.secondaryContainer)
+                    .clickable(role = Role.Button, onClick = onTogether)
+                    .semantics { contentDescription = together }
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(Icons.Filled.OpenInFull, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                if (!iconOnly) {
+                    Text(together, style = labelStyle, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1, softWrap = false)
+                }
+            }
+        }
+    }
+}
+
+/** Texto adaptado (del nivel comparado o el de la lectura) con los términos simplificados resaltados. */
+@Composable
+private fun AdaptedComparisonText(state: ReaderUiState, style: TextStyle) {
+    val replaced = state.comparison?.replacements.orEmpty()
+    val text = state.comparison?.adaptedText ?: state.currentText
+    val good = SpanStyle(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), fontWeight = FontWeight.Bold)
+    val annotated = remember(text, replaced, good) { highlighted(text, replaced.map { it.adapted }, good) }
+    Text(annotated, style = style)
+}
+
+/** Texto original completo con los términos que el motor simplificó marcados (o por qué no está disponible). */
+@Composable
+private fun OriginalComparisonText(state: ReaderUiState, style: TextStyle) {
+    val replaced = state.comparison?.replacements.orEmpty()
+    val original = state.originalText
+    when {
+        !original.isNullOrBlank() -> {
+            val mark = SpanStyle(background = MaterialTheme.colorScheme.errorContainer, textDecoration = TextDecoration.Underline)
+            val annotated = remember(original, replaced, mark) { highlighted(original, replaced.map { it.original }, mark) }
+            Text(annotated, style = style)
+        }
+        state.originalLoading -> Text(stringResource(R.string.compare_original_loading), style = MaterialTheme.typography.bodyMedium)
+        else -> Text(stringResource(R.string.compare_original_unavailable), style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/**
+ * "Ver juntos": ventana a pantalla completa con el texto ADAPTADO arriba y el ORIGINAL completo abajo, cada uno en su
+ * panel, para compararlos cómodamente. Debajo, plegados, los detalles de la adaptación (motor, nivel en vivo, banda,
+ * Ficha Técnica y transformaciones léxicas). "✕ Cerrar" o atrás vuelve a la lectura.
+ */
+@Composable
+private fun CompareTogetherDialog(state: ReaderUiState, onLevel: (Int) -> Unit, onClose: () -> Unit) {
+    val adaptation = state.reading?.adaptation
+    val comparison = state.comparison
+    val bodyStyle = readingTextStyle(state.settings, MaterialTheme.colorScheme.onBackground)
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    AdaptiveText(stringResource(R.string.compare_heading), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                    OutlinedButton(onClick = onClose, modifier = Modifier.heightIn(min = 48.dp), shape = RoundedCornerShape(16.dp)) {
+                        AdaptiveSingleLineText(stringResource(R.string.compare_close), style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (state.levelPreviews.isNotEmpty()) LevelSelector(state.levelPreviews, state.comparisonLevel, onLevel)
+                    val level = comparison?.level ?: adaptation?.effectiveLevel ?: 0
+                    TextPane(stringResource(R.string.compare_adapted_title, level), MaterialTheme.colorScheme.primary) {
+                        // Al cambiar de nivel, el texto adaptado del nuevo nivel entra con un fundido.
+                        key(level) {
+                            val appear = remember { MutableTransitionState(false).apply { targetState = true } }
+                            AnimatedVisibility(appear, enter = fadeIn(tween(380))) { AdaptedComparisonText(state, bodyStyle) }
+                        }
+                    }
+                    TextPane(stringResource(R.string.compare_original_title), MaterialTheme.colorScheme.outline) {
+                        OriginalComparisonText(state, bodyStyle)
+                    }
+                    if (comparison?.replacements.orEmpty().isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.compare_highlight_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    CollapsibleCard(
+                        title = stringResource(R.string.compare_details_title),
+                        subtitle = stringResource(R.string.compare_details_sub)
+                    ) {
+                        if (adaptation != null) ModelSeal(adaptation)
+                        comparison?.let {
+                            BandLine(it)
+                            FichaTecnicaCard(it, shortLesson = adaptation?.shortLesson != null)
+                            LexicalTransformations(it.replacements)
+                        }
+                        adaptation?.source?.let { src ->
+                            Text(
+                                stringResource(R.string.compare_source, if (src.isWikipedia) "Wikipedia" else "Banco Fluilet", src.title),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        adaptation?.shortLesson?.let { info ->
+                            Text(
+                                stringResource(R.string.compare_short_lesson, info.shownWords, info.fullWords),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -216,9 +331,6 @@ private fun TextPane(title: String, accent: Color, content: @Composable () -> Un
         }
     }
 }
-
-/** El texto adaptado que muestra el comparador para un nivel. */
-private data class AdaptedPane(val level: Int, val text: AnnotatedString)
 
 /** Resalta las apariciones de [terms] (palabras o frases completas) sin cambiar el texto. */
 private fun highlighted(text: String, terms: List<String>, style: SpanStyle): AnnotatedString = buildAnnotatedString {
@@ -437,15 +549,17 @@ internal fun GlossaryBar(state: ReaderUiState, vm: ReaderViewModel, modifier: Mo
     // La definición nunca pasa de ~1/5 de la pantalla: el bloque de lectura conserva el protagonismo.
     val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
     val maxDefinition = (windowHeight * 0.2f).coerceIn(DefinitionMinHeight, DefinitionMaxHeight)
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Encabezado "🔍 Palabras clave" y ◀ ● ▶ en una sola línea compacta; chips de 38 dp.
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 30.dp) {
             ChipCarousel(
                 items = state.vocabulary,
                 label = { it.word },
                 isSelected = { it.word == selected?.word },
                 onClick = { vm.selectWord(it.word) },
                 title = stringResource(R.string.glossary_title),
-                minHeight = 40.dp
+                minHeight = 38.dp,
+                compactHeader = true
             )
         }
         AnimatedVisibility(selected != null, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {

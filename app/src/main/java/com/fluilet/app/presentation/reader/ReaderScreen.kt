@@ -12,6 +12,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Canvas
@@ -91,7 +95,6 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -119,7 +122,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Lightbulb
@@ -147,10 +149,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.material3.CircularProgressIndicator
 import com.fluilet.app.presentation.common.FitText
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.layout.PaddingValues
@@ -232,9 +230,10 @@ private fun ReaderContent(state: ReaderUiState, vm: ReaderViewModel, botViewMode
     VoiceHelpDialog(voiceHelp, state)
     // Antes de fijar la pantalla: comprobar que la voz en español esté descargada y se escuche.
     VoicePrepGate(voiceHelp, state)
+    // Separaciones cortas: todo el alto que se ahorra es para la tarjeta de lectura.
     Column(
-        Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         ReaderTopBar(state, vm, bot, onBotTap = botViewModel::celebrate)
         val progress by animateFloatAsState(
@@ -357,94 +356,125 @@ private fun BlockLabel(current: Int, total: Int) {
 /** Por debajo de este ancho, "Bloque 1 de 8" se abrevia a "Bloque 1/8". */
 private val NARROW_BLOCK_LABEL = 128.dp
 
+/** Reglas de la barra de herramientas y del comparador del lector (sin Android, probadas con pruebas unitarias). */
+object ReaderToolbar {
+    /** Alto fijo de la barra: UNA sola fila compacta que nunca baja a un segundo renglón. */
+    val Height: Dp = 38.dp
+
+    /** Alto de la barra "🧠 Adaptado IA | 📄 Original | Ver juntos" dentro de la tarjeta de lectura. */
+    val CompareBarHeight: Dp = 34.dp
+
+    /** Las flechas de la guía caben desde este ancho; más angosto, tocar el texto avanza la guía. */
+    fun showGuideArrows(width: Dp): Boolean = width >= 280.dp
+
+    /** "📏 Guía" y "🔄 Comparar" llevan emoji solo si hay ancho; si no, las palabras solas (nunca cortadas). */
+    fun showEmoji(width: Dp, guideArrows: Boolean): Boolean = width >= if (guideArrows) 320.dp else 280.dp
+
+    /** Las pestañas del comparador llevan emoji desde este ancho de tarjeta. */
+    fun compareEmoji(width: Dp): Boolean = width >= 290.dp
+
+    /** Por debajo de este ancho, "Ver juntos" queda solo con su ícono (y su descripción para TalkBack). */
+    fun compareButtonIconOnly(width: Dp): Boolean = width < 250.dp
+}
+
 /**
- * Herramientas de lectura que bajan de renglón (FlowRow) en lugar de esconderse en el borde derecho: "A-" y "A+",
- * "Guía de renglón", "Adaptado vs. Original" y, con la guía activa, las flechas para moverla. Todas se ven completas.
+ * Herramientas de lectura en UNA sola fila de 38 dp: "A-" y "A+", "📏 Guía" (guía de renglón), "🔄 Comparar" (adaptado
+ * vs. original) y, con la guía activa, sus flechas. Etiquetas cortas que se ajustan antes de cortarse: la tarjeta de
+ * lectura conserva casi toda la pantalla.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
-    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
-        FlowRow(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            itemVerticalAlignment = Alignment.CenterVertically
-        ) {
+    BoxWithConstraints(Modifier.fillMaxWidth().height(ReaderToolbar.Height)) {
+        val arrows = state.guideEnabled && !state.showOriginal && ReaderToolbar.showGuideArrows(maxWidth)
+        val emoji = ReaderToolbar.showEmoji(maxWidth, arrows)
+        val guideName = stringResource(R.string.reader_guide)
+        val compareName = stringResource(R.string.reader_compare)
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             // A- / A+: cambian la letra en vivo (14–28 pt) y el interlineado se escala con ella.
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FontStepButton(
-                    label = "A-",
-                    description = stringResource(R.string.reader_font_smaller),
-                    enabled = state.settings.fontSizeSp > ReadingSettings.MIN_FONT_SIZE,
-                    fontSize = 15.sp,
-                    onClick = vm::fontSmaller
-                )
-                FontStepButton(
-                    label = "A+",
-                    description = stringResource(R.string.reader_font_larger),
-                    enabled = state.settings.fontSizeSp < ReadingSettings.MAX_FONT_SIZE,
-                    fontSize = 19.sp,
-                    onClick = vm::fontLarger
-                )
-            }
-            ToolChip(
+            ToolbarButton(
+                label = "A-",
+                description = stringResource(R.string.reader_font_smaller),
+                enabled = state.settings.fontSizeSp > ReadingSettings.MIN_FONT_SIZE,
+                fontSize = 14.sp,
+                onClick = vm::fontSmaller
+            )
+            ToolbarButton(
+                label = "A+",
+                description = stringResource(R.string.reader_font_larger),
+                enabled = state.settings.fontSizeSp < ReadingSettings.MAX_FONT_SIZE,
+                fontSize = 17.sp,
+                onClick = vm::fontLarger
+            )
+            ToolbarToggle(
+                label = stringResource(if (emoji) R.string.reader_guide_short else R.string.reader_guide_plain),
                 selected = state.guideEnabled,
+                description = "$guideName, ${if (state.guideEnabled) "activada" else "desactivada"}",
                 onClick = vm::toggleGuide,
-                label = stringResource(R.string.reader_guide),
-                description = "Guía de renglón, ${if (state.guideEnabled) "activada" else "desactivada"}"
+                modifier = Modifier.weight(1f)
             )
-            ToolChip(
+            ToolbarToggle(
+                label = stringResource(if (emoji) R.string.reader_compare_short else R.string.reader_compare_plain),
                 selected = state.showOriginal,
+                description = "$compareName, ${if (state.showOriginal) "activado" else "desactivado"}",
                 onClick = vm::toggleOriginal,
-                label = stringResource(R.string.reader_compare),
-                description = "Adaptado contra original, ${if (state.showOriginal) "activado" else "desactivado"}"
+                modifier = Modifier.weight(1.45f)
             )
-            if (state.guideEnabled && !state.showOriginal) {
-                Row {
-                    IconButton(onClick = vm::guidePrevious, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.reader_guide_previous))
-                    }
-                    IconButton(onClick = vm::guideNext, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.reader_guide_next))
-                    }
-                }
+            if (arrows) {
+                ToolbarIcon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.reader_guide_previous), vm::guidePrevious)
+                ToolbarIcon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.reader_guide_next), vm::guideNext)
             }
         }
     }
 }
 
-/** Botón rápido "A-" / "A+" de la barra del lector: 40 dp de alto, ancho cómodo y muy claro. */
+private val ToolbarShape = RoundedCornerShape(10.dp)
+
+/** Botón "A-" / "A+" de la barra: 40 dp de ancho, todo el alto de la fila y muy claro. */
 @Composable
-private fun FontStepButton(label: String, description: String, enabled: Boolean, fontSize: androidx.compose.ui.unit.TextUnit, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.heightIn(min = 40.dp).widthIn(min = 58.dp).semantics { contentDescription = description },
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.5.dp, if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+private fun ToolbarButton(label: String, description: String, enabled: Boolean, fontSize: TextUnit, onClick: () -> Unit) {
+    val color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    Box(
+        Modifier.width(40.dp).fillMaxHeight().clip(ToolbarShape).border(1.5.dp, color, ToolbarShape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge.copy(fontSize = fontSize), maxLines = 1, softWrap = false)
+        Text(label, style = MaterialTheme.typography.labelLarge.copy(fontSize = fontSize), color = color, maxLines = 1, softWrap = false)
     }
 }
 
-/** Chip compacto (40 dp) de una sola línea para la barra de herramientas y las palabras clave del lector. */
+/** Interruptor de la barra ("📏 Guía", "🔄 Comparar"): lleno cuando está activo, con su estado para TalkBack. */
 @Composable
-internal fun ToolChip(selected: Boolean, onClick: () -> Unit, label: String, description: String? = null) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false) },
-        leadingIcon = if (selected) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }) else null,
-        shape = RoundedCornerShape(12.dp),
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primary,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
-        ),
-        modifier = Modifier.heightIn(min = 40.dp).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
-    )
+private fun ToolbarToggle(label: String, selected: Boolean, description: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val container = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val content = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    Box(
+        modifier.fillMaxHeight().clip(ToolbarShape).background(container)
+            .border(if (selected) 0.dp else 1.dp, MaterialTheme.colorScheme.outline, ToolbarShape)
+            .toggleable(value = selected, role = Role.Switch, onValueChange = { onClick() })
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center
+    ) {
+        AdaptiveSingleLineText(
+            label,
+            Modifier.padding(horizontal = 6.dp),
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+            color = content
+        )
+    }
+}
+
+/** Flecha compacta de la guía de renglón (↑ / ↓). */
+@Composable
+private fun ToolbarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier.width(34.dp).fillMaxHeight().clip(ToolbarShape).background(MaterialTheme.colorScheme.secondaryContainer)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+    }
 }
 
 @Composable
@@ -534,7 +564,7 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
  * un degradado con el aviso "Desliza para seguir leyendo" (al tocarlo avanza con un desplazamiento suave).
  */
 @Composable
-private fun ReadingScrollIndicator(scroll: ScrollState, cardColor: Color, modifier: Modifier = Modifier) {
+internal fun ReadingScrollIndicator(scroll: ScrollState, cardColor: Color, modifier: Modifier = Modifier) {
     if (scroll.maxValue <= 0 || scroll.maxValue == Int.MAX_VALUE) return
     val scope = rememberCoroutineScope()
     val thumbColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
@@ -584,14 +614,14 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel, onPlayPaus
     // "Reproducir" queda en cola mientras el motor inicia; si falta voz o volumen, abre la ventanita de ayuda.
     val preparing = state.tts.pendingPlay
 
-    Column(Modifier.navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            FilledTonalIconButton(onClick = vm::previous, enabled = state.chunkIndex > 0, modifier = Modifier.size(52.dp)) {
+            FilledTonalIconButton(onClick = vm::previous, enabled = state.chunkIndex > 0, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.reader_previous))
             }
             FilledIconButton(
                 onClick = onPlayPause,
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier.size(58.dp),
                 colors = IconButtonDefaults.filledIconButtonColors()
             ) {
                 if (preparing) {
@@ -605,17 +635,17 @@ private fun ReaderControls(state: ReaderUiState, vm: ReaderViewModel, onPlayPaus
                             else -> R.string.reader_play
                         }
                     ),
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(32.dp)
                 )
             }
             FilledTonalIconButton(
                 onClick = vm::stopSpeech,
                 enabled = state.tts.status == TtsStatus.Playing || state.tts.status == TtsStatus.Paused,
-                modifier = Modifier.size(52.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(Icons.Filled.Stop, contentDescription = stringResource(R.string.reader_stop))
             }
-            FilledTonalIconButton(onClick = vm::next, enabled = !state.isLastChunk, modifier = Modifier.size(52.dp)) {
+            FilledTonalIconButton(onClick = vm::next, enabled = !state.isLastChunk, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.reader_next))
             }
         }
@@ -642,9 +672,9 @@ private fun SpeedButton(label: Int, rate: Float, state: ReaderUiState, vm: Reade
     val padding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
     val shape = RoundedCornerShape(12.dp)
     if (selected) {
-        Button(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.heightIn(min = 44.dp), contentPadding = padding, shape = shape) { text() }
+        Button(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.heightIn(min = 40.dp), contentPadding = padding, shape = shape) { text() }
     } else {
-        OutlinedButton(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.heightIn(min = 44.dp), contentPadding = padding, shape = shape) { text() }
+        OutlinedButton(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.heightIn(min = 40.dp), contentPadding = padding, shape = shape) { text() }
     }
 }
 
