@@ -68,6 +68,15 @@ object ChipPaging {
 
     /** Página donde está el chip [index] (0 si no aparece). */
     fun pageOf(index: Int, pages: List<IntRange>): Int = pages.indexOfFirst { index in it }.coerceAtLeast(0)
+
+    /**
+     * Tira en línea: si todos los chips caben no hay flecha; si no, se reserva el ancho de la flecha ([navWidth]) y se
+     * reparten de nuevo para que ningún chip quede debajo de ella.
+     */
+    fun inlinePages(widths: List<Float>, available: Float, gap: Float, navWidth: Float): List<IntRange> {
+        val all = pages(widths, available, gap)
+        return if (all.size <= 1) all else pages(widths, available - navWidth - gap, gap)
+    }
 }
 
 private val ChipPadding = 14.dp
@@ -91,27 +100,20 @@ fun <T> ChipCarousel(
     icon: ((T) -> ImageVector)? = null,
     style: TextStyle = MaterialTheme.typography.labelLarge,
     minHeight: Dp = 44.dp,
-    gap: Dp = 8.dp
+    gap: Dp = 8.dp,
+    followSelection: Boolean = true
 ) {
     if (items.isEmpty()) return
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val available = maxWidth
         val labels = items.map(label)
-        val hasIcon = icon != null
-        val widths = remember(labels, style, density, hasIcon) {
-            labels.map { text ->
-                val textWidth = with(density) { measurer.measure(text, style, maxLines = 1, softWrap = false).size.width.toDp() }
-                textWidth + ChipPadding * 2 + (if (hasIcon) ChipIconSize + ChipIconGap else 0.dp) + ChipSlack
-            }
-        }
+        val widths = rememberChipWidths(labels, style, hasIcon = icon != null)
         val pages = remember(widths, available, gap) { ChipPaging.pages(widths.map { it.value }, available.value, gap.value) }
         val state = rememberPagerState { pages.size }
         val selectedIndex = items.indexOfFirst(isSelected)
-        // Si se elige una opción desde otro lugar, la tira se desliza hasta su página.
+        // Si se elige una opción desde otro lugar, la tira se desliza hasta su página (no en selección múltiple).
         LaunchedEffect(selectedIndex, pages.size) {
-            if (selectedIndex >= 0) state.animateScrollToPage(ChipPaging.pageOf(selectedIndex, pages))
+            if (followSelection && selectedIndex >= 0) state.animateScrollToPage(ChipPaging.pageOf(selectedIndex, pages))
         }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (title != null || pages.size > 1) {
@@ -151,6 +153,89 @@ fun <T> ChipCarousel(
         }
     }
 }
+
+/** Ancho que mide cada chip (texto + relleno + ícono), con la misma letra con que se dibuja. */
+@Composable
+private fun rememberChipWidths(labels: List<String>, style: TextStyle, hasIcon: Boolean): List<Dp> {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return remember(labels, style, density, hasIcon) {
+        labels.map { text ->
+            val textWidth = with(density) { measurer.measure(text, style, maxLines = 1, softWrap = false).size.width.toDp() }
+            textWidth + ChipPadding * 2 + (if (hasIcon) ChipIconSize + ChipIconGap else 0.dp) + ChipSlack
+        }
+    }
+}
+
+/** Ancho que ocupa la flecha de una tira en línea (botón con su área táctil de 48 dp). */
+private val InlineNavWidth = 48.dp
+
+/**
+ * Tira de chips en UNA sola fila compacta, con su etiqueta a la izquierda ("Lector activo"). Si todos caben se ven a la
+ * vez; si no, se desliza por páginas (cada una con chips enteros) y una flecha al final pasa a la siguiente o vuelve al
+ * principio. Ocupa el alto de un solo chip.
+ */
+@Composable
+fun <T> InlineChipStrip(
+    items: List<T>,
+    label: (T) -> String,
+    isSelected: (T) -> Boolean,
+    onClick: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    leadingLabel: String? = null,
+    style: TextStyle = MaterialTheme.typography.labelLarge,
+    minHeight: Dp = 44.dp,
+    gap: Dp = 8.dp
+) {
+    if (items.isEmpty()) return
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        leadingLabel?.let {
+            AdaptiveText(it, Modifier.widthIn(max = InlineLabelMaxWidth), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        BoxWithConstraints(Modifier.weight(1f)) {
+            val available = maxWidth
+            val labels = items.map(label)
+            val widths = rememberChipWidths(labels, style, hasIcon = false)
+            val pages = remember(widths, available, gap) {
+                ChipPaging.inlinePages(widths.map { it.value }, available.value, gap.value, InlineNavWidth.value)
+            }
+            val state = rememberPagerState { pages.size }
+            val scope = rememberCoroutineScope()
+            val selectedIndex = items.indexOfFirst(isSelected)
+            LaunchedEffect(selectedIndex, pages.size) {
+                if (selectedIndex >= 0) state.animateScrollToPage(ChipPaging.pageOf(selectedIndex, pages))
+            }
+            val row: @Composable (IntRange) -> Unit = { range ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
+                    range.forEach { index ->
+                        val item = items[index]
+                        CarouselChip(labels[index], isSelected(item), null, widths[index] <= available, style, minHeight, available) { onClick(item) }
+                    }
+                }
+            }
+            if (pages.size == 1) {
+                row(pages.first())
+            } else {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    HorizontalPager(state = state, modifier = Modifier.weight(1f), pageSpacing = 12.dp, verticalAlignment = Alignment.CenterVertically) { page ->
+                        row(pages[page])
+                    }
+                    val last = state.currentPage >= pages.lastIndex
+                    CarouselArrow(
+                        if (last) Icons.AutoMirrored.Filled.KeyboardArrowLeft else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        stringResource(if (last) R.string.carousel_previous else R.string.carousel_next) + " · " +
+                            stringResource(R.string.carousel_page, state.currentPage + 1, pages.size),
+                        enabled = true,
+                        size = 40.dp
+                    ) { scope.launch { state.animateScrollToPage(if (last) 0 else state.currentPage + 1) } }
+                }
+            }
+        }
+    }
+}
+
+/** Ancho máximo de la etiqueta de una tira en línea: "Lector activo" baja a dos renglones cortos si hace falta. */
+private val InlineLabelMaxWidth = 72.dp
 
 /** ◀ · puntos · ▶ compacto para las tiras de chips. */
 @Composable

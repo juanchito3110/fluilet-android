@@ -73,7 +73,7 @@
     <string name="library_demo_badge">De ejemplo</string>
     <string name="library_server_badge">Guardada</string>
     <string name="adapt_header_sub">Pega un texto, sube un documento o genera una lección: Fluilet la adapta y la organiza al nivel que elijas.</string>
-    <string name="avatar_header_sub">Etapa, gemas, misiones y accesorios de FluiBot.</string>
+    <string name="avatar_header_sub">Viste a FluiBot y míralo crecer.</string>
     <string name="cards_header_sub">Cartas ganadas leyendo y el progreso pedagógico.</string>
     <string name="child_card_age_group">%1$d años · %2$s</string>
     <string name="child_card_stage_short">Etapa %1$d</string>

@@ -12,6 +12,7 @@ import com.fluilet.app.presentation.common.ChipPaging
 import com.fluilet.app.presentation.fluibot.AlbumFilter
 import com.fluilet.app.presentation.fluibot.EvolutionTrack
 import com.fluilet.app.presentation.fluibot.ShopCatalog
+import com.fluilet.app.presentation.fluibot.StageLayout
 import com.fluilet.app.presentation.home.LibraryFilter
 import com.fluilet.app.presentation.home.LibraryQuickFilter
 import com.fluilet.app.presentation.home.LibraryShelf
@@ -52,6 +53,38 @@ class CarouselAndFiltersTest {
         assertEquals(97.92f, ShopCatalog.previewWidth(272.dp).value, 0.01f)
         assertEquals(104f, ShopCatalog.previewWidth(420.dp).value, 0.01f)
         assertTrue(ShopCatalog.StackedBelow.value < 272f)
+    }
+
+    // --- FluiBot grande y visor a pantalla completa ----------------------------------------------------
+
+    @Test fun mainCardSceneIsBigButLeavesRoomForTheTabs() {
+        // Tarjeta de un teléfono de 360 dp (296 dp útiles): 216 dp; en pantallas bajas, 200 dp.
+        assertEquals(216f, StageLayout.cardSceneSize(296.dp, windowHeight = 780.dp).value, 0.01f)
+        assertEquals(200f, StageLayout.cardSceneSize(296.dp, windowHeight = 640.dp).value, 0.01f)
+        // Tarjeta angosta: nunca más del 80 % de su ancho.
+        assertEquals(176f, StageLayout.cardSceneSize(220.dp, windowHeight = 800.dp).value, 0.01f)
+        assertTrue(StageLayout.CardSceneMax.value in 200f..220f)
+    }
+
+    @Test fun viewerShowsAGiantFluiBotThatStillFitsTheScreen() {
+        assertEquals(328f, StageLayout.viewerSceneSize(328.dp, windowHeight = 780.dp).value, 0.01f)
+        assertEquals(360f, StageLayout.viewerSceneSize(420.dp, windowHeight = 900.dp).value, 0.01f)
+        // Pantalla baja: no baja de 300 dp (el visor se desplaza); pantalla angosta: nunca más ancho que ella.
+        assertEquals(300f, StageLayout.viewerSceneSize(328.dp, windowHeight = 520.dp).value, 0.01f)
+        assertEquals(280f, StageLayout.viewerSceneSize(280.dp, windowHeight = 800.dp).value, 0.01f)
+    }
+
+    @Test fun readerSwitcherFitsInOneRowAndOnlyAddsAnArrowWhenNeeded() {
+        // Diego, Mateo, Sofía y Valentina: con 340 dp caben los 4 en una fila, sin flecha.
+        val names = listOf(69f, 73f, 68f, 96f)
+        assertEquals(listOf(0..3), ChipPaging.inlinePages(names, available = 340f, gap = 8f, navWidth = 48f))
+        // Si no caben, se reserva la flecha y cada página lleva chips enteros.
+        val pages = ChipPaging.inlinePages(names, available = 270f, gap = 8f, navWidth = 48f)
+        assertEquals(listOf(0..1, 2..3), pages)
+        pages.forEach { range ->
+            val used = range.sumOf { names[it].toDouble() } + 8.0 * (range.count() - 1)
+            assertTrue("la página $range cabe junto a la flecha", used <= 270.0 - 48.0 - 8.0)
+        }
     }
 
     // --- Tiras de chips paginadas ------------------------------------------------------------------

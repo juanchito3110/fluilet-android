@@ -37,7 +37,7 @@ class LayoutAuditTest {
         val shop = source("fluibot/FluiBotSections.kt")
         // Accesorios, escenarios, etapas de evolución y álbum.
         assertTrue("la tienda, la evolución y el álbum usan carruseles", Regex("FluiletCarousel\\(").findAll(shop).count() >= 4)
-        assertTrue("Avatar usa la cabecera compacta de FluiBot", "compact = true" in source("home/FluiBotTab.kt"))
+        assertTrue("el Avatar puede abrir el visor con accesorios y escenarios", "onToggleAccessory = onToggleAccessory" in source("home/FluiBotTab.kt"))
         assertTrue("los logros van en un carrusel", "FluiletCarousel(" in source("home/ProgressDashboard.kt"))
         val cards = source("home/HomeSections.kt").substringAfter("internal fun CartasTab")
         assertTrue("Cartas tiene sub-pestañas animadas", "AnimatedContent(" in cards && "CardsView.LOGROS" in cards && "CardsView.PROGRESO" in cards)
@@ -62,6 +62,21 @@ class LayoutAuditTest {
         }
         assertTrue("Login y Registro muestran el aviso", "PrivacyNoticeLink()" in source("auth/AuthScreens.kt"))
         assertTrue("Inicio muestra Cuenta y privacidad", "AccountPrivacyCard(" in source("home/HomeSections.kt"))
+    }
+
+    /** FluiBot grande y limpio, visor a pantalla completa con su propio botón y selector de lector en una fila. */
+    @Test fun avatarShowsACleanBigFluiBotAndAFullScreenViewer() {
+        val sections = source("fluibot/FluiBotSections.kt")
+        val scene = sections.substringAfter("internal fun FluiBotScene").substringBefore("/** Saldo de gemas")
+        assertTrue("nada escrito encima de FluiBot", "Text(" !in scene && "fluibot_live_preview" !in sections)
+        assertTrue("tocar a FluiBot le da energía", "onTap = onCelebrate" in scene)
+        assertTrue("un botón aparte abre el visor", "ViewBigButton({ viewerOpen = true }" in sections)
+        val viewer = source("fluibot/FluiBotViewer.kt")
+        assertTrue("visor de ancho completo", "usePlatformDefaultWidth = false" in viewer)
+        assertTrue("en el visor también se recarga energía y se cierra", "RechargeButton(onCelebrate" in viewer && "R.string.fluibot_viewer_close" in viewer)
+        assertTrue("en el visor se ponen y quitan accesorios y escenarios", "onToggleAccessory(it.accessory)" in viewer && "onEquipScenario(it.scenario)" in viewer)
+        val switcher = source("home/HomeSections.kt").substringAfter("internal fun ReaderSwitcher").substringBefore("/** Lectura lista para empezar")
+        assertTrue("el lector activo va en una sola fila", "InlineChipStrip(" in switcher && "FlowRow" !in switcher)
     }
 
     /** El aviso y la confirmación dicen exactamente lo que hace el servidor (fluilet-backend 14accd0). */

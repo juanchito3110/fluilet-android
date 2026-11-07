@@ -26,8 +26,8 @@ import com.fluilet.app.presentation.fluibot.ScenariosSection
 internal enum class BotSubTab { ACCESORIOS, ESCENARIOS, EVOLUCION }
 
 /**
- * 🤖 Avatar: cabecera compacta con FluiBot en vivo (siempre a la vista) y, debajo, Accesorios · Escenarios · Evolución,
- * cada una en un carrusel horizontal para que la pantalla no se alargue.
+ * 🤖 Avatar: FluiBot grande y en vivo arriba (con "Ver en grande" para el visor a pantalla completa) y, debajo,
+ * Accesorios · Escenarios · Evolución, cada una en un carrusel horizontal para que la pantalla no se alargue.
  */
 @Composable
 internal fun FluiBotTab(
@@ -39,8 +39,8 @@ internal fun FluiBotTab(
     onEquipScenario: (Scenario) -> Unit
 ) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        FluiBotStageCard(bot, onCelebrate, compact = true)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FluiBotStageCard(bot, onCelebrate, onToggleAccessory = onToggleAccessory, onEquipScenario = onEquipScenario)
         // Emoji arriba y palabra completa debajo: "Accesorios", "Escenarios" y "Evolución" nunca se cortan.
         TabRow(selectedTabIndex = selected, containerColor = MaterialTheme.colorScheme.background) {
             listOf(

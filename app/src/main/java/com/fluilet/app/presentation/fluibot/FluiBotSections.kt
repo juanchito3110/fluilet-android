@@ -11,6 +11,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.fluilet.app.presentation.common.FluiletCarousel
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import com.fluilet.app.presentation.common.SelectableChip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -69,9 +72,7 @@ import com.fluilet.app.presentation.common.AnimatedCounter
 import com.fluilet.app.presentation.brand.FluiletBrand
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.unit.sp
 import com.fluilet.app.presentation.common.CelebrationBurst
 import com.fluilet.app.presentation.common.SectionCard
@@ -106,120 +107,133 @@ fun XpBar(state: FluiBotUiState, modifier: Modifier = Modifier) {
     }
 }
 
+/** Tamaños de la escena de FluiBot, sin Android (probados con pruebas unitarias). */
+object StageLayout {
+    /** Escena de la tarjeta principal: grande y centrada (200–216 dp), sin pasar del 80 % del ancho de la tarjeta. */
+    fun cardSceneSize(cardWidth: Dp, windowHeight: Dp): Dp =
+        minOf(cardWidth * 0.8f, if (windowHeight < ShortScreen) CardSceneSmall else CardSceneMax)
+
+    /** Visor a pantalla completa: 300–360 dp cuando cabe, nunca más ancho que la pantalla ni más de la mitad del alto. */
+    fun viewerSceneSize(width: Dp, windowHeight: Dp): Dp =
+        minOf(ViewerSceneMax, width, windowHeight * 0.5f).coerceAtLeast(minOf(ViewerSceneMin, width))
+
+    val CardSceneMax: Dp = 216.dp
+    val CardSceneSmall: Dp = 200.dp
+
+    /** En pantallas más bajas que esto la escena de la tarjeta usa 200 dp para que las pestañas sigan a la vista. */
+    val ShortScreen: Dp = 700.dp
+    val ViewerSceneMax: Dp = 360.dp
+    val ViewerSceneMin: Dp = 300.dp
+
+    /** Por debajo de este ancho, "Recargar Energía" y "Ver en grande" van uno sobre otro. */
+    val ButtonsStackBelow: Dp = 280.dp
+}
+
 /**
- * Cabecera de 🤖 Mi FluiBot y de la Tienda/Armario: vista previa en vivo del robot en su escenario (salta y celebra
- * al tocarlo, al comprar y al equipar), su nombre y etapa, gemas animadas, XP con resorte y "Recargar Energía".
+ * Tarjeta principal de FluiBot (Avatar y Laboratorio): el robot GRANDE y limpio arriba (en su escenario, con sus
+ * accesorios; nada escrito encima), y debajo, compactos, su nombre, etapa, gemas, XP, "⚡ Recargar Energía" y el botón
+ * independiente "Ver en grande". Tocar a FluiBot sigue dándole energía; solo el botón abre el visor a pantalla completa.
  */
 @Composable
-fun FluiBotStageCard(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: Modifier = Modifier, compact: Boolean = false) {
+fun FluiBotStageCard(
+    state: FluiBotUiState,
+    onCelebrate: () -> Unit,
+    modifier: Modifier = Modifier,
+    onToggleAccessory: ((Accessory) -> Unit)? = null,
+    onEquipScenario: ((Scenario) -> Unit)? = null
+) {
+    var viewerOpen by rememberSaveable { mutableStateOf(false) }
+    val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        if (compact) {
-            CompactStage(state, onCelebrate)
-        } else {
-            Column(
-                Modifier.fillMaxWidth().padding(top = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                FluiBotScene(
-                    state, onCelebrate,
-                    Modifier.padding(horizontal = 16.dp).fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally)
-                        .sizeIn(maxWidth = SceneMaxSize, maxHeight = SceneMaxSize).aspectRatio(1f)
-                )
-                Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.fluibot_name), style = MaterialTheme.typography.headlineSmall)
-                            AdaptiveText(
-                                stringResource(R.string.fluibot_stage_label, state.bot.stage.number, state.bot.stage.displayName),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        GemPill(state.gems)
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(12.dp)) {
+            val scene = StageLayout.cardSceneSize(maxWidth, windowHeight)
+            val stackButtons = maxWidth < StageLayout.ButtonsStackBelow
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FluiBotScene(state, onCelebrate, Modifier.size(scene))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        AdaptiveText(stringResource(R.string.fluibot_name), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge)
+                        AdaptiveText(
+                            stringResource(R.string.fluibot_stage_label, state.bot.stage.number, state.bot.stage.displayName),
+                            Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    XpBar(state)
-                    RechargeButton(onCelebrate, Modifier.heightIn(min = 56.dp))
+                    GemPill(state.gems)
+                }
+                XpBar(state)
+                if (stackButtons) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        RechargeButton(onCelebrate, Modifier.fillMaxWidth())
+                        ViewBigButton({ viewerOpen = true }, Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        RechargeButton(onCelebrate, Modifier.weight(1.15f))
+                        ViewBigButton({ viewerOpen = true }, Modifier.weight(1f))
+                    }
                 }
             }
         }
     }
-}
-
-/**
- * Cabecera compacta del Avatar: FluiBot a la izquierda (en vivo, con sus accesorios y su escenario) y su nombre, etapa,
- * gemas y XP a la derecha. Así el robot sigue a la vista mientras el niño recorre el carrusel de la tienda debajo.
- */
-@Composable
-private fun CompactStage(state: FluiBotUiState, onCelebrate: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(0.46f), contentAlignment = Alignment.Center) {
-                FluiBotScene(state, onCelebrate, Modifier.fillMaxWidth().sizeIn(maxWidth = CompactSceneMaxSize).aspectRatio(1f))
-            }
-            Column(Modifier.weight(0.54f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AdaptiveText(stringResource(R.string.fluibot_name), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge)
-                AdaptiveText(
-                    stringResource(R.string.fluibot_stage_label, state.bot.stage.number, state.bot.stage.displayName),
-                    Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                GemPill(state.gems)
-                XpBar(state)
-            }
-        }
-        RechargeButton(onCelebrate, Modifier.heightIn(min = 48.dp))
+    if (viewerOpen) {
+        FluiBotViewer(state, onCelebrate, onToggleAccessory, onEquipScenario, onClose = { viewerOpen = false })
     }
 }
 
+/** Relleno de los botones de la tarjeta: deja ancho a "Recargar Energía" y "Ver en grande" en una línea. */
+private val StageButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+
 /** "⚡ Recargar Energía": un solo rayo (el ícono) y el texto centrado en una línea. */
 @Composable
-private fun RechargeButton(onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
-    Button(onClick = onCelebrate, modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Icon(Icons.Filled.Bolt, contentDescription = null)
-        Spacer(Modifier.width(8.dp))
+internal fun RechargeButton(onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
+    Button(
+        onClick = onCelebrate,
+        modifier = modifier.heightIn(min = 48.dp),
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = StageButtonPadding
+    ) {
+        Icon(Icons.Filled.Bolt, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(6.dp))
         AdaptiveSingleLineText(stringResource(R.string.fluibot_recharge), style = MaterialTheme.typography.labelLarge)
     }
 }
 
-/** Tamaño máximo de la escena: el mismo encuadre exacto de FluiBot en cualquier teléfono. */
-private val SceneMaxSize = 260.dp
-
-/** Tope de la escena en la cabecera compacta del Avatar. */
-private val CompactSceneMaxSize = 190.dp
+/** "🔍 Ver en grande": botón aparte (no el toque sobre FluiBot) que abre el visor a pantalla completa. */
+@Composable
+private fun ViewBigButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 48.dp),
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = StageButtonPadding
+    ) {
+        Icon(Icons.Filled.ZoomIn, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(6.dp))
+        AdaptiveSingleLineText(stringResource(R.string.fluibot_view_big), style = MaterialTheme.typography.labelLarge)
+    }
+}
 
 /**
- * Escena de FluiBot con relación de aspecto FIJA (1:1), centrada: el robot, su fondo y sus accesorios se dibujan en
- * proporción al contenedor, así que el encuadre es idéntico en cualquier pantalla. [modifier] fija el tamaño.
+ * Escena de FluiBot con relación de aspecto FIJA (1:1): el robot, su fondo y sus accesorios se dibujan en proporción al
+ * contenedor, así que el encuadre es idéntico en cualquier tamaño. Nada se escribe encima del dibujo. Tocarlo le da
+ * energía (salta y celebra). [modifier] fija el tamaño.
  */
 @Composable
-private fun FluiBotScene(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
-    BoxWithConstraints(modifier.clip(RoundedCornerShape(24.dp))) {
-        FluiBotCanvas(
-            stage = state.bot.stage,
-            equipped = state.equipped,
-            celebrationTick = state.celebrationTick,
-            onTap = onCelebrate,
-            scenario = state.scenario,
-            modifier = Modifier.fillMaxSize()
-        )
-        AdaptiveSingleLineText(
-            stringResource(R.string.fluibot_live_preview),
-            Modifier.align(Alignment.TopCenter).padding(top = maxWidth * 0.04f)
-                .widthIn(max = maxWidth * 0.86f)
-                .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
-                .padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = Color.White
-        )
-    }
+internal fun FluiBotScene(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
+    FluiBotCanvas(
+        stage = state.bot.stage,
+        equipped = state.equipped,
+        celebrationTick = state.celebrationTick,
+        onTap = onCelebrate,
+        scenario = state.scenario,
+        modifier = modifier.aspectRatio(1f).clip(RoundedCornerShape(24.dp))
+    )
 }
 
 /** Saldo de gemas con contador animado. */

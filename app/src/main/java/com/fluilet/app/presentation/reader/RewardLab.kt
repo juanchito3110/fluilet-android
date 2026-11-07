@@ -103,7 +103,11 @@ fun RewardLab(
                     }
                 }
                 LabTab.FLUIBOT -> {
-                    FluiBotStageCard(bot, botViewModel::celebrate, compact = true)
+                    FluiBotStageCard(
+                        bot, botViewModel::celebrate,
+                        onToggleAccessory = botViewModel::toggleEquip,
+                        onEquipScenario = botViewModel::equipScenario
+                    )
                     AccessoriesShop(bot, botViewModel::buy, botViewModel::toggleEquip)
                     ScenariosSection(bot, botViewModel::buyScenario, botViewModel::equipScenario)
                 }

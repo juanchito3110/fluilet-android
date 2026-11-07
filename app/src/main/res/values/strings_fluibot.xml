@@ -11,7 +11,12 @@
     <string name="album_fun_fact_title">Dato curioso educativo</string>
     <string name="album_locked_hint">Completa una lección de esta categoría para desbloquear la carta.</string>
     <string name="fluibot_name">FluiBot</string>
-    <string name="fluibot_live_preview">Vista previa · tócalo</string>
+    <string name="fluibot_view_big">Ver en grande</string>
+    <string name="fluibot_viewer_close">✕ Cerrar</string>
+    <string name="fluibot_viewer_hint">Toca a FluiBot o pulsa Recargar Energía para darle energía.</string>
+    <string name="fluibot_viewer_accessories">Accesorios: toca uno para ponerlo o quitarlo</string>
+    <string name="fluibot_viewer_scenarios">Escenario: toca uno para cambiarlo</string>
+    <string name="fluibot_viewer_empty">Compra accesorios y escenarios en el Taller para probarlos aquí.</string>
     <string name="fluibot_owned">✓ Tuyo</string>
     <string name="fluibot_equipped">✓ Equipado</string>
     <string name="fluibot_equipped_button">Equipado</string>

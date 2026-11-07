@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -51,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import com.fluilet.app.presentation.common.ChipCarousel
+import com.fluilet.app.presentation.common.InlineChipStrip
 import com.fluilet.app.presentation.common.CollapsibleCard
 import com.fluilet.app.presentation.common.FluiletCarousel
 import com.fluilet.app.presentation.common.SelectableChip
@@ -95,31 +95,27 @@ private const val MAX_HISTORY_ROWS = 10
 /** Encabezado de un apartado: título grande y una línea que explica para qué sirve. */
 @Composable
 internal fun TabHeader(title: String, subtitle: String) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         AdaptiveText(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
         Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-/** Selector compacto del lector activo (solo tutor) para los apartados que trabajan sobre un niño. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Selector compacto del lector activo (solo tutor) en UNA sola fila: "Lector activo" a la izquierda y los nombres
+ * completos a la derecha; si no caben todos, la fila se desliza por páginas con una flecha. Así no empuja hacia abajo
+ * el contenido del apartado.
+ */
 @Composable
 internal fun ReaderSwitcher(state: HomeUiState, onSelect: (String) -> Unit) {
     if (!state.isTutor || state.children.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(R.string.reader_switcher_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        // Todos los lectores a la vista: bajan de renglón en lugar de esconderse en el borde derecho.
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            state.children.forEach { child ->
-                FilterChip(
-                    selected = child.id == state.selectedChildId,
-                    onClick = { onSelect(child.id) },
-                    label = { AdaptiveText(child.name, style = MaterialTheme.typography.labelLarge) },
-                    modifier = Modifier.heightIn(min = 44.dp)
-                )
-            }
-        }
-    }
+    InlineChipStrip(
+        items = state.children,
+        label = { it.name },
+        isSelected = { it.id == state.selectedChildId },
+        onClick = { onSelect(it.id) },
+        leadingLabel = stringResource(R.string.reader_switcher_label)
+    )
 }
 
 /** Lectura lista para empezar (adaptada o abierta desde la biblioteca). */
@@ -492,7 +488,8 @@ internal fun AvatarTab(
     onEquipScenario: (com.fluilet.app.domain.gamification.Scenario) -> Unit,
     onClaimMission: (String) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    // Encabezado y márgenes compactos: FluiBot, las pestañas del taller y su título caben en la primera vista.
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         TabHeader(HomeTab.AVATAR.title, stringResource(R.string.avatar_header_sub))
         ReaderSwitcher(state, onSelect)
         FluiBotTab(bot, onCelebrate, onBuyAccessory, onToggleAccessory, onBuyScenario, onEquipScenario)
