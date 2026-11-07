@@ -20,8 +20,8 @@ import javax.inject.Inject
 /** Secciones del Sistema de Control Maestro. */
 /** Vistas del panel: etiquetas cortas que caben completas en el selector. */
 enum class AdminTab(val label: String) {
-    CHILDREN("Perfiles de niños"),
-    TUTORS("Cuentas de tutores")
+    CHILDREN("Perfiles lectores"),
+    TUTORS("Cuentas")
 }
 
 data class AdminUiState(

@@ -16,7 +16,7 @@ data class AdminUser(
     val canBeDeleted: Boolean get() = !isMasterAdmin
 }
 
-/** Perfil de niño del sistema, con sus saldos reales (`profile_controls` incluidos). */
+/** Perfil lector infantil o independiente, con sus saldos reales incluidos. */
 data class AdminProfile(
     val profileId: String,
     val name: String,
@@ -47,7 +47,8 @@ data class AdminOverview(
     /** Auditoría del modelo reentrenado (`model_info`); `null` si el servidor no la envía. */
     val modelAudit: ModelAudit? = null
 ) {
-    val tutors: List<AdminUser> get() = users.filter { it.isTutor }
+    /** Nombre conservado para la pantalla existente; incluye todas las cuentas administrables. */
+    val tutors: List<AdminUser> get() = users.filter { !it.isMasterAdmin }
 
     companion object {
         val EMPTY = AdminOverview(0, 0, 0, 0, 0.0, emptyList(), emptyList())
