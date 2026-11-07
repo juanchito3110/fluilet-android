@@ -82,7 +82,11 @@ data class HomeUiState(
     /** 🧠 Auditoría del modelo reentrenado para 📊 Estadísticas. */
     val modelAudit: ModelAudit? = null,
     /** Nivel elegido en el deslizador del niño que espera "Confirmar" o "Cancelar" (aún sin enviar al servidor). */
-    val pendingNlpLevel: NlpLevel? = null
+    val pendingNlpLevel: NlpLevel? = null,
+    /** "Eliminar mi cuenta y datos" en curso. */
+    val deletingAccount: Boolean = false,
+    /** Motivo por el que no se pudo eliminar la cuenta (sin conexión, sesión vencida...). */
+    val accountError: String? = null
 ) {
     val selectedChild: ChildProfile? get() = children.firstOrNull { it.id == selectedChildId }
 
@@ -114,7 +118,9 @@ private data class HomeLocal(
     val libraryOwner: String? = null,
     val openingLessonId: String? = null,
     val modelAudit: ModelAudit? = null,
-    val pendingNlpLevel: NlpLevel? = null
+    val pendingNlpLevel: NlpLevel? = null,
+    val deletingAccount: Boolean = false,
+    val accountError: String? = null
 )
 
 @HiltViewModel
@@ -157,7 +163,9 @@ class HomeViewModel @Inject constructor(
             library = if (l.libraryOwner != null && l.libraryOwner == l.selectedChildId) l.library else emptyList(),
             openingLessonId = l.openingLessonId,
             modelAudit = l.modelAudit,
-            pendingNlpLevel = l.pendingNlpLevel
+            pendingNlpLevel = l.pendingNlpLevel,
+            deletingAccount = l.deletingAccount,
+            accountError = l.accountError
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -418,6 +426,25 @@ class HomeViewModel @Inject constructor(
     }
 
     fun consumeError() = local.update { it.copy(errorMessage = null) }
+
+    /**
+     * "Eliminar mi cuenta y datos": da de baja la cuenta en el servidor y, al confirmarlo, borra la lectura en curso y
+     * todo lo guardado en el teléfono; la sesión cerrada lleva de vuelta a Iniciar Sesión. Si falla, nada se borra.
+     */
+    fun deleteAccount() {
+        if (local.value.deletingAccount) return
+        local.update { it.copy(deletingAccount = true, accountError = null) }
+        viewModelScope.launch {
+            auth.deleteAccount()
+                .onSuccess {
+                    readingHolder.clear()
+                    local.update { it.copy(deletingAccount = false) }
+                }
+                .onFailure { e -> local.update { it.copy(deletingAccount = false, accountError = e.toAppError().userMessage) } }
+        }
+    }
+
+    fun consumeAccountError() = local.update { it.copy(accountError = null) }
 
     private companion object {
         /** Dueño del avance cuando el lector es el propio adulto independiente. */

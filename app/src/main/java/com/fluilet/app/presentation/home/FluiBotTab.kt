@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.fluilet.app.R
 import com.fluilet.app.domain.gamification.Accessory
 import com.fluilet.app.domain.gamification.Scenario
-import com.fluilet.app.presentation.fluibot.AccessoriesGrid
+import com.fluilet.app.presentation.fluibot.AccessoriesShop
 import com.fluilet.app.presentation.fluibot.EvolutionSection
 import com.fluilet.app.presentation.fluibot.FluiBotStageCard
 import com.fluilet.app.presentation.fluibot.FluiBotUiState
@@ -48,7 +48,7 @@ internal fun FluiBotTab(
             }
         }
         when (BotSubTab.entries[selected]) {
-            BotSubTab.ACCESORIOS -> AccessoriesGrid(bot, onBuyAccessory, onToggleAccessory)
+            BotSubTab.ACCESORIOS -> AccessoriesShop(bot, onBuyAccessory, onToggleAccessory)
             BotSubTab.ESCENARIOS -> ScenariosSection(bot, onBuyScenario, onEquipScenario)
             BotSubTab.EVOLUCION -> EvolutionSection(bot)
         }

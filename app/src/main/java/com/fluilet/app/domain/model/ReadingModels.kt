@@ -1,6 +1,7 @@
 package com.fluilet.app.domain.model
 
 import com.fluilet.app.domain.gamification.LessonFacts
+import com.fluilet.app.domain.text.Keywords
 import com.fluilet.app.domain.text.LocalGlossary
 import com.fluilet.app.domain.text.VocabularyEntry
 import java.time.Instant
@@ -116,9 +117,12 @@ data class AdaptationResult(
     /** Dato curioso: el del servidor o uno local según tema/categoría. */
     val effectiveFunFact: String? get() = LessonFacts.forLesson(funFact, topic, category)
 
-    /** Glosario: el del servidor o las palabras conocidas que aparecen en el texto adaptado. */
+    /**
+     * Glosario: el del servidor (sin palabras defectuosas como una "v" suelta) o, si no queda ninguna, las palabras
+     * conocidas que aparecen en el texto adaptado.
+     */
     val effectiveVocabulary: List<VocabularyEntry>
-        get() = keyVocabulary.ifEmpty { LocalGlossary.find(chunks.joinToString(" ") { it.text }) }
+        get() = Keywords.clean(keyVocabulary).ifEmpty { Keywords.clean(LocalGlossary.find(chunks.joinToString(" ") { it.text })) }
 
     /** Lección generada por tema (Wikipedia o banco), no un texto pegado o subido por el usuario. */
     val isGeneratedLesson: Boolean get() = source != null || (category != null && category != FREE_READING_CATEGORY)

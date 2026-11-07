@@ -4,6 +4,7 @@
     <string name="reader_back">Volver</string>
     <string name="reader_block_of">Bloque %1$d de %2$d</string>
     <string name="reader_block_short">Bloque %1$d/%2$d</string>
+    <string name="reader_scroll_more">⬇ Desliza para seguir leyendo</string>
     <string name="reader_font_smaller">Letra más pequeña</string>
     <string name="reader_font_larger">Letra más grande</string>
     <string name="reader_focus_on">Modo Enfoque</string>

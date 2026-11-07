@@ -27,6 +27,12 @@ interface AuthRepository {
     /** Cierra sesión: borra tokens y datos sensibles locales. */
     suspend fun logout()
 
+    /**
+     * "Eliminar mi cuenta y datos": da de baja la cuenta en el servidor (`DELETE /users/me`, cierra todas sus sesiones)
+     * y, solo si el servidor lo confirma, borra todo lo guardado en el teléfono (sesión, PIN, premios de FluiBot).
+     */
+    suspend fun deleteAccount(): Result<Unit>
+
     /** Reautenticación del tutor (para restablecer el PIN). Valida la contraseña contra el backend. */
     suspend fun reauthenticate(password: String): Result<Unit>
 

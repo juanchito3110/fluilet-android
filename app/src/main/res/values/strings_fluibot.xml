@@ -4,8 +4,6 @@
     <string name="fluibot_workshop_title">Taller de FluiBot</string>
     <string name="fluibot_gems_balance">Tienes %1$d 💎</string>
     <string name="fluibot_workshop_hint">Compra con un toque y combina todos los accesorios que quieras. Se ven en FluiBot al instante.</string>
-    <string name="fluibot_buy">Comprar · %1$d 💎</string>
-    <string name="fluibot_not_enough">Aún no te alcanzan las gemas</string>
     <string name="fluibot_equip">Equipar</string>
     <string name="album_title">Álbum de cartas coleccionables</string>
     <string name="album_cards_count">%1$d de %2$d cartas desbloqueadas</string>
@@ -16,14 +14,14 @@
     <string name="fluibot_name">FluiBot</string>
     <string name="fluibot_live_preview">Vista previa · tócalo</string>
     <string name="fluibot_owned">✓ Tuyo</string>
+    <string name="fluibot_equipped">✓ Equipado</string>
+    <string name="fluibot_equipped_button">Equipado</string>
     <string name="fluibot_price">%1$d 💎</string>
     <string name="fluibot_buy_short">Comprar</string>
     <string name="fluibot_not_enough_short">Faltan 💎</string>
     <string name="fluibot_remove">Quitar</string>
     <string name="scenarios_title">Escenarios de FluiBot</string>
     <string name="scenarios_free">Gratis</string>
-    <string name="scenarios_equipped">Puesto</string>
-    <string name="scenarios_equip">Poner escenario</string>
     <string name="evolution_title">Evolución de FluiBot</string>
     <string name="evolution_current">Etapa actual</string>
     <string name="evolution_reached">Etapa alcanzada</string>

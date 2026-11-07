@@ -1,7 +1,11 @@
 package com.fluilet.app.presentation.child
 
+import com.fluilet.app.presentation.common.DialogTextButton
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.heightIn
+import com.fluilet.app.presentation.common.AdaptiveText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,7 +66,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ChildFormScreen(onDone: () -> Unit, viewModel: ChildFormViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -105,13 +109,14 @@ fun ChildFormScreen(onDone: () -> Unit, viewModel: ChildFormViewModel = hiltView
             ErrorMessage(state.birthDateError)
 
             Text(stringResource(R.string.child_difficulty), style = MaterialTheme.typography.titleSmall)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Las opciones bajan de renglón: ninguna queda escondida en el borde derecho.
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 DifficultyType.entries.forEach { type ->
                     SelectableChip(
                         selected = type == state.difficulty,
                         onClick = { viewModel.onDifficulty(type) },
-                        label = { Text(type.label, style = MaterialTheme.typography.labelLarge) },
-                        modifier = Modifier.height(48.dp)
+                        label = { AdaptiveText(type.label, style = MaterialTheme.typography.labelLarge) },
+                        modifier = Modifier.heightIn(min = 48.dp)
                     )
                 }
             }
@@ -119,7 +124,11 @@ fun ChildFormScreen(onDone: () -> Unit, viewModel: ChildFormViewModel = hiltView
             NlpLevelSlider(state.nlpLevel, viewModel::onNlp)
 
             Text(stringResource(R.string.reader_palette), style = MaterialTheme.typography.titleSmall)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 AccessiblePalette.entries.forEach { palette ->
                     PaletteSwatch(palette, selected = palette == state.palette) { viewModel.onPalette(palette) }
                 }
@@ -163,7 +172,7 @@ fun ChildFormScreen(onDone: () -> Unit, viewModel: ChildFormViewModel = hiltView
                     showDatePicker = false
                 }) { Text(stringResource(R.string.action_save)) }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.action_cancel)) } }
+            dismissButton = { DialogTextButton(stringResource(R.string.action_cancel), { showDatePicker = false }) }
         ) { DatePicker(state = pickerState) }
     }
 }

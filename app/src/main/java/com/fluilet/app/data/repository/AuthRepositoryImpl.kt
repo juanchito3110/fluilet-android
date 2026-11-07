@@ -78,6 +78,9 @@ class AuthRepositoryImpl @Inject constructor(
         sessionManager.clear()
     }
 
+    override suspend fun deleteAccount(): Result<Unit> =
+        apiCall { api.deleteMyAccount() }.onSuccess { sessionManager.clear() }
+
     override suspend fun reauthenticate(password: String): Result<Unit> {
         val email = sessionManager.email
             ?: return Result.failure(AppError.Unauthorized("No hay una sesión activa."))

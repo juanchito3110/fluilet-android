@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -93,7 +93,7 @@ fun FluiletSplashScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
                 )
                 MintLine(Modifier.width(220.dp), progress = frame.lineProgress, thickness = 5.dp)
             }
-            TextButton(onClick = ::complete, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(56.dp)) {
+            TextButton(onClick = ::complete, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(min = 56.dp)) {
                 Text(stringResource(R.string.splash_start), style = MaterialTheme.typography.titleMedium, color = FluiletBrand.Purple)
             }
         }

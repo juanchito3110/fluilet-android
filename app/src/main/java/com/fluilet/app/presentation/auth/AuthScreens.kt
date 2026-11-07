@@ -1,5 +1,6 @@
 package com.fluilet.app.presentation.auth
 
+import com.fluilet.app.presentation.common.PrivacyNoticeLink
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
@@ -233,6 +234,17 @@ private fun AuthForms(
             AuthTab.REGISTER -> RegisterForm(registerViewModel)
         }
     }
+    // Aviso de Privacidad y Uso de Datos siempre a la vista, antes de iniciar sesión o crear la cuenta.
+    if (tab == AuthTab.REGISTER) {
+        Text(
+            stringResource(R.string.privacy_register_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+    PrivacyNoticeLink()
 }
 
 /** Pestaña de acceso con su texto en una sola línea, centrado y ajustado entre 12 y 16 sp. */

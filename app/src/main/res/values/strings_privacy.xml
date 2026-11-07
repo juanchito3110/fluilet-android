@@ -1,0 +1,31 @@
+<resources>
+    <!-- Aviso de Privacidad y Uso de Datos (Login, Registro, Panel del Tutor y cuenta del adulto). -->
+    <string name="privacy_link">🛡️ Aviso de Privacidad y Uso de Datos</string>
+    <string name="privacy_title">Aviso de Privacidad y Uso de Datos</string>
+    <string name="privacy_intro">Fluilet ayuda a niños con dislexia a leer mejor. Cuidamos sus datos de lectura y solo pedimos lo necesario para que la app funcione.</string>
+    <string name="privacy_collect_title">Qué datos guardamos</string>
+    <string name="privacy_collect_body">El nombre y el correo del adulto responsable; el nombre, la edad y el nivel de lectura de cada perfil; el avance de lectura (lecciones, tiempo, aciertos, gemas y logros), y las lecturas que adaptas con su versión adaptada para volver a leerlas.</string>
+    <string name="privacy_use_title">Para qué los usamos</string>
+    <string name="privacy_use_body">Solo para adaptar las lecturas al nivel de cada niño, mostrar su progreso al adulto responsable y guardar sus premios. Fluilet no muestra publicidad.</string>
+    <string name="privacy_share_title">Con quién los compartimos</string>
+    <string name="privacy_share_body">Fluilet no vende ni comparte información personal con terceros. Solo usamos un servicio de correo para enviarte el código cuando pides recuperar tu contraseña.</string>
+    <string name="privacy_protect_title">Cómo los protegemos</string>
+    <string name="privacy_protect_body">Cada cuenta solo puede ver sus propios perfiles y lecturas. En el teléfono, la sesión, el PIN parental y los premios se guardan cifrados, y el texto que lees no se guarda en el dispositivo.</string>
+    <string name="privacy_rights_title">Tus decisiones</string>
+    <string name="privacy_rights_body">Puedes editar o eliminar los perfiles de lectura cuando quieras. También puedes eliminar tu cuenta desde Inicio, en \"Cuenta y privacidad\", con el botón \"Eliminar mi cuenta y datos\".</string>
+    <string name="privacy_close">Entendido</string>
+    <string name="privacy_register_note">Al crear tu cuenta aceptas el Aviso de Privacidad y Uso de Datos de Fluilet.</string>
+
+    <!-- Cuenta y privacidad (Inicio del tutor y del adulto independiente). -->
+    <string name="account_title">🛡️ Cuenta y privacidad</string>
+    <string name="account_email">Cuenta: %1$s</string>
+    <string name="account_body">Consulta cómo cuida Fluilet tus datos o elimina tu cuenta cuando quieras.</string>
+    <string name="account_delete">Eliminar mi cuenta y datos</string>
+    <string name="account_deleting">Eliminando tu cuenta…</string>
+    <string name="account_delete_title">¿Eliminar tu cuenta y tus datos?</string>
+    <string name="account_delete_body">Tu cuenta se dará de baja de inmediato: se cerrarán todas tus sesiones, ya no podrás iniciar sesión con ella y se borrarán de este teléfono tus datos de Fluilet (PIN, premios y avance guardado aquí). Esta acción no se puede deshacer.</string>
+    <string name="account_delete_body_tutor">Los perfiles de lectura de tus niños también dejarán de estar disponibles.</string>
+    <string name="account_delete_type">Para confirmar, escribe %1$s</string>
+    <string name="account_delete_word">ELIMINAR</string>
+    <string name="account_delete_confirm">Eliminar definitivamente</string>
+</resources>

@@ -1,5 +1,6 @@
 package com.fluilet.app.presentation.newreading
 
+import com.fluilet.app.presentation.common.AdaptiveSingleLineText
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -62,7 +63,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.LineBreak
-import androidx.compose.ui.text.style.TextOverflow
 import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.SectionCard
@@ -256,7 +256,8 @@ private fun LessonGeneratorFields(state: NewReadingUiState, vm: NewReadingViewMo
         OutlinedTextField(
             value = state.topic,
             onValueChange = vm::onTopic,
-            placeholder = { Text(stringResource(R.string.newreading_topic_placeholder), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            // La sugerencia completa en una línea: se ajusta de tamaño en lugar de cortarse con "...".
+            placeholder = { AdaptiveSingleLineText(stringResource(R.string.newreading_topic_placeholder), textAlign = TextAlign.Start) },
             supportingText = {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.newreading_topic_optional), modifier = Modifier.weight(1f))

@@ -75,7 +75,7 @@ fun SecondaryButton(
     }
 }
 
-/** Ícono y etiqueta centrados; la etiqueta se ajusta (hasta 2 renglones) sin partir palabras. */
+/** Ícono y etiqueta centrados; la etiqueta se lee completa (baja de renglón si hace falta) sin partir palabras. */
 @Composable
 private fun RowScope.ButtonContent(text: String, loading: Boolean, icon: ImageVector?) {
     if (loading) {
@@ -115,7 +115,7 @@ fun SectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            AdaptiveText(title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, maxLines = 3)
+            AdaptiveText(title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium)
             content()
         }
     }

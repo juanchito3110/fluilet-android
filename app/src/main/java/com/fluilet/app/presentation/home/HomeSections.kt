@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,8 +23,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -100,17 +97,19 @@ internal fun TabHeader(title: String, subtitle: String) {
 }
 
 /** Selector compacto del lector activo (solo tutor) para los apartados que trabajan sobre un niño. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ReaderSwitcher(state: HomeUiState, onSelect: (String) -> Unit) {
     if (!state.isTutor || state.children.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.reader_switcher_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 8.dp)) {
-            items(state.children, key = { it.id }) { child ->
+        // Todos los lectores a la vista: bajan de renglón en lugar de esconderse en el borde derecho.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            state.children.forEach { child ->
                 FilterChip(
                     selected = child.id == state.selectedChildId,
                     onClick = { onSelect(child.id) },
-                    label = { AdaptiveSingleLineText(child.name, style = MaterialTheme.typography.labelLarge) },
+                    label = { AdaptiveText(child.name, style = MaterialTheme.typography.labelLarge) },
                     modifier = Modifier.heightIn(min = 44.dp)
                 )
             }
@@ -128,7 +127,7 @@ internal fun ReadingReadyCard(state: HomeUiState, onStartReading: () -> Unit) {
     ) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.home_reading_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
-            Text(reading.adaptation.title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimary)
+            AdaptiveText(reading.adaptation.title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimary)
             Text(
                 stringResource(R.string.home_reading_ready, reading.adaptation.chunks.size, reading.adaptation.metrics.adaptedSzigrisztScore),
                 style = MaterialTheme.typography.bodyMedium,
@@ -166,7 +165,9 @@ internal fun InicioTab(
     onCelebrate: () -> Unit,
     onStartReading: () -> Unit,
     currentEquipped: Set<String>,
-    equippedFor: (String) -> Set<String>
+    equippedFor: (String) -> Set<String>,
+    onDeleteAccount: () -> Unit,
+    onDismissAccountError: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         if (state.isTutor) {
@@ -177,6 +178,8 @@ internal fun InicioTab(
         ReadingReadyCard(state, onStartReading)
         // Sin "Cargar Datos Demo": esa función solo existe en el Panel de Administración Maestro.
         if (state.isTutor) TutorPanelCard(state, onSelect, onNewChild, onEditChild, onDeleteChild, onNlpLevel, onPin)
+        // Aviso de privacidad y "Eliminar mi cuenta y datos" siempre a la vista del adulto (tutor o independiente).
+        AccountPrivacyCard(state, onDeleteAccount, onDismissAccountError)
     }
 }
 
@@ -218,7 +221,7 @@ private fun TutorPanelCard(
                 ) { Icon(Icons.Filled.AdminPanelSettings, contentDescription = null, tint = Color.White) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     AdaptiveText(stringResource(R.string.tutor_panel_title), style = MaterialTheme.typography.titleMedium)
-                    AdaptiveText(stringResource(R.string.tutor_panel_sub), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3)
+                    AdaptiveText(stringResource(R.string.tutor_panel_sub), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.rotate(arrow))
             }
@@ -336,8 +339,12 @@ private fun ShelfCard(entry: ShelfEntry, opening: Boolean, enabled: Boolean, onO
         Column {
             CategoryArtwork(entry.category, Modifier.fillMaxWidth().height(96.dp), iconSize = 40.dp)
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(LessonCategory.displayNameFor(entry.category), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Text(entry.title, style = MaterialTheme.typography.titleMedium)
+                val categoryName = LessonCategory.displayNameFor(entry.category)
+                // El título completo (los renglones que necesite); la categoría encima solo si no repite el título.
+                if (!categoryName.equals(entry.title, ignoreCase = true)) {
+                    AdaptiveText(categoryName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                AdaptiveText(entry.title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     entry.level?.let { Pill(stringResource(R.string.child_card_level, it), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) }
                     Pill(

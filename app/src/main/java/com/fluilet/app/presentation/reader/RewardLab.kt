@@ -42,7 +42,7 @@ import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.fluibot.AlbumSection
 import com.fluilet.app.presentation.fluibot.FluiBotViewModel
 import com.fluilet.app.presentation.fluibot.TreasureChest
-import com.fluilet.app.presentation.fluibot.AccessoriesGrid
+import com.fluilet.app.presentation.fluibot.AccessoriesShop
 import com.fluilet.app.presentation.fluibot.FluiBotStageCard
 import com.fluilet.app.presentation.fluibot.GemPill
 import com.fluilet.app.presentation.fluibot.MissionsCard
@@ -104,7 +104,7 @@ fun RewardLab(
                 }
                 LabTab.FLUIBOT -> {
                     FluiBotStageCard(bot, botViewModel::celebrate)
-                    AccessoriesGrid(bot, botViewModel::buy, botViewModel::toggleEquip)
+                    AccessoriesShop(bot, botViewModel::buy, botViewModel::toggleEquip)
                     ScenariosSection(bot, botViewModel::buyScenario, botViewModel::equipScenario)
                 }
                 LabTab.ALBUM -> AlbumSection(bot.cards, bot.badges)

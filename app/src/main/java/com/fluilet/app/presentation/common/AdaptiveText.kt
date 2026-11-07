@@ -85,10 +85,13 @@ data class WordSafeAutoSize(val min: TextUnit, val max: TextUnit) : TextAutoSize
     }
 }
 
+/** Sin tope de renglones: el texto baja de renglón las veces que haga falta y se lee completo, sin "...". */
+const val UnlimitedLines: Int = Int.MAX_VALUE
+
 /**
- * Texto que nunca parte una palabra a media sílaba: si no cabe en [maxLines] renglones con palabras completas, reduce
- * su tamaño (hasta [minSize], 11 sp por defecto). Para títulos de tarjetas, etiquetas de métricas, leyendas y
- * cualquier texto en un espacio angosto.
+ * Texto que nunca parte una palabra a media sílaba ni se esconde tras "...": por defecto usa todos los renglones que
+ * necesite ([UnlimitedLines]) y solo reduce su tamaño (hasta [minSize], 11 sp) cuando una palabra sola no cabe a lo
+ * ancho. Con un tope de renglones explícito (etiquetas de una línea) también se encoge antes de recortarse.
  */
 @Composable
 fun AdaptiveText(
@@ -96,7 +99,7 @@ fun AdaptiveText(
     modifier: Modifier = Modifier,
     style: TextStyle = LocalTextStyle.current,
     color: Color = Color.Unspecified,
-    maxLines: Int = 2,
+    maxLines: Int = UnlimitedLines,
     minSize: TextUnit = MinReadableSize,
     textAlign: TextAlign? = null
 ) {
@@ -110,7 +113,8 @@ fun AdaptiveText(
         autoSize = WordSafeAutoSize(minOf(minSize.value, max.value).sp, max),
         maxLines = maxLines,
         softWrap = maxLines > 1,
-        overflow = TextOverflow.Ellipsis,
+        // Sin tope nunca hay "...". Con tope, los puntos son el último recurso tras encogerse hasta [minSize].
+        overflow = if (maxLines == UnlimitedLines) TextOverflow.Clip else TextOverflow.Ellipsis,
         textAlign = textAlign,
         style = if (ratio != null) style.copy(lineHeight = ratio.em) else style
     )
@@ -130,12 +134,12 @@ fun AdaptiveSingleLineText(
     textAlign: TextAlign? = TextAlign.Center
 ) = AdaptiveText(text, modifier, style.copy(lineHeight = TextUnit.Unspecified), color, maxLines = 1, minSize = minSize, textAlign = textAlign)
 
-/** Etiqueta de botón: ocupa el espacio que deja el ícono, centrada, hasta 2 renglones y sin partir palabras. */
+/** Etiqueta de botón: ocupa el espacio que deja el ícono, centrada, completa y sin partir palabras. */
 @Composable
 fun RowScope.ButtonLabel(
     text: String,
     style: TextStyle = MaterialTheme.typography.labelLarge,
-    maxLines: Int = 2,
+    maxLines: Int = UnlimitedLines,
     minSize: TextUnit = MinReadableSize
 ) = AdaptiveText(
     text,

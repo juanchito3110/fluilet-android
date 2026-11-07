@@ -1,5 +1,7 @@
 package com.fluilet.app.presentation.admin
 
+import com.fluilet.app.presentation.common.DialogTitle
+import com.fluilet.app.presentation.common.DialogTextButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,14 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,7 +53,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -195,10 +193,10 @@ fun MasterAdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
 private fun ConfirmDialog(title: String, body: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { DialogTitle(title) },
         text = { Text(body) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(confirm, color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
+        confirmButton = { DialogTextButton(confirm, onConfirm, color = MaterialTheme.colorScheme.error) },
+        dismissButton = { DialogTextButton(stringResource(R.string.action_cancel), onDismiss) }
     )
 }
 
@@ -321,15 +319,16 @@ private fun ChoiceChip(selected: Boolean, label: String, enabled: Boolean, onCli
             selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
             selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
         ),
-        modifier = Modifier.height(40.dp)
+        modifier = Modifier.heightIn(min = 40.dp)
     )
 }
 
-/** Fila deslizable de una sola línea, con margen a los lados para que ninguna opción quede cortada. */
+/** Opciones que bajan de renglón (FlowRow): todas completas, ninguna escondida en el borde derecho. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun <T> ChoiceRow(options: List<T>, content: @Composable (T) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
-        items(options) { content(it) }
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { content(it) }
     }
 }
 
@@ -353,8 +352,7 @@ private fun ProfileAdminCard(profile: AdminProfile, owner: AdminUser?, enabled: 
                         owner?.let { stringResource(R.string.admin_owner_line, it.accountType.label, profile.tutorEmail) }
                             ?: stringResource(R.string.admin_tutor_line, profile.tutorEmail),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -489,7 +487,7 @@ private fun AccountAdminCard(
                 )
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     InfoPill(type.label, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-                    AdaptiveText(user.email, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                    AdaptiveText(user.email, style = MaterialTheme.typography.titleMedium)
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -504,8 +502,7 @@ private fun AccountAdminCard(
                     profiles.forEach { p ->
                         AdaptiveText(
                             "📖 " + stringResource(R.string.admin_profile_line, p.name, p.currentLevel, p.totalGems),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 3
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                     OutlinedButton(

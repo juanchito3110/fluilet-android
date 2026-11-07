@@ -13,8 +13,20 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.fluilet.app.domain.text.ReadingScroll
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -346,32 +358,36 @@ private fun BlockLabel(current: Int, total: Int) {
 private val NARROW_BLOCK_LABEL = 128.dp
 
 /**
- * Herramientas de lectura en UNA fila compacta y deslizable: "Guía de renglón", "Adaptado vs. Original" y, con la guía
- * activa, las flechas para moverla. Nunca se apilan ni le quitan altura a la tarjeta del texto.
+ * Herramientas de lectura que bajan de renglón (FlowRow) en lugar de esconderse en el borde derecho: "A-" y "A+",
+ * "Guía de renglón", "Adaptado vs. Original" y, con la guía activa, las flechas para moverla. Todas se ven completas.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            itemVerticalAlignment = Alignment.CenterVertically
         ) {
             // A- / A+: cambian la letra en vivo (14–28 pt) y el interlineado se escala con ella.
-            FontStepButton(
-                label = "A-",
-                description = stringResource(R.string.reader_font_smaller),
-                enabled = state.settings.fontSizeSp > ReadingSettings.MIN_FONT_SIZE,
-                fontSize = 14.sp,
-                onClick = vm::fontSmaller
-            )
-            FontStepButton(
-                label = "A+",
-                description = stringResource(R.string.reader_font_larger),
-                enabled = state.settings.fontSizeSp < ReadingSettings.MAX_FONT_SIZE,
-                fontSize = 18.sp,
-                onClick = vm::fontLarger
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FontStepButton(
+                    label = "A-",
+                    description = stringResource(R.string.reader_font_smaller),
+                    enabled = state.settings.fontSizeSp > ReadingSettings.MIN_FONT_SIZE,
+                    fontSize = 15.sp,
+                    onClick = vm::fontSmaller
+                )
+                FontStepButton(
+                    label = "A+",
+                    description = stringResource(R.string.reader_font_larger),
+                    enabled = state.settings.fontSizeSp < ReadingSettings.MAX_FONT_SIZE,
+                    fontSize = 19.sp,
+                    onClick = vm::fontLarger
+                )
+            }
             ToolChip(
                 selected = state.guideEnabled,
                 onClick = vm::toggleGuide,
@@ -385,25 +401,27 @@ private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
                 description = "Adaptado contra original, ${if (state.showOriginal) "activado" else "desactivado"}"
             )
             if (state.guideEnabled && !state.showOriginal) {
-                IconButton(onClick = vm::guidePrevious, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.reader_guide_previous))
-                }
-                IconButton(onClick = vm::guideNext, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.reader_guide_next))
+                Row {
+                    IconButton(onClick = vm::guidePrevious, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.reader_guide_previous))
+                    }
+                    IconButton(onClick = vm::guideNext, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.reader_guide_next))
+                    }
                 }
             }
         }
     }
 }
 
-/** Botón rápido "A-" / "A+" de la barra del lector, compacto (36 dp) y muy claro. */
+/** Botón rápido "A-" / "A+" de la barra del lector: 40 dp de alto, ancho cómodo y muy claro. */
 @Composable
 private fun FontStepButton(label: String, description: String, enabled: Boolean, fontSize: androidx.compose.ui.unit.TextUnit, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.height(36.dp).widthIn(min = 52.dp).semantics { contentDescription = description },
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+        modifier = Modifier.heightIn(min = 40.dp).widthIn(min = 58.dp).semantics { contentDescription = description },
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.5.dp, if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
     ) {
@@ -411,7 +429,7 @@ private fun FontStepButton(label: String, description: String, enabled: Boolean,
     }
 }
 
-/** Chip compacto (36 dp) de una sola línea para la barra de herramientas del lector. */
+/** Chip compacto (40 dp) de una sola línea para la barra de herramientas y las palabras clave del lector. */
 @Composable
 internal fun ToolChip(selected: Boolean, onClick: () -> Unit, label: String, description: String? = null) {
     FilterChip(
@@ -425,7 +443,7 @@ internal fun ToolChip(selected: Boolean, onClick: () -> Unit, label: String, des
             selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
             selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
         ),
-        modifier = Modifier.height(36.dp).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
+        modifier = Modifier.heightIn(min = 40.dp).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
     )
 }
 
@@ -471,14 +489,17 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
         }
     }
 
+    val cardColor = MaterialTheme.colorScheme.surfaceVariant
     Card(
         modifier = Modifier.fillMaxSize(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
+      // Sin alto fijo: el bloque completo vive en un área desplazable con barra visible y un aviso cuando hay más texto.
+      Box(Modifier.fillMaxSize()) {
         Box(
             // Aire arriba y abajo dentro del área desplazable: el primer y el último renglón nunca tocan los bordes.
-            Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 18.dp)
+            Modifier.fillMaxSize().verticalScroll(scroll).padding(start = 16.dp, end = 20.dp, top = 18.dp, bottom = 18.dp)
                 .clickable(enabled = state.guideEnabled, onClickLabel = "Siguiente renglón", onClick = onGuideTap)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -499,8 +520,56 @@ private fun ChunkCard(state: ReaderUiState, onGuideTap: () -> Unit) {
                 // "¿Sabías que...?" cierra la lectura: solo al final del último bloque.
                 val fact = state.funFact
                 if (state.isLastChunk && fact != null) FunFactCard(fact)
-                // Aire al final: el último renglón nunca queda pegado al borde de la tarjeta.
-                Spacer(Modifier.height(12.dp))
+                // Aire al final: el último renglón nunca queda pegado al borde de la tarjeta (ni tapado por el aviso).
+                Spacer(Modifier.height(if (scroll.maxValue > 0) 44.dp else 12.dp))
+            }
+        }
+        ReadingScrollIndicator(scroll, cardColor, Modifier.matchParentSize())
+      }
+    }
+}
+
+/**
+ * Indicadores del bloque largo: una barra delgada a la derecha que muestra cuánto falta y, mientras quede texto abajo,
+ * un degradado con el aviso "Desliza para seguir leyendo" (al tocarlo avanza con un desplazamiento suave).
+ */
+@Composable
+private fun ReadingScrollIndicator(scroll: ScrollState, cardColor: Color, modifier: Modifier = Modifier) {
+    if (scroll.maxValue <= 0 || scroll.maxValue == Int.MAX_VALUE) return
+    val scope = rememberCoroutineScope()
+    val thumbColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+    val trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+    Box(modifier) {
+        Canvas(
+            Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(vertical = 18.dp, horizontal = 6.dp).width(4.dp)
+                .clearAndSetSemantics { }
+        ) {
+            val track = size.height
+            val thumb = ReadingScroll.thumbLength(track, scroll.viewportSize.toFloat(), scroll.maxValue.toFloat())
+            val top = ReadingScroll.thumbOffset(track, thumb, scroll.value.toFloat(), scroll.maxValue.toFloat())
+            val radius = CornerRadius(size.width / 2)
+            drawRoundRect(trackColor, cornerRadius = radius)
+            drawRoundRect(thumbColor, topLeft = Offset(0f, top), size = Size(size.width, thumb), cornerRadius = radius)
+        }
+        AnimatedVisibility(
+            visible = scroll.canScrollForward,
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Box(
+                Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(cardColor.copy(alpha = 0f), cardColor)))
+                    .padding(top = 18.dp, bottom = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AdaptiveSingleLineText(
+                    stringResource(R.string.reader_scroll_more),
+                    Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary)
+                        .clickable { scope.launch { scroll.animateScrollBy(scroll.viewportSize * 0.75f) } }
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }
@@ -573,9 +642,9 @@ private fun SpeedButton(label: Int, rate: Float, state: ReaderUiState, vm: Reade
     val padding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
     val shape = RoundedCornerShape(12.dp)
     if (selected) {
-        Button(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.height(44.dp), contentPadding = padding, shape = shape) { text() }
+        Button(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.heightIn(min = 44.dp), contentPadding = padding, shape = shape) { text() }
     } else {
-        OutlinedButton(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.height(44.dp), contentPadding = padding, shape = shape) { text() }
+        OutlinedButton(onClick = { vm.onSpeechRate(rate) }, modifier = modifier.heightIn(min = 44.dp), contentPadding = padding, shape = shape) { text() }
     }
 }
 
@@ -593,7 +662,7 @@ private fun guideBands(layout: TextLayoutResult, range: IntRange): List<Rect> {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SettingsSheet(settings: ReadingSettings, vm: ReaderViewModel) {
     ModalBottomSheet(onDismissRequest = vm::closeSettings, containerColor = MaterialTheme.colorScheme.background) {
@@ -615,7 +684,12 @@ private fun SettingsSheet(settings: ReadingSettings, vm: ReaderViewModel) {
             SettingSlider(R.string.reader_speech_rate, settings.speechRate, ReadingSettings.MIN_SPEECH_RATE..ReadingSettings.MAX_SPEECH_RATE, "%.2fx".format(settings.speechRate), vm::onSpeechRate)
 
             Text(stringResource(R.string.reader_palette), style = MaterialTheme.typography.titleMedium)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Las 6 paletas bajan de renglón: ninguna queda escondida en el borde derecho.
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 AccessiblePalette.entries.forEach { palette ->
                     PaletteSwatch(palette, selected = palette == settings.palette) { vm.onPalette(palette) }
                 }
@@ -643,7 +717,11 @@ private fun SettingSlider(label: Int, value: Float, range: ClosedFloatingPointRa
 
 @Composable
 fun PaletteSwatch(palette: AccessiblePalette, selected: Boolean, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick).padding(4.dp)) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.width(84.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(4.dp)
+    ) {
         Box(
             Modifier.size(56.dp)
                 .clip(CircleShape)
@@ -654,7 +732,7 @@ fun PaletteSwatch(palette: AccessiblePalette, selected: Boolean, onClick: () -> 
         ) {
             Text("Aa", color = Color(palette.onBackground), fontFamily = OpenDyslexicFontFamily)
         }
-        Text(palette.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+        AdaptiveText(palette.displayName, Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
     }
 }
 

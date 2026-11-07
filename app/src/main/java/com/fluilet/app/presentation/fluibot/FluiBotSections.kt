@@ -5,11 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,7 +42,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fluilet.app.R
@@ -57,7 +55,6 @@ import com.fluilet.app.domain.model.LessonCategory
 import com.fluilet.app.presentation.common.AdaptiveSingleLineText
 import com.fluilet.app.presentation.common.AdaptiveText
 import com.fluilet.app.presentation.common.AnimatedCounter
-import com.fluilet.app.presentation.common.ButtonLabel
 import com.fluilet.app.presentation.brand.FluiletBrand
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
@@ -198,96 +195,188 @@ private fun WorkshopMessage(message: String?) {
     }
 }
 
-/** Cuadrícula de 2 columnas con los 12 accesorios (cada uno con su vista previa): comprar y equipar/quitar varios a la vez. */
+/**
+ * Los 12 accesorios en UNA columna de tarjetas a todo el ancho: el nombre y la descripción completos (sin "..."), el
+ * precio fuera del dibujo y el botón en una sola línea. Se pueden combinar varios a la vez.
+ */
 @Composable
-fun AccessoriesGrid(state: FluiBotUiState, onBuy: (Accessory) -> Unit, onToggle: (Accessory) -> Unit) {
+fun AccessoriesShop(state: FluiBotUiState, onBuy: (Accessory) -> Unit, onToggle: (Accessory) -> Unit) {
     SectionCard(stringResource(R.string.fluibot_workshop_title)) {
         Text(stringResource(R.string.fluibot_gems_balance, state.gems), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.fluibot_workshop_hint), style = MaterialTheme.typography.bodySmall)
         WorkshopMessage(state.message)
-        state.accessories.chunked(2).forEach { row ->
-            // IntrinsicSize.Min: las dos tarjetas de cada fila miden lo mismo y sus botones quedan alineados.
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { item -> AccessoryCard(item, state.bot.stage, onBuy, onToggle, Modifier.weight(1f)) }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
+        state.accessories.forEach { item -> AccessoryCard(item, state.bot.stage, onBuy, onToggle) }
     }
 }
 
 @Composable
-private fun AccessoryCard(item: AccessoryUi, stage: FluiBotStage, onBuy: (Accessory) -> Unit, onToggle: (Accessory) -> Unit, modifier: Modifier = Modifier) {
+private fun AccessoryCard(item: AccessoryUi, stage: FluiBotStage, onBuy: (Accessory) -> Unit, onToggle: (Accessory) -> Unit) {
     val a = item.accessory
-    Card(
-        modifier = modifier.fillMaxHeight(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-        border = if (item.equipped) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Column(
-            Modifier.fillMaxHeight().padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
+    ShopItemCard(
+        title = a.displayName,
+        description = a.description,
+        price = ShopCatalog.priceTag(item.owned, item.equipped, a.cost),
+        highlighted = item.equipped,
+        preview = { modifier ->
             // Vista previa limpia: FluiBot (en su etapa) con este accesorio puesto, sin nada encima que lo tape.
             FluiBotCanvas(
                 stage = stage,
                 equipped = setOf(a.id),
                 animated = false,
                 interactive = false,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1.15f).clip(RoundedCornerShape(12.dp))
-                    .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.background)))
+                modifier = modifier.background(
+                    Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.background))
+                )
             )
-            // El precio va FUERA de la imagen, en su propia fila.
-            AdaptiveSingleLineText(
-                if (item.owned) stringResource(R.string.fluibot_owned) else stringResource(R.string.fluibot_price, a.cost),
-                Modifier.clip(RoundedCornerShape(50))
-                    .background(if (item.owned) FluiletMint.copy(alpha = 0.25f) else MaterialTheme.colorScheme.primary)
-                    .padding(horizontal = 12.dp, vertical = 3.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (item.owned) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onPrimary
+        }
+    ) {
+        when {
+            !item.owned -> ShopButton(
+                if (item.affordable) stringResource(R.string.fluibot_buy_short) else stringResource(R.string.fluibot_not_enough_short),
+                enabled = item.affordable,
+                onClick = { onBuy(a) }
             )
-            AdaptiveText(
-                a.displayName,
-                Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp, lineHeight = 20.sp),
-                textAlign = TextAlign.Center
-            )
-            Text(
-                a.description,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 17.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.weight(1f))
-            val buttonModifier = Modifier.fillMaxWidth().height(42.dp)
-            val buttonPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
-            val buttonShape = RoundedCornerShape(12.dp)
-            when {
-                !item.owned -> Button(onClick = { onBuy(a) }, enabled = item.affordable, modifier = buttonModifier, contentPadding = buttonPadding, shape = buttonShape) {
-                    ShopButtonText(if (item.affordable) stringResource(R.string.fluibot_buy_short) else stringResource(R.string.fluibot_not_enough_short))
-                }
-                item.equipped -> OutlinedButton(onClick = { onToggle(a) }, modifier = buttonModifier, contentPadding = buttonPadding, shape = buttonShape) {
-                    ShopButtonText(stringResource(R.string.fluibot_remove))
-                }
-                else -> Button(onClick = { onToggle(a) }, modifier = buttonModifier, contentPadding = buttonPadding, shape = buttonShape) {
-                    ShopButtonText(stringResource(R.string.fluibot_equip))
-                }
-            }
+            item.equipped -> ShopButton(stringResource(R.string.fluibot_remove), outlined = true, onClick = { onToggle(a) })
+            else -> ShopButton(stringResource(R.string.fluibot_equip), onClick = { onToggle(a) })
         }
     }
 }
 
-/** "Comprar", "Equipar" o "Quitar" en una sola línea (13 sp, centrada), que se ajusta antes de partirse. */
-@Composable
-private fun ShopButtonText(text: String) {
-    AdaptiveSingleLineText(text, Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), minSize = 10.sp)
+/** Etiqueta de precio de un artículo: "15 💎", "Gratis", "✓ Tuyo" o "✓ Equipado". */
+sealed interface PriceTag {
+    data class Gems(val cost: Int) : PriceTag
+    data object Free : PriceTag
+    data object Owned : PriceTag
+    data object Equipped : PriceTag
 }
 
-/** Los 5 escenarios: se desbloquean con gemas y solo uno está puesto a la vez. */
+/** Reglas de la tienda sin Android (probadas con pruebas unitarias). */
+object ShopCatalog {
+    fun priceTag(owned: Boolean, equipped: Boolean, cost: Int): PriceTag = when {
+        equipped -> PriceTag.Equipped
+        owned -> PriceTag.Owned
+        cost <= 0 -> PriceTag.Free
+        else -> PriceTag.Gems(cost)
+    }
+
+    /** Por debajo de este ancho de tarjeta, el dibujo va arriba y los textos debajo (a todo el ancho). */
+    val StackedBelow: Dp = 280.dp
+}
+
+@Composable
+private fun PriceTag.label(): String = when (this) {
+    is PriceTag.Gems -> stringResource(R.string.fluibot_price, cost)
+    PriceTag.Free -> stringResource(R.string.scenarios_free)
+    PriceTag.Owned -> stringResource(R.string.fluibot_owned)
+    PriceTag.Equipped -> stringResource(R.string.fluibot_equipped)
+}
+
+/**
+ * Tarjeta de la tienda (accesorios y escenarios) con altura 100 % dinámica: dibujo cuadrado con el precio DEBAJO (fuera
+ * del recuadro), el nombre y la descripción completos al lado, y el botón a todo el ancho abajo. En tarjetas angostas
+ * el dibujo pasa arriba y los textos se centran debajo.
+ */
+@Composable
+private fun ShopItemCard(
+    title: String,
+    description: String,
+    price: PriceTag,
+    highlighted: Boolean,
+    preview: @Composable (Modifier) -> Unit,
+    action: @Composable () -> Unit
+) {
+    val priceText = price.label()
+    Card(
+        // TalkBack lee la tarjeta de corrido (nombre, precio y descripción); el botón conserva su propio foco.
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+        border = if (highlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val previewModifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(14.dp))
+                val previewWidth = minOf(ShopPreviewSize, maxWidth * 0.36f)
+                if (maxWidth >= ShopCatalog.StackedBelow) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Column(
+                            Modifier.width(previewWidth),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            preview(previewModifier)
+                            PricePill(priceText, price)
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ShopTitle(title, TextAlign.Start)
+                            ShopDescription(description, TextAlign.Start)
+                        }
+                    }
+                } else {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.widthIn(max = ShopPreviewSize)) { preview(previewModifier) }
+                        PricePill(priceText, price)
+                        ShopTitle(title, TextAlign.Center)
+                        ShopDescription(description, TextAlign.Center)
+                    }
+                }
+            }
+            action()
+        }
+    }
+}
+
+/** Tamaño del dibujo de cada artículo de la tienda. */
+private val ShopPreviewSize = 112.dp
+
+@Composable
+private fun ShopTitle(text: String, align: TextAlign) {
+    // Nombre COMPLETO ("Sombrero de Explorador", "Corbatín LED de Gala"): baja de renglón en lugar de cortarse.
+    AdaptiveText(text, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp, lineHeight = 21.sp), textAlign = align)
+}
+
+@Composable
+private fun ShopDescription(text: String, align: TextAlign) {
+    AdaptiveText(
+        text,
+        Modifier.fillMaxWidth(),
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 19.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = align
+    )
+}
+
+@Composable
+private fun PricePill(text: String, price: PriceTag) {
+    val paid = price is PriceTag.Gems
+    AdaptiveSingleLineText(
+        text,
+        Modifier.clip(RoundedCornerShape(50))
+            .background(if (paid) MaterialTheme.colorScheme.primary else FluiletMint.copy(alpha = 0.25f))
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.labelMedium,
+        color = if (paid) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+    )
+}
+
+/** "Comprar", "Equipar", "Quitar" o "Equipado" a todo el ancho, en una sola línea centrada (sin alto fijo). */
+@Composable
+private fun ShopButton(text: String, enabled: Boolean = true, outlined: Boolean = false, check: Boolean = false, onClick: () -> Unit) {
+    val modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+    val padding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+    val shape = RoundedCornerShape(12.dp)
+    val content: @Composable RowScope.() -> Unit = {
+        if (check) {
+            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+        }
+        AdaptiveSingleLineText(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp))
+    }
+    if (outlined) OutlinedButton(onClick = onClick, enabled = enabled, modifier = modifier, contentPadding = padding, shape = shape, content = content)
+    else Button(onClick = onClick, enabled = enabled, modifier = modifier, contentPadding = padding, shape = shape, content = content)
+}
+
+/** Los 5 escenarios en la misma tarjeta de la tienda: se desbloquean con gemas y solo uno está puesto a la vez. */
 @Composable
 fun ScenariosSection(state: FluiBotUiState, onBuy: (Scenario) -> Unit, onEquip: (Scenario) -> Unit) {
     SectionCard(stringResource(R.string.scenarios_title)) {
@@ -300,34 +389,21 @@ fun ScenariosSection(state: FluiBotUiState, onBuy: (Scenario) -> Unit, onEquip: 
 @Composable
 private fun ScenarioCard(item: ScenarioUi, onBuy: (Scenario) -> Unit, onEquip: (Scenario) -> Unit) {
     val sc = item.scenario
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-        border = if (item.equipped) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ShopItemCard(
+        title = sc.displayName,
+        description = sc.description,
+        price = ShopCatalog.priceTag(item.owned && !sc.isFree, item.equipped, sc.cost),
+        highlighted = item.equipped,
+        preview = { modifier -> ScenarioPreview(sc, modifier) }
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ScenarioPreview(sc, Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)))
-            Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    AdaptiveText(sc.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-                    Text(if (sc.isFree) stringResource(R.string.scenarios_free) else "${sc.cost} 💎", style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false)
-                }
-                Text(sc.description, style = MaterialTheme.typography.bodySmall)
-                when {
-                    item.equipped -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
-                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        ButtonLabel(stringResource(R.string.scenarios_equipped))
-                    }
-                    item.owned -> Button(onClick = { onEquip(sc) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
-                        ButtonLabel(stringResource(R.string.scenarios_equip))
-                    }
-                    else -> Button(onClick = { onBuy(sc) }, enabled = item.affordable, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
-                        ButtonLabel(if (item.affordable) stringResource(R.string.fluibot_buy, sc.cost) else stringResource(R.string.fluibot_not_enough))
-                    }
-                }
-            }
+        when {
+            item.equipped -> ShopButton(stringResource(R.string.fluibot_equipped_button), enabled = false, outlined = true, check = true, onClick = {})
+            item.owned -> ShopButton(stringResource(R.string.fluibot_equip), onClick = { onEquip(sc) })
+            else -> ShopButton(
+                if (item.affordable) stringResource(R.string.fluibot_buy_short) else stringResource(R.string.fluibot_not_enough_short),
+                enabled = item.affordable,
+                onClick = { onBuy(sc) }
+            )
         }
     }
 }

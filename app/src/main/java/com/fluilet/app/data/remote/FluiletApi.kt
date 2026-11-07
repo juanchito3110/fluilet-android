@@ -37,6 +37,13 @@ interface FluiletApi {
     @GET("api/v1/users/me")
     suspend fun meWithToken(@retrofit2.http.Header("Authorization") bearer: String): UserDto
 
+    /**
+     * "Eliminar mi cuenta y datos" (tutor o adulto independiente): el servidor da de baja la cuenta y revoca todas sus
+     * sesiones (`204`). Después la app borra todo lo guardado en el teléfono.
+     */
+    @DELETE("api/v1/users/me")
+    suspend fun deleteMyAccount()
+
     // --- Perfiles de niño (solo rol tutor) ---------------------------------------------------
 
     @GET("api/v1/children")
@@ -51,7 +58,7 @@ interface FluiletApi {
     @DELETE("api/v1/children/{id}")
     suspend fun deleteChild(@Path("id") id: String)
 
-    // --- Adaptación (texto en RAM; el servidor solo conserva metadatos y métricas) -------------
+    // --- Adaptación (el texto viaja en RAM; el servidor guarda la lectura en la biblioteca de su dueño) ----
 
     @Headers("$READ_TIMEOUT_HEADER: $ADAPTATION_READ_TIMEOUT_SECONDS")
     @POST("api/v1/adaptations/text")

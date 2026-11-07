@@ -99,6 +99,36 @@ class HomeViewModelTest {
         return { vm.uiState.value }
     }
 
+    // --- Eliminar mi cuenta y datos (Google Play) ---------------------------------------------
+
+    @Test fun deletingTheAccountClearsTheReadingInProgress() = runTest(dispatcher) {
+        coEvery { auth.deleteAccount() } returns Result.success(Unit)
+        val vm = viewModel(UserRole.ADULTO_INDEPENDIENTE)
+        val state = observe(vm)
+        holder.set(ActiveReading(null, "Ana", ReadingSettings(), sampleAdaptation()))
+
+        vm.deleteAccount()
+
+        assertNull(holder.current.value)
+        assertFalse(state().deletingAccount)
+        assertNull(state().accountError)
+    }
+
+    @Test fun ifTheAccountCannotBeDeletedTheReasonIsShownAndNothingIsCleared() = runTest(dispatcher) {
+        coEvery { auth.deleteAccount() } returns Result.failure(com.fluilet.app.core.network.AppError.NoConnection())
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        holder.set(ActiveReading(null, "Ana", ReadingSettings(), sampleAdaptation()))
+
+        vm.deleteAccount()
+
+        assertNotNull(holder.current.value)
+        assertFalse(state().deletingAccount)
+        assertNotNull(state().accountError)
+        vm.consumeAccountError()
+        assertNull(state().accountError)
+    }
+
     // --- Adulto independiente --------------------------------------------------------------
 
     @Test fun adult_loadsOwnProgressWithoutTouchingChildProfiles() = runTest(dispatcher) {

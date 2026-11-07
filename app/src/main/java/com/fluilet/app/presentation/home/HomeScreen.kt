@@ -1,5 +1,7 @@
 package com.fluilet.app.presentation.home
 
+import com.fluilet.app.presentation.common.DialogTitle
+import com.fluilet.app.presentation.common.DialogTextButton
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
@@ -25,7 +28,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,8 +56,12 @@ import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.sp
-import com.fluilet.app.presentation.common.FitText
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
+import com.fluilet.app.presentation.common.NavLabels
 
 internal enum class PinDialog { NONE, SETUP_FOR_START, SETUP, CHANGE }
 
@@ -132,7 +138,9 @@ fun HomeScreen(
                             onCelebrate = botViewModel::celebrate,
                             onStartReading = startReading,
                             currentEquipped = bot.equipped,
-                            equippedFor = botViewModel::equippedFor
+                            equippedFor = botViewModel::equippedFor,
+                            onDeleteAccount = viewModel::deleteAccount,
+                            onDismissAccountError = viewModel::consumeAccountError
                         )
                         HomeTab.LECTURAS -> LecturasTab(
                             state = state,
@@ -194,42 +202,62 @@ fun HomeScreen(
     if (pendingLevel != null && levelChild != null) {
         AlertDialog(
             onDismissRequest = viewModel::cancelNlpLevel,
-            title = { Text(stringResource(R.string.home_level_confirm_title, levelChild.name, pendingLevel.value)) },
+            title = { DialogTitle(stringResource(R.string.home_level_confirm_title, levelChild.name, pendingLevel.value)) },
             text = { Text(stringResource(R.string.home_level_confirm_body, pendingLevel.description, levelChild.name)) },
             confirmButton = {
-                TextButton(onClick = viewModel::confirmNlpLevel) { Text(stringResource(R.string.action_confirm)) }
+                DialogTextButton(stringResource(R.string.action_confirm), viewModel::confirmNlpLevel)
             },
-            dismissButton = { TextButton(onClick = viewModel::cancelNlpLevel) { Text(stringResource(R.string.action_cancel)) } }
+            dismissButton = { DialogTextButton(stringResource(R.string.action_cancel), viewModel::cancelNlpLevel) }
         )
     }
 
     confirmDelete?.let { child ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text(stringResource(R.string.home_delete_title, child.name)) },
+            title = { DialogTitle(stringResource(R.string.home_delete_title, child.name)) },
             text = { Text(stringResource(R.string.home_delete_body)) },
             confirmButton = {
-                TextButton(onClick = { viewModel.delete(child.id); confirmDelete = null }) {
-                    Text(stringResource(R.string.home_delete_confirm))
-                }
+                DialogTextButton(stringResource(R.string.home_delete_confirm), { viewModel.delete(child.id); confirmDelete = null })
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(stringResource(R.string.action_cancel)) } }
+            dismissButton = { DialogTextButton(stringResource(R.string.action_cancel), { confirmDelete = null }) }
         )
     }
 }
 
-/** Barra inferior de 5 apartados: ícono y UNA palabra que se ajusta antes de cortarse en pantallas angostas. */
+/**
+ * Barra inferior de 5 apartados: las 5 etiquetas usan EXACTAMENTE el mismo tamaño (12 sp, o uno menor y común a todas
+ * si la palabra más ancha no cabe en su espacio), una sola línea centrada bajo su ícono.
+ */
 @Composable
 private fun HomeNavigationBar(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-        HomeTab.entries.forEach { tab ->
-            NavigationBarItem(
-                selected = tab == selected,
-                onClick = { onSelect(tab) },
-                icon = { Icon(tab.icon(), contentDescription = null) },
-                label = { FitText(tab.label, style = MaterialTheme.typography.labelMedium, minSize = 8.sp) },
-                alwaysShowLabel = true
-            )
+    val style = MaterialTheme.typography.labelMedium
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val labels = HomeTab.entries.map { it.label }
+        val available = with(density) { NavLabels.slotWidth(maxWidth, labels.size).toPx() }
+        val fontSize = remember(available, labels, style, density) {
+            val widest = labels.maxOf { measurer.measure(it, style.copy(fontSize = NavLabels.BASE), maxLines = 1, softWrap = false).size.width }
+            NavLabels.uniformSize(widest.toFloat(), available)
+        }
+        NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+            HomeTab.entries.forEach { tab ->
+                NavigationBarItem(
+                    selected = tab == selected,
+                    onClick = { onSelect(tab) },
+                    icon = { Icon(tab.icon(), contentDescription = null) },
+                    label = {
+                        Text(
+                            tab.label,
+                            style = style.copy(fontSize = fontSize, lineHeight = TextUnit.Unspecified),
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = TextAlign.Center
+                        )
+                    },
+                    alwaysShowLabel = true
+                )
+            }
         }
     }
 }

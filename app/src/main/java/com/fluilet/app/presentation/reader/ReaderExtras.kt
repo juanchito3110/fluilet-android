@@ -1,5 +1,7 @@
 package com.fluilet.app.presentation.reader
 
+import com.fluilet.app.presentation.common.DialogTitle
+import com.fluilet.app.presentation.common.DialogTextButton
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.animateFloatAsState
@@ -15,7 +17,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -36,7 +37,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
@@ -72,8 +72,8 @@ import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.AlertDialog
 import com.fluilet.app.domain.model.ReadingSettings
@@ -245,11 +245,12 @@ private fun ModelSeal(adaptation: AdaptationResult) {
 }
 
 /** Selector en vivo: `Nivel 1 (6-8)` | `Nivel 2` | `Nivel 3` | `Nivel 4` | `Nivel 5 (12+)`. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LevelSelector(previews: List<LevelPreview>, selected: Int?, onLevel: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.compare_levels_title), style = MaterialTheme.typography.titleSmall)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             previews.forEach { preview ->
                 val label = when (preview.level) {
                     1 -> stringResource(R.string.compare_level_1)
@@ -375,6 +376,7 @@ private fun FichaRow(label: String, value: String) {
 }
 
 /** ✨ Transformaciones léxicas `Antes ➔ Ahora` del nivel elegido (las frases muy largas solo se resaltan en el texto). */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LexicalTransformations(replacements: List<LexicalReplacement>) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -385,7 +387,7 @@ private fun LexicalTransformations(replacements: List<LexicalReplacement>) {
             Text(stringResource(R.string.compare_lexical_empty), style = MaterialTheme.typography.bodySmall)
             return
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             shown.forEach { r ->
                 Text(
                     "«${r.original}» ➔ «${r.adapted}»",
@@ -409,17 +411,22 @@ private const val MAX_CHIPS = 16
 private const val MAX_CHIP_WORDS = 6
 
 /**
- * "Palabras clave de esta lectura" compacto: título pequeño y los chips en una sola fila deslizable (con margen a los
- * lados para que ninguno quede cortado). La definición se abre en una ventanita, sin quitarle altura al texto.
+ * "Palabras clave de esta lectura": título pequeño y TODOS los chips completos en un FlowRow que baja de renglón (nunca
+ * se cortan en el borde derecho). La definición se abre en una ventanita, sin quitarle altura al texto.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun GlossaryBar(state: ReaderUiState, vm: ReaderViewModel, modifier: Modifier = Modifier) {
     if (state.vocabulary.isEmpty()) return
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.glossary_title), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
-                items(state.vocabulary, key = { it.word }) { entry ->
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                state.vocabulary.forEach { entry ->
                     ToolChip(selected = entry.word == state.selectedWord?.word, onClick = { vm.selectWord(entry.word) }, label = entry.word)
                 }
             }
@@ -433,7 +440,7 @@ internal fun GlossaryBar(state: ReaderUiState, vm: ReaderViewModel, modifier: Mo
 private fun WordDialog(word: String, definition: String, example: String, onSpeak: () -> Unit, onClose: () -> Unit) {
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text(word, style = MaterialTheme.typography.headlineSmall) },
+        title = { DialogTitle(word) },
         text = {
             Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(definition, style = MaterialTheme.typography.bodyLarge)
@@ -443,7 +450,7 @@ private fun WordDialog(word: String, definition: String, example: String, onSpea
         confirmButton = {
             Button(onClick = onSpeak, shape = RoundedCornerShape(14.dp)) { Text(stringResource(R.string.glossary_listen), style = MaterialTheme.typography.labelLarge) }
         },
-        dismissButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.glossary_close)) } }
+        dismissButton = { DialogTextButton(stringResource(R.string.glossary_close), onClose) }
     )
 }
 

@@ -1,5 +1,7 @@
 package com.fluilet.app.presentation.parentalgate
 
+import com.fluilet.app.presentation.common.DialogTitle
+import com.fluilet.app.presentation.common.DialogTextButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,7 +12,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,7 +71,7 @@ fun ParentalGateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(title)) },
+        title = { DialogTitle(stringResource(title)) },
         text = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(body), style = MaterialTheme.typography.bodyMedium)
@@ -102,18 +103,16 @@ fun ParentalGateDialog(
                 if (state.isBusy) CircularProgressIndicator()
 
                 if (!isReset && mode != GateMode.SETUP) {
-                    TextButton(onClick = viewModel::showReset) { Text(stringResource(R.string.gate_forgot_pin)) }
+                    DialogTextButton(stringResource(R.string.gate_forgot_pin), viewModel::showReset)
                 } else if (isReset) {
-                    TextButton(onClick = viewModel::backFromReset) { Text(stringResource(R.string.gate_back)) }
+                    DialogTextButton(stringResource(R.string.gate_back), viewModel::backFromReset)
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = viewModel::submit, enabled = !state.isBusy && !state.isLocked) {
-                Text(stringResource(confirmLabel))
-            }
+            DialogTextButton(stringResource(confirmLabel), viewModel::submit, enabled = !state.isBusy && !state.isLocked)
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
+        dismissButton = { DialogTextButton(stringResource(R.string.action_cancel), onDismiss) }
     )
 }
 

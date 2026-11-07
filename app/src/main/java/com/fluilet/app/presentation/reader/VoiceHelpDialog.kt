@@ -1,5 +1,7 @@
 package com.fluilet.app.presentation.reader
 
+import com.fluilet.app.presentation.common.DialogTitle
+import com.fluilet.app.presentation.common.DialogTextButton
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -23,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import com.fluilet.app.presentation.common.ButtonLabel
 import androidx.compose.runtime.LaunchedEffect
@@ -195,7 +196,7 @@ internal fun VoiceHelpDialog(controller: VoiceHelpController, state: ReaderUiSta
             )
         },
         title = {
-            Text(
+            DialogTitle(
                 stringResource(if (issue == VoiceIssue.LOW_VOLUME) R.string.voice_help_title_volume else R.string.voice_help_title_engine),
                 style = MaterialTheme.typography.titleLarge
             )
@@ -237,7 +238,7 @@ internal fun VoiceHelpDialog(controller: VoiceHelpController, state: ReaderUiSta
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = controller::dismiss) { Text(stringResource(R.string.voice_help_close)) } }
+        dismissButton = { DialogTextButton(stringResource(R.string.voice_help_close), controller::dismiss) }
     )
 }
 
@@ -269,7 +270,7 @@ private fun VoicePrepDialog(controller: VoiceHelpController, state: ReaderUiStat
         // Atrás o tocar fuera = continuar: la lectura nunca queda detrás de una ventana cerrada.
         onDismissRequest = controller::continueReading,
         icon = { Icon(Icons.Filled.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(32.dp)) },
-        title = { Text(stringResource(R.string.voice_prep_title), style = MaterialTheme.typography.titleLarge) },
+        title = { DialogTitle(stringResource(R.string.voice_prep_title), style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.voice_prep_body), style = MaterialTheme.typography.bodyMedium)
@@ -319,9 +320,7 @@ private fun VoicePrepDialog(controller: VoiceHelpController, state: ReaderUiStat
             }
         },
         confirmButton = {
-            TextButton(onClick = controller::continueReading) {
-                Text(stringResource(R.string.voice_prep_continue), style = MaterialTheme.typography.labelLarge)
-            }
+            DialogTextButton(stringResource(R.string.voice_prep_continue), controller::continueReading)
         }
     )
 }
