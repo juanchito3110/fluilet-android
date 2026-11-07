@@ -1,6 +1,13 @@
 package com.fluilet.app.presentation.home
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.material3.TabRow
+import com.fluilet.app.presentation.common.IconLabelTab
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -18,7 +25,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,14 +44,16 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import com.fluilet.app.presentation.common.ChipCarousel
+import com.fluilet.app.presentation.common.CollapsibleCard
+import com.fluilet.app.presentation.common.FluiletCarousel
+import com.fluilet.app.presentation.common.SelectableChip
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,8 +65,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fluilet.app.R
@@ -72,11 +78,10 @@ import com.fluilet.app.presentation.common.CategoryArtwork
 import com.fluilet.app.presentation.common.AdaptiveSingleLineText
 import com.fluilet.app.presentation.common.AdaptiveText
 import com.fluilet.app.presentation.common.ButtonLabel
-import com.fluilet.app.presentation.common.FitText
 import androidx.compose.ui.text.style.TextAlign
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.SectionCard
-import com.fluilet.app.presentation.fluibot.AlbumSection
+import com.fluilet.app.presentation.fluibot.AlbumCarousel
 import com.fluilet.app.presentation.fluibot.FluiBotUiState
 import com.fluilet.app.presentation.fluibot.MissionsCard
 import com.fluilet.app.presentation.newreading.NewReadingContent
@@ -258,11 +263,16 @@ internal fun LecturasTab(
     onOpenLibraryLesson: (LibraryItem) -> Unit
 ) {
     var category by rememberSaveable { mutableStateOf<String?>(null) }
-    var level by rememberSaveable { mutableStateOf<Int?>(null) }
-    val filter = LibraryFilter(category, level)
-    val entries = LibraryShelf.entries(state.library, state.demoLessons, filter)
+    var quick by rememberSaveable { mutableStateOf(LibraryQuickFilter.ALL) }
+    val filter = LibraryFilter(category = category, quick = quick)
+    val byCategory = LibraryShelf.entries(state.library, state.demoLessons, LibraryFilter(category = category))
+    val entries = byCategory.filter(quick::matches)
+    val counts = LibraryShelf.quickCounts(byCategory)
     val categories = LibraryShelf.categories(state.library, state.demoLessons)
     val readerName = state.selectedChild?.name
+    val readerLevel = state.selectedChild?.nlpLevel?.value ?: state.progress.recommendedLevel.takeIf { it in 1..5 }
+    val suggested = if (quick == LibraryQuickFilter.ALL && category == null) LibraryShelf.suggested(byCategory, readerLevel) else emptyList()
+    val opening: (ShelfEntry) -> Unit = { entry -> entry.item?.let(onOpenLibraryLesson) ?: entry.lesson?.let(onOpenDemoLesson) }
 
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         TabHeader(
@@ -270,54 +280,92 @@ internal fun LecturasTab(
             if (readerName != null) stringResource(R.string.library_header_sub, readerName) else stringResource(R.string.library_header_sub_plain)
         )
         ReaderSwitcher(state, onSelect)
+        // Lo recién creado va primero y destacado.
         ReadingReadyCard(state, onStartReading)
 
         if (categories.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.library_filter_category), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = category == null, onClick = { category = null }, label = { AdaptiveText(stringResource(R.string.library_filter_all), style = MaterialTheme.typography.labelLarge) })
-                    categories.forEach { code ->
-                        FilterChip(
-                            selected = category == code,
-                            onClick = { category = if (category == code) null else code },
-                            label = { AdaptiveText(LessonCategory.displayNameFor(code), style = MaterialTheme.typography.labelLarge) }
-                        )
-                    }
-                }
-                Text(stringResource(R.string.library_filter_level), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = level == null, onClick = { level = null }, label = { AdaptiveText(stringResource(R.string.library_filter_all_levels), style = MaterialTheme.typography.labelLarge) })
-                    (1..5).forEach { n ->
-                        FilterChip(
-                            selected = level == n,
-                            onClick = { level = if (level == n) null else n },
-                            label = { Text(stringResource(R.string.child_card_level, n), style = MaterialTheme.typography.labelLarge) }
-                        )
-                    }
+            // Filtros rápidos: bajan de renglón (nunca se cortan) y cada uno dice cuántas lecturas deja ver.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LibraryQuickFilter.entries.forEach { option ->
+                    SelectableChip(
+                        selected = quick == option,
+                        onClick = { quick = option },
+                        label = { AdaptiveText("${option.label} · ${counts[option] ?: 0}", style = MaterialTheme.typography.labelLarge) }
+                    )
                 }
             }
-            Text(stringResource(R.string.library_count, entries.size), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        }
-
-        when {
-            entries.isNotEmpty() -> entries.forEach { entry ->
-                ShelfCard(
-                    entry = entry,
-                    opening = entry.item != null && state.openingLessonId == entry.item.documentId,
-                    enabled = state.openingLessonId == null,
-                    onOpen = { entry.item?.let(onOpenLibraryLesson) ?: entry.lesson?.let(onOpenDemoLesson) }
-                )
-            }
-            categories.isNotEmpty() -> EmptyShelf(stringResource(R.string.library_empty_filtered), null)
-            else -> EmptyShelf(
-                if (readerName != null) stringResource(R.string.library_empty, readerName) else stringResource(R.string.library_empty_plain),
-                onGoAdapt
+            // Categorías en una sola fila deslizable por páginas.
+            val allLabel = stringResource(R.string.library_filter_all)
+            ChipCarousel(
+                items = listOf<String?>(null) + categories,
+                label = { code -> code?.let(LessonCategory::displayNameFor) ?: allLabel },
+                isSelected = { it == category },
+                onClick = { category = it },
+                title = stringResource(R.string.library_filter_category)
             )
         }
 
-        SectionCard(stringResource(R.string.readings_history_title)) {
-            val lessons = state.progress.lessons
+        if (suggested.size >= 2) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AdaptiveText(
+                    stringResource(R.string.library_suggested_title, readerLevel ?: 1),
+                    Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                FluiletCarousel(suggested, itemKey = { it.key }) { entry, _ ->
+                    ShelfCard(
+                        entry = entry,
+                        opening = entry.item != null && state.openingLessonId == entry.item.documentId,
+                        enabled = state.openingLessonId == null,
+                        highlighted = true,
+                        onOpen = { opening(entry) }
+                    )
+                }
+            }
+        }
+
+        if (categories.isNotEmpty()) {
+            Text(stringResource(R.string.library_count, entries.size), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+
+        // El listado cambia con un fundido suave al tocar un filtro.
+        AnimatedContent(filter, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "libraryFilter") { shownFilter ->
+            val shown = LibraryShelf.entries(state.library, state.demoLessons, shownFilter)
+            var visible by rememberSaveable(shownFilter.category, shownFilter.quick) { mutableIntStateOf(LIBRARY_PAGE) }
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                when {
+                    shown.isNotEmpty() -> {
+                        shown.take(visible).forEach { entry ->
+                            ShelfCard(
+                                entry = entry,
+                                opening = entry.item != null && state.openingLessonId == entry.item.documentId,
+                                enabled = state.openingLessonId == null,
+                                onOpen = { opening(entry) }
+                            )
+                        }
+                        if (shown.size > visible) {
+                            SecondaryButton(
+                                stringResource(R.string.library_show_more, shown.size - visible),
+                                { visible += LIBRARY_PAGE },
+                                icon = Icons.Filled.ExpandMore
+                            )
+                        }
+                    }
+                    categories.isNotEmpty() -> EmptyShelf(stringResource(R.string.library_empty_filtered), null)
+                    else -> EmptyShelf(
+                        if (readerName != null) stringResource(R.string.library_empty, readerName) else stringResource(R.string.library_empty_plain),
+                        onGoAdapt
+                    )
+                }
+            }
+        }
+
+        // Historial plegado: no alarga la biblioteca hasta que se pide.
+        val lessons = state.progress.lessons
+        CollapsibleCard(
+            title = stringResource(R.string.readings_history_title),
+            subtitle = stringResource(R.string.library_history_count, lessons.size)
+        ) {
             if (lessons.isEmpty()) {
                 Text(stringResource(R.string.readings_history_empty), style = MaterialTheme.typography.bodyMedium)
             } else {
@@ -327,50 +375,59 @@ internal fun LecturasTab(
     }
 }
 
-/** Tarjeta editorial de una lectura: franja con el arte de su categoría, título, nivel y cuánto se facilitó. */
+/** Lecturas que se muestran de entrada (y cuántas más trae "Mostrar más"). */
+private const val LIBRARY_PAGE = 6
+
+/**
+ * Tarjeta compacta de una lectura: el arte de su categoría a la izquierda y, a la derecha, el título completo, su nivel
+ * y cuánto se facilitó; el botón "Abrir" a todo el ancho debajo. [highlighted] la resalta en "Sugeridas para ti".
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ShelfCard(entry: ShelfEntry, opening: Boolean, enabled: Boolean, onOpen: () -> Unit) {
+private fun ShelfCard(entry: ShelfEntry, opening: Boolean, enabled: Boolean, onOpen: () -> Unit, highlighted: Boolean = false) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = if (highlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column {
-            CategoryArtwork(entry.category, Modifier.fillMaxWidth().height(96.dp), iconSize = 40.dp)
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val categoryName = LessonCategory.displayNameFor(entry.category)
-                // El título completo (los renglones que necesite); la categoría encima solo si no repite el título.
-                if (!categoryName.equals(entry.title, ignoreCase = true)) {
-                    AdaptiveText(categoryName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                }
-                AdaptiveText(entry.title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    entry.level?.let { Pill(stringResource(R.string.child_card_level, it), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) }
-                    Pill(
-                        stringResource(if (entry.item != null) R.string.library_server_badge else R.string.library_demo_badge),
-                        MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.onBackground
-                    )
-                    entry.gain?.takeIf { it > 0 }?.let {
-                        Pill(stringResource(R.string.library_gain, String.format(Locale.US, "%.1f", it)), FluiletBrand.Mint.copy(alpha = 0.2f), MaterialTheme.colorScheme.onBackground)
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                CategoryArtwork(entry.category, Modifier.size(76.dp).clip(RoundedCornerShape(16.dp)), iconSize = 34.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val categoryName = LessonCategory.displayNameFor(entry.category)
+                    // El título completo (los renglones que necesite); la categoría encima solo si no repite el título.
+                    if (!categoryName.equals(entry.title, ignoreCase = true)) {
+                        AdaptiveText(categoryName, Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                    AdaptiveText(entry.title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        entry.level?.let { Pill(stringResource(R.string.child_card_level, it), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) }
+                        Pill(
+                            stringResource(if (entry.item != null) R.string.library_server_badge else R.string.library_demo_badge),
+                            MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.onBackground
+                        )
+                        entry.gain?.takeIf { it > 0 }?.let {
+                            Pill(stringResource(R.string.library_gain, String.format(Locale.US, "%.1f", it)), FluiletBrand.Mint.copy(alpha = 0.2f), MaterialTheme.colorScheme.onBackground)
+                        }
                     }
                 }
-                if (entry.originalScore != null && entry.adaptedScore != null && entry.originalScore > 0) {
-                    Text(
-                        stringResource(
-                            R.string.library_scores,
-                            String.format(Locale.US, "%.1f", entry.originalScore),
-                            String.format(Locale.US, "%.1f", entry.adaptedScore)
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                OutlinedButton(onClick = onOpen, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    ButtonLabel(stringResource(if (opening) R.string.library_opening else R.string.demo_lesson_open))
-                }
+            }
+            if (entry.originalScore != null && entry.adaptedScore != null && entry.originalScore > 0) {
+                Text(
+                    stringResource(
+                        R.string.library_scores,
+                        String.format(Locale.US, "%.1f", entry.originalScore),
+                        String.format(Locale.US, "%.1f", entry.adaptedScore)
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            OutlinedButton(onClick = onOpen, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
+                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                ButtonLabel(stringResource(if (opening) R.string.library_opening else R.string.demo_lesson_open))
             }
         }
     }
@@ -451,20 +508,25 @@ internal fun CartasTab(state: HomeUiState, bot: FluiBotUiState, onSelect: (Strin
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         TabHeader(HomeTab.CARTAS.title, stringResource(R.string.cards_header_sub))
         ReaderSwitcher(state, onSelect)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            CardsView.entries.forEachIndexed { index, option ->
-                SegmentedButton(
-                    selected = view == option,
-                    onClick = { view = option },
-                    shape = SegmentedButtonDefaults.itemShape(index, CardsView.entries.size),
-                    modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = option.label },
-                    label = { FitText(option.label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
-                )
+        // 3 sub-pestañas con emoji arriba y palabra completa debajo: "Álbum", "Logros" y "Progreso" nunca se cortan.
+        TabRow(selectedTabIndex = view.ordinal, containerColor = MaterialTheme.colorScheme.background) {
+            CardsView.entries.forEach { option ->
+                IconLabelTab(selected = view == option, onClick = { view = option }, emoji = option.emoji, label = option.label)
             }
         }
-        when (view) {
-            CardsView.ALBUM -> AlbumSection(bot.cards.ifEmpty { state.progress.cards }, bot.badges.ifEmpty { state.progress.badges })
-            CardsView.ESTADISTICAS -> ProgressDashboard(state.progress, state.progressNote)
+        AnimatedContent(view, transitionSpec = { slideBetweenTabs(initialState.ordinal, targetState.ordinal) }, label = "cardsView") { current ->
+            when (current) {
+                CardsView.ALBUM -> AlbumCarousel(bot.cards.ifEmpty { state.progress.cards })
+                CardsView.LOGROS -> BadgeGallery(bot.badges.ifEmpty { state.progress.badges })
+                CardsView.PROGRESO -> ProgressDashboard(state.progress, state.progressNote)
+            }
         }
     }
+}
+
+/** Transición entre sub-pestañas: la nueva entra deslizándose desde el lado al que se avanza, con fundido. */
+internal fun slideBetweenTabs(from: Int, to: Int): ContentTransform {
+    val direction = if (to >= from) 1 else -1
+    return (slideInHorizontally { width -> direction * width / 5 } + fadeIn()) togetherWith
+        (slideOutHorizontally { width -> -direction * width / 5 } + fadeOut())
 }

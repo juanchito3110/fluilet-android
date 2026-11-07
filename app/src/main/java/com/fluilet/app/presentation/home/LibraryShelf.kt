@@ -4,10 +4,34 @@ import com.fluilet.app.domain.model.AdaptationResult
 import com.fluilet.app.domain.model.LessonCategory
 import com.fluilet.app.domain.model.LibraryItem
 
-/** Filtros de la biblioteca: categoría (`null` = todas) y nivel 1-5 (`null` = todos). */
-data class LibraryFilter(val category: String? = null, val level: Int? = null) {
+/**
+ * Filtros rápidos de la biblioteca: por banda de nivel ("Inicial", "Intermedio", "Avanzado") o solo las lecturas
+ * guardadas en el servidor. Una lectura sin nivel solo aparece en "Todas" y, si está guardada, en "Guardadas".
+ */
+enum class LibraryQuickFilter(val label: String, val levels: IntRange? = null, val savedOnly: Boolean = false) {
+    ALL("Todas"),
+    INICIAL("Inicial (Niv. 1–2)", 1..2),
+    INTERMEDIO("Intermedio (Niv. 3)", 3..3),
+    AVANZADO("Avanzado (Niv. 4–5)", 4..5),
+    GUARDADAS("Guardadas", savedOnly = true);
+
+    fun matches(entry: ShelfEntry): Boolean = when {
+        savedOnly -> entry.item != null
+        levels == null -> true
+        else -> entry.level != null && entry.level in levels
+    }
+}
+
+/** Filtros de la biblioteca: categoría (`null` = todas), nivel 1-5 (`null` = todos) y filtro rápido. */
+data class LibraryFilter(
+    val category: String? = null,
+    val level: Int? = null,
+    val quick: LibraryQuickFilter = LibraryQuickFilter.ALL
+) {
     fun matches(category: String?, level: Int?): Boolean =
         (this.category == null || this.category == category) && (this.level == null || this.level == level)
+
+    fun matches(entry: ShelfEntry): Boolean = matches(entry.category, entry.level) && quick.matches(entry)
 }
 
 /** Una lectura de la biblioteca: guardada en el servidor ([item]) o cargada como demo en el teléfono ([lesson]). */
@@ -54,8 +78,25 @@ object LibraryShelf {
                 lesson = lesson
             )
         }
-        return (server + local).filter { filter.matches(it.category, it.level) }
+        return (server + local).filter(filter::matches)
     }
+
+    /** Cuántas lecturas deja ver cada filtro rápido (con la categoría elegida). */
+    fun quickCounts(entries: List<ShelfEntry>): Map<LibraryQuickFilter, Int> =
+        LibraryQuickFilter.entries.associateWith { quick -> entries.count(quick::matches) }
+
+    /**
+     * "Sugeridas para ti": las lecturas del nivel del lector y, si faltan, las de un nivel arriba o abajo, en ese
+     * orden y sin repetir. Sin nivel conocido no se sugiere nada.
+     */
+    fun suggested(entries: List<ShelfEntry>, readerLevel: Int?, limit: Int = MAX_SUGGESTED): List<ShelfEntry> {
+        if (readerLevel == null) return emptyList()
+        return entries.filter { it.level != null && kotlin.math.abs(it.level - readerLevel) <= 1 }
+            .sortedBy { kotlin.math.abs(it.level!! - readerLevel) }
+            .take(limit)
+    }
+
+    const val MAX_SUGGESTED = 5
 
     /** Categorías presentes (para mostrar solo filtros útiles), en el orden del catálogo. */
     fun categories(library: List<LibraryItem>, demoLessons: List<AdaptationResult>): List<String> {

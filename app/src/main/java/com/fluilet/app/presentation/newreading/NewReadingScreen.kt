@@ -1,6 +1,16 @@
 package com.fluilet.app.presentation.newreading
 
 import com.fluilet.app.presentation.common.AdaptiveSingleLineText
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import com.fluilet.app.presentation.common.ChipCarousel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -9,14 +19,10 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoStories
@@ -28,8 +34,6 @@ import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.PlayArrow
 import com.fluilet.app.presentation.common.SelectableChip
-import com.fluilet.app.presentation.common.CheckMark
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -101,32 +105,40 @@ fun NewReadingContent(
         }
         Text(stringResource(R.string.newreading_privacy), style = MaterialTheme.typography.bodySmall)
 
-        val result = state.result
-        if (result == null) {
-            InputSection(state, viewModel, onPick = { picker.launch(arrayOf("text/plain", "application/pdf")) })
-            ErrorMessage(state.errorMessage)
-            // Botón completo, centrado y con aire abajo: nunca queda cortado por el borde de la tarjeta.
-            PrimaryButton(
-                text = stringResource(if (state.mode == InputMode.GENERATE) R.string.newreading_generate else R.string.newreading_adapt),
-                onClick = viewModel::adapt,
-                enabled = state.canAdapt,
-                loading = state.isAdapting,
-                icon = Icons.Filled.AutoFixHigh,
-                modifier = Modifier.heightIn(min = 54.dp).padding(top = 4.dp, bottom = 12.dp)
-            )
-        } else {
-            ResultSection(result)
-            // Traspaso directo Tutor -> Niño: un toque y el niño empieza a leer en Modo Enfoque.
-            PrimaryButton(
-                text = stringResource(if (state.forChild) R.string.newreading_start_focus else R.string.newreading_start),
-                onClick = {
-                    // Con perfil de niño el PIN del tutor debe existir antes de bloquear la pantalla.
-                    if (state.forChild && !state.pinConfigured) showPinSetup = true else viewModel.startNow()
-                },
-                icon = Icons.Filled.PlayArrow
-            )
-            SecondaryButton(stringResource(R.string.newreading_save_later), viewModel::saveForLater)
-            SecondaryButton(stringResource(R.string.newreading_edit), viewModel::backToEdit)
+        // Formulario ↔ resultado con transición suave; cada lado conserva su propio contenido mientras se anima.
+        AnimatedContent(
+            targetState = state.result,
+            contentKey = { it != null },
+            transitionSpec = { (fadeIn() + expandVertically()) togetherWith (fadeOut() + shrinkVertically()) },
+            label = "newReadingStep"
+        ) { result ->
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (result == null) {
+                    InputSection(state, viewModel, onPick = { picker.launch(arrayOf("text/plain", "application/pdf")) })
+                    ErrorMessage(state.errorMessage)
+                    // Botón completo, centrado y con aire abajo: nunca queda cortado por el borde de la tarjeta.
+                    PrimaryButton(
+                        text = stringResource(if (state.mode == InputMode.GENERATE) R.string.newreading_generate else R.string.newreading_adapt),
+                        onClick = viewModel::adapt,
+                        enabled = state.canAdapt,
+                        loading = state.isAdapting,
+                        icon = Icons.Filled.AutoFixHigh,
+                        modifier = Modifier.heightIn(min = 54.dp).padding(top = 4.dp, bottom = 12.dp)
+                    )
+                } else {
+                    ResultSection(
+                        result,
+                        startLabel = stringResource(if (state.forChild) R.string.newreading_start_focus else R.string.newreading_start),
+                        // Traspaso directo Tutor -> Niño: un toque y el niño empieza a leer en Modo Enfoque.
+                        onStart = {
+                            // Con perfil de niño el PIN del tutor debe existir antes de bloquear la pantalla.
+                            if (state.forChild && !state.pinConfigured) showPinSetup = true else viewModel.startNow()
+                        }
+                    )
+                    SecondaryButton(stringResource(R.string.newreading_save_later), viewModel::saveForLater)
+                    SecondaryButton(stringResource(R.string.newreading_edit), viewModel::backToEdit)
+                }
+            }
         }
     }
 
@@ -202,47 +214,25 @@ private fun InputSection(state: NewReadingUiState, vm: NewReadingViewModel, onPi
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LessonGeneratorFields(state: NewReadingUiState, vm: NewReadingViewModel) {
-    Text(
-        stringResource(R.string.newreading_category_title),
-        style = MaterialTheme.typography.titleSmall,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
+    // Categorías y temas en tiras deslizables de UNA fila (ícono + nombre completo): el formulario no se alarga y el
+    // botón "Generar" queda a la vista.
+    ChipCarousel(
+        items = LessonCategory.entries,
+        label = { it.displayName },
+        isSelected = { it == state.category },
+        onClick = vm::onCategory,
+        title = stringResource(R.string.newreading_category_title),
+        icon = ::categoryIcon
     )
-    FlowRow(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        LessonCategory.entries.forEach { category ->
-            SelectableChip(
-                selected = category == state.category,
-                onClick = { vm.onCategory(category) },
-                leadingIcon = { Icon(categoryIcon(category), contentDescription = null, modifier = Modifier.size(18.dp)) },
-                label = { AdaptiveText(category.displayName, style = MaterialTheme.typography.labelLarge) }
-            )
-        }
-    }
     state.category?.let { category ->
-        Text(
-            stringResource(R.string.newreading_suggestions_title),
-            style = MaterialTheme.typography.titleSmall,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
+        ChipCarousel(
+            items = TopicSuggestions.forCategory(category),
+            label = { it },
+            isSelected = { state.topic.equals(it, ignoreCase = true) },
+            onClick = vm::onSuggestion,
+            title = stringResource(R.string.newreading_suggestions_title),
+            icon = { categoryIcon(category) }
         )
-        // Temas sugeridos centrados y con aire vertical: nunca tocan el título del campo de abajo.
-        FlowRow(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            TopicSuggestions.forCategory(category).forEach { suggestion ->
-                SelectableChip(
-                    selected = state.topic.equals(suggestion, ignoreCase = true),
-                    onClick = { vm.onSuggestion(suggestion) },
-                    label = { AdaptiveText(suggestion, style = MaterialTheme.typography.labelLarge) }
-                )
-            }
-        }
     }
     // La pregunta va como título propio ARRIBA del campo (ya no como etiqueta de 3 renglones dentro de él).
     Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
@@ -281,40 +271,63 @@ fun categoryIcon(category: LessonCategory): ImageVector = when (category) {
 }
 
 @Composable
-private fun ResultSection(result: AdaptationResult) {
+private fun ResultSection(result: AdaptationResult, startLabel: String, onStart: () -> Unit) {
     val m = result.metrics
     SectionCard(stringResource(R.string.newreading_result_title)) {
-        Text(result.title, style = MaterialTheme.typography.titleSmall)
-        result.category?.let { MetricRow(R.string.newreading_m_category, LessonCategory.displayNameFor(it)) }
-        result.simplificationLevel?.let { MetricRow(R.string.newreading_m_level, it.toString()) }
-        if (result.questions.isNotEmpty()) MetricRow(R.string.newreading_m_quiz, stringResource(R.string.newreading_quiz_count, result.questions.size))
+        AdaptiveText(result.title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall)
         if (result.bestEffort) Text(stringResource(R.string.newreading_best_effort), style = MaterialTheme.typography.bodySmall)
+        // Las 3 métricas clave en un bloque compacto: número grande arriba y la etiqueta completa debajo.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MetricTile(m.sentenceCount.toString(), stringResource(R.string.newreading_m_sentences), Modifier.weight(1f))
+            MetricTile(m.syllableCount.toString(), stringResource(R.string.newreading_m_syllables), Modifier.weight(1f))
+            MetricTile(result.chunks.size.toString(), stringResource(R.string.newreading_m_blocks), Modifier.weight(1f))
+        }
         MetricRow(R.string.newreading_m_original, "%.1f · %s".format(m.originalSzigrisztScore, Szigriszt.level(m.originalSzigrisztScore)))
         MetricRow(R.string.newreading_m_adapted, "%.1f · %s".format(m.adaptedSzigrisztScore, Szigriszt.level(m.adaptedSzigrisztScore)))
         MetricRow(R.string.newreading_m_delta, "%+.1f".format(m.scoreDelta))
         MetricRow(R.string.newreading_m_words, "${m.originalWordCount} → ${m.adaptedWordCount}")
-        MetricRow(R.string.newreading_m_sentences, m.sentenceCount.toString())
-        MetricRow(R.string.newreading_m_syllables, m.syllableCount.toString())
-        MetricRow(R.string.newreading_m_blocks, result.chunks.size.toString())
+        result.category?.let { MetricRow(R.string.newreading_m_category, LessonCategory.displayNameFor(it)) }
+        result.simplificationLevel?.let { MetricRow(R.string.newreading_m_level, it.toString()) }
+        if (result.questions.isNotEmpty()) MetricRow(R.string.newreading_m_quiz, stringResource(R.string.newreading_quiz_count, result.questions.size))
     }
-    SectionCard(stringResource(R.string.newreading_preview_title)) {
-        // Sin alturas fijas y con aire arriba y abajo: ningún renglón queda rebanado.
-        Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            result.chunks.take(2).forEach { chunk ->
-                Text(
-                    chunk.text,
-                    modifier = Modifier.fillMaxWidth(),
-                    style = TextStyle(
-                        fontFamily = OpenDyslexicFontFamily,
-                        fontSize = 18.sp,
-                        lineHeight = 30.sp,
-                        lineHeightStyle = SafeLineHeight,
-                        hyphens = Hyphens.None,
-                        lineBreak = LineBreak.Paragraph,
-                        color = MaterialTheme.colorScheme.onSurface
+    // La vista previa aparece con una transición suave y lleva el botón directo para abrirla en el lector.
+    val appear = remember(result) { MutableTransitionState(false).apply { targetState = true } }
+    AnimatedVisibility(appear, enter = fadeIn(tween(450)) + expandVertically(tween(450))) {
+        SectionCard(stringResource(R.string.newreading_preview_title)) {
+            // Sin alturas fijas y con aire arriba y abajo: ningún renglón queda rebanado.
+            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                result.chunks.take(2).forEach { chunk ->
+                    Text(
+                        chunk.text,
+                        modifier = Modifier.fillMaxWidth(),
+                        style = TextStyle(
+                            fontFamily = OpenDyslexicFontFamily,
+                            fontSize = 18.sp,
+                            lineHeight = 30.sp,
+                            lineHeightStyle = SafeLineHeight,
+                            hyphens = Hyphens.None,
+                            lineBreak = LineBreak.Paragraph,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     )
-                )
+                }
             }
+            PrimaryButton(text = startLabel, onClick = onStart, icon = Icons.Filled.PlayArrow)
+        }
+    }
+}
+
+/** Mosaico de una métrica: el número arriba y la etiqueta completa debajo, sin partir palabras ("Bloques de lectura"). */
+@Composable
+private fun MetricTile(value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.background) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            AdaptiveSingleLineText(value, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            AdaptiveText(label, Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
         }
     }
 }

@@ -31,7 +31,7 @@
     <string name="home_delete_body">Se eliminará el perfil. Esta acción no se puede deshacer.</string>
     <string name="home_delete_confirm">Eliminar</string>
     <string name="nlp_level_title">Simplificación (1 a 5): %1$s</string>
-    <string name="readings_history_title">Historial de lecturas</string>
+    <string name="readings_history_title">🕘 Historial de lecturas</string>
     <string name="readings_history_empty">Aquí aparecerán las lecturas que completes.</string>
     <string name="bot_tab_accessories">Accesorios</string>
     <string name="bot_tab_scenarios">Escenarios</string>
@@ -60,10 +60,11 @@
     <string name="library_header_sub">Lecciones oficiales y lecturas adaptadas de %1$s.</string>
     <string name="library_header_sub_plain">Tus lecciones y lecturas adaptadas.</string>
     <string name="library_filter_category">Categoría</string>
-    <string name="library_filter_level">Nivel</string>
     <string name="library_filter_all">Todas</string>
-    <string name="library_filter_all_levels">Todos</string>
     <string name="library_count">%1$d lecturas</string>
+    <string name="library_suggested_title">⭐ Sugeridas para ti · Nivel %1$d</string>
+    <string name="library_show_more">Mostrar más (%1$d)</string>
+    <string name="library_history_count">Lecturas registradas: %1$d</string>
     <string name="library_empty">Todavía no hay lecturas para %1$s. Carga los datos demo o adapta una lectura nueva.</string>
     <string name="library_empty_plain">Todavía no hay lecturas. Carga los datos demo o adapta una lectura nueva.</string>
     <string name="library_empty_filtered">Ninguna lectura coincide con estos filtros.</string>

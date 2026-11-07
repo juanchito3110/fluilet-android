@@ -128,7 +128,8 @@ class EducationalUiTest {
             }
         }
         rule.onNodeWithText("Insignias educativas").performScrollTo().assertIsDisplayed()
-        BadgeCatalog.all.forEach { rule.onNodeWithText(it.title).performScrollTo().assertIsDisplayed() }
+        // Las 5 insignias viven en un carrusel: todas están compuestas (la central a la vista) y se recorren con ◀ ▶.
+        BadgeCatalog.all.forEach { rule.onNodeWithText(it.title, useUnmergedTree = true).assertExists() }
         rule.onNodeWithText("3 de 5 desbloqueadas").performScrollTo().assertIsDisplayed()
         screenshot("avance_3_insignias")
     }
@@ -145,7 +146,7 @@ class EducationalUiTest {
         rule.onNodeWithText("Aún sin mini-retos").assertIsDisplayed()
         rule.onNodeWithText("No pudimos cargar el avance ahora.").assertIsDisplayed()
         rule.onNodeWithText("Insignias educativas").performScrollTo()
-        BadgeCatalog.all.forEach { rule.onNodeWithText(it.title).performScrollTo().assertIsDisplayed() }
+        BadgeCatalog.all.forEach { rule.onNodeWithText(it.title, useUnmergedTree = true).assertExists() }
         rule.onNodeWithText("0 de 5 desbloqueadas").performScrollTo().assertIsDisplayed()
         screenshot("avance_4_vacio")
     }

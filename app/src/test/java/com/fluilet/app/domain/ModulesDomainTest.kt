@@ -33,7 +33,7 @@ class ModulesDomainTest {
         assertEquals(listOf("Inicio", "Lecturas", "Adaptar", "Avatar", "Cartas"), HomeTab.entries.map { it.label })
         // Una sola palabra corta por etiqueta: la barra inferior nunca corta "Mi" ni "Estadísti".
         assertTrue(HomeTab.entries.all { ' ' !in it.label && it.label.length <= 8 })
-        assertEquals(listOf("Álbum de cartas", "Estadísticas"), com.fluilet.app.presentation.home.CardsView.entries.map { it.label })
+        assertEquals(listOf("Álbum", "Logros", "Progreso"), com.fluilet.app.presentation.home.CardsView.entries.map { it.label })
     }
 
     // --- Escenarios ---------------------------------------------------------------------------

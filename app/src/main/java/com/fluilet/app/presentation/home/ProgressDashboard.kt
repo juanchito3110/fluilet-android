@@ -31,7 +31,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import com.fluilet.app.presentation.common.FluiletCarousel
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -214,13 +218,25 @@ internal fun LessonRow(lesson: LessonProgress) {
 
 // --- Insignias ---------------------------------------------------------------------------------
 
+/**
+ * 🏅 Logros: contador y barra de avance arriba, y las 5 insignias en un CARRUSEL horizontal con su ícono, su estado
+ * (desbloqueada o bloqueada, con ícono y texto, no solo color) y su descripción completa.
+ */
 @Composable
 internal fun BadgeGallery(badges: List<EducationalBadge>) {
-    SectionCard(stringResource(R.string.progress_badges_title)) {
-        val unlocked = badges.count { it.unlocked }
-        Text(stringResource(R.string.progress_badges_count, unlocked, badges.size), style = MaterialTheme.typography.bodyMedium)
-        // Una insignia por fila a todo el ancho: "Explorador curioso" o "Hábito en marcha" nunca se parten.
-        badges.forEach { BadgeTile(it, Modifier.fillMaxWidth()) }
+    val unlocked = badges.count { it.unlocked }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            AdaptiveText(stringResource(R.string.progress_badges_title), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge)
+            AdaptiveText(
+                stringResource(R.string.progress_badges_count, unlocked, badges.size),
+                Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SpringProgressBar(if (badges.isEmpty()) 0f else unlocked.toFloat() / badges.size, height = 10.dp)
+        }
+        FluiletCarousel(badges, itemKey = { it.code }) { badge, _ -> BadgeTile(badge) }
     }
 }
 
@@ -233,25 +249,36 @@ private fun badgeIcon(code: String): ImageVector = when (code) {
 }
 
 @Composable
-private fun BadgeTile(badge: EducationalBadge, modifier: Modifier = Modifier) {
-    val container = if (badge.unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
-    val content = if (badge.unlocked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+private fun BadgeTile(badge: EducationalBadge) {
+    val container = if (badge.unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val content = if (badge.unlocked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     val state = stringResource(if (badge.unlocked) R.string.progress_badge_unlocked else R.string.progress_badge_locked)
     Card(
-        // Bloqueadas en tono tenue; el estado también se comunica con icono y texto (no solo con color).
-        modifier = modifier.alpha(if (badge.unlocked) 1f else 0.5f).semantics(mergeDescendants = true) {
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
             contentDescription = "${badge.title}: $state. ${badge.description}"
         },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = container, contentColor = content)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = container, contentColor = content),
+        border = if (badge.unlocked) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(if (badge.unlocked) badgeIcon(badge.code) else Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(36.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                AdaptiveText(badge.title, style = MaterialTheme.typography.titleSmall)
-                Text(badge.description, style = MaterialTheme.typography.bodySmall)
-                Text(state, style = MaterialTheme.typography.labelSmall)
+        Column(
+            Modifier.fillMaxWidth().padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                Modifier.size(64.dp).clip(CircleShape).background(content.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(if (badge.unlocked) badgeIcon(badge.code) else Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(36.dp))
             }
+            AdaptiveText(badge.title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            AdaptiveSingleLineText(
+                (if (badge.unlocked) "✓ " else "🔒 ") + state,
+                Modifier.clip(RoundedCornerShape(50)).background(content.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelLarge
+            )
+            Text(badge.description, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
 }

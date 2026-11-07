@@ -3,7 +3,10 @@ package com.fluilet.app.presentation.admin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fluilet.app.core.network.toAppError
+import com.fluilet.app.domain.model.AccountType
 import com.fluilet.app.domain.model.AdminOverview
+import com.fluilet.app.domain.model.AdminUser
+import com.fluilet.app.domain.usecase.DemoAccounts
 import com.fluilet.app.domain.model.MasterGrant
 import com.fluilet.app.domain.repository.AdminRepository
 import com.fluilet.app.domain.model.ModelAudit
@@ -22,6 +25,33 @@ import javax.inject.Inject
 enum class AdminTab(val label: String) {
     CHILDREN("Perfiles lectores"),
     TUTORS("Cuentas")
+}
+
+/**
+ * Filtros rápidos del listado de cuentas. Son excluyentes (la suma de los grupos da "Todas"): la cuenta demo
+ * `tutor@fluilet.com` va en "Niños/Demo" junto con las cuentas de niño, para encontrarla de un toque.
+ */
+enum class AdminAccountFilter(val label: String) {
+    ALL("Todas"),
+    TUTORS("Tutores"),
+    ADULTS("Adultos"),
+    CHILDREN_DEMO("Niños/Demo");
+
+    fun matches(user: AdminUser): Boolean {
+        val demo = DemoAccounts.isDemoTutor(user.email)
+        val type = user.accountType
+        return when (this) {
+            ALL -> true
+            TUTORS -> type == AccountType.TUTOR && !demo
+            ADULTS -> type == AccountType.INDEPENDENT_ADULT && !demo
+            CHILDREN_DEMO -> demo || (type != AccountType.TUTOR && type != AccountType.INDEPENDENT_ADULT)
+        }
+    }
+
+    companion object {
+        /** Cuántas cuentas deja ver cada filtro. */
+        fun counts(users: List<AdminUser>): Map<AdminAccountFilter, Int> = entries.associateWith { f -> users.count(f::matches) }
+    }
 }
 
 data class AdminUiState(

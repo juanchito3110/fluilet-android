@@ -1,5 +1,6 @@
 package com.fluilet.app.presentation.home
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
@@ -24,7 +25,10 @@ import com.fluilet.app.presentation.fluibot.ScenariosSection
 /** Sub-pestañas de 🤖 Mi FluiBot. */
 internal enum class BotSubTab { ACCESORIOS, ESCENARIOS, EVOLUCION }
 
-/** 🤖 Mi FluiBot: escenario amplio con el robot y, debajo, Accesorios · Escenarios · Evolución. */
+/**
+ * 🤖 Avatar: cabecera compacta con FluiBot en vivo (siempre a la vista) y, debajo, Accesorios · Escenarios · Evolución,
+ * cada una en un carrusel horizontal para que la pantalla no se alargue.
+ */
 @Composable
 internal fun FluiBotTab(
     bot: FluiBotUiState,
@@ -36,7 +40,7 @@ internal fun FluiBotTab(
 ) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        FluiBotStageCard(bot, onCelebrate)
+        FluiBotStageCard(bot, onCelebrate, compact = true)
         // Emoji arriba y palabra completa debajo: "Accesorios", "Escenarios" y "Evolución" nunca se cortan.
         TabRow(selectedTabIndex = selected, containerColor = MaterialTheme.colorScheme.background) {
             listOf(
@@ -47,10 +51,12 @@ internal fun FluiBotTab(
                 IconLabelTab(selected = selected == index, onClick = { selected = index }, emoji = emoji, label = label)
             }
         }
-        when (BotSubTab.entries[selected]) {
-            BotSubTab.ACCESORIOS -> AccessoriesShop(bot, onBuyAccessory, onToggleAccessory)
-            BotSubTab.ESCENARIOS -> ScenariosSection(bot, onBuyScenario, onEquipScenario)
-            BotSubTab.EVOLUCION -> EvolutionSection(bot)
+        AnimatedContent(selected, transitionSpec = { slideBetweenTabs(initialState, targetState) }, label = "botSubTab") { index ->
+            when (BotSubTab.entries[index]) {
+                BotSubTab.ACCESORIOS -> AccessoriesShop(bot, onBuyAccessory, onToggleAccessory)
+                BotSubTab.ESCENARIOS -> ScenariosSection(bot, onBuyScenario, onEquipScenario)
+                BotSubTab.EVOLUCION -> EvolutionSection(bot)
+            }
         }
     }
 }

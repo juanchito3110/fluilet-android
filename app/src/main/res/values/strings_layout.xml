@@ -1,0 +1,13 @@
+<resources>
+    <!-- Carruseles horizontales (tienda, álbum, logros, evolución, sugeridas y chips paginados). -->
+    <string name="carousel_previous">Anterior</string>
+    <string name="carousel_next">Siguiente</string>
+    <string name="carousel_counter">%1$d de %2$d</string>
+    <string name="carousel_page">Página %1$d de %2$d</string>
+
+    <!-- Tarjetas desplegables. -->
+    <string name="collapsible_open">Mostrar</string>
+    <string name="collapsible_close">Ocultar</string>
+    <string name="collapsible_opened">Abierto</string>
+    <string name="collapsible_closed">Cerrado</string>
+</resources>

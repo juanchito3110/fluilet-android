@@ -8,6 +8,7 @@
     <string name="admin_kpi_comprehension">Comprensión Promedio</string>
     <string name="admin_no_children">Aún no hay perfiles lectores registrados. Las cuentas independientes aparecen aquí junto con los perfiles infantiles.</string>
     <string name="admin_no_tutors">Aún no hay cuentas registradas.</string>
+    <string name="admin_filter_empty">No hay cuentas de este tipo. Elige otro filtro.</string>
     <string name="admin_inactive">Inactivo</string>
     <string name="admin_tutor_line">Cuenta responsable: %1$s</string>
     <string name="admin_owner_line">%1$s: %2$s</string>

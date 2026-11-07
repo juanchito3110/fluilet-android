@@ -16,5 +16,5 @@ enum class HomeTab(val label: String, val title: String) {
     }
 }
 
-/** Vista del apartado Cartas: el álbum de cartas coleccionables o el progreso pedagógico. */
-enum class CardsView(val label: String) { ALBUM("Álbum de cartas"), ESTADISTICAS("Estadísticas") }
+/** Sub-pestañas del apartado Cartas: el álbum de cartas coleccionables, los logros (insignias) y el progreso. */
+enum class CardsView(val emoji: String, val label: String) { ALBUM("🃏", "Álbum"), LOGROS("🏅", "Logros"), PROGRESO("📊", "Progreso") }

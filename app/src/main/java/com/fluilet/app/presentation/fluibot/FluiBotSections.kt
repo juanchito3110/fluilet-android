@@ -1,6 +1,17 @@
 package com.fluilet.app.presentation.fluibot
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.fluilet.app.presentation.common.FluiletCarousel
+import com.fluilet.app.presentation.common.SelectableChip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,58 +111,97 @@ fun XpBar(state: FluiBotUiState, modifier: Modifier = Modifier) {
  * al tocarlo, al comprar y al equipar), su nombre y etapa, gemas animadas, XP con resorte y "Recargar Energía".
  */
 @Composable
-fun FluiBotStageCard(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
+fun FluiBotStageCard(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: Modifier = Modifier, compact: Boolean = false) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(
-            Modifier.fillMaxWidth().padding(top = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FluiBotScene(state, onCelebrate)
+        if (compact) {
+            CompactStage(state, onCelebrate)
+        } else {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 18.dp),
+                Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.fluibot_name), style = MaterialTheme.typography.headlineSmall)
-                        AdaptiveText(
-                            stringResource(R.string.fluibot_stage_label, state.bot.stage.number, state.bot.stage.displayName),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                FluiBotScene(
+                    state, onCelebrate,
+                    Modifier.padding(horizontal = 16.dp).fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally)
+                        .sizeIn(maxWidth = SceneMaxSize, maxHeight = SceneMaxSize).aspectRatio(1f)
+                )
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.fluibot_name), style = MaterialTheme.typography.headlineSmall)
+                            AdaptiveText(
+                                stringResource(R.string.fluibot_stage_label, state.bot.stage.number, state.bot.stage.displayName),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        GemPill(state.gems)
                     }
-                    GemPill(state.gems)
-                }
-                XpBar(state)
-                // Un solo rayo (el ícono) y el texto centrado en una línea.
-                Button(onClick = onCelebrate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RoundedCornerShape(16.dp)) {
-                    Icon(Icons.Filled.Bolt, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    AdaptiveSingleLineText(stringResource(R.string.fluibot_recharge), style = MaterialTheme.typography.labelLarge)
+                    XpBar(state)
+                    RechargeButton(onCelebrate, Modifier.heightIn(min = 56.dp))
                 }
             }
         }
     }
 }
 
+/**
+ * Cabecera compacta del Avatar: FluiBot a la izquierda (en vivo, con sus accesorios y su escenario) y su nombre, etapa,
+ * gemas y XP a la derecha. Así el robot sigue a la vista mientras el niño recorre el carrusel de la tienda debajo.
+ */
+@Composable
+private fun CompactStage(state: FluiBotUiState, onCelebrate: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(0.46f), contentAlignment = Alignment.Center) {
+                FluiBotScene(state, onCelebrate, Modifier.fillMaxWidth().sizeIn(maxWidth = CompactSceneMaxSize).aspectRatio(1f))
+            }
+            Column(Modifier.weight(0.54f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdaptiveText(stringResource(R.string.fluibot_name), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge)
+                AdaptiveText(
+                    stringResource(R.string.fluibot_stage_label, state.bot.stage.number, state.bot.stage.displayName),
+                    Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                GemPill(state.gems)
+                XpBar(state)
+            }
+        }
+        RechargeButton(onCelebrate, Modifier.heightIn(min = 48.dp))
+    }
+}
+
+/** "⚡ Recargar Energía": un solo rayo (el ícono) y el texto centrado en una línea. */
+@Composable
+private fun RechargeButton(onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
+    Button(onClick = onCelebrate, modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+        Icon(Icons.Filled.Bolt, contentDescription = null)
+        Spacer(Modifier.width(8.dp))
+        AdaptiveSingleLineText(stringResource(R.string.fluibot_recharge), style = MaterialTheme.typography.labelLarge)
+    }
+}
+
 /** Tamaño máximo de la escena: el mismo encuadre exacto de FluiBot en cualquier teléfono. */
 private val SceneMaxSize = 260.dp
 
+/** Tope de la escena en la cabecera compacta del Avatar. */
+private val CompactSceneMaxSize = 190.dp
+
 /**
- * Escena de FluiBot con relación de aspecto FIJA (1:1) y tope de 260 dp, centrada: el robot, su fondo y sus
- * accesorios se dibujan en proporción al contenedor, así que el encuadre es idéntico en cualquier pantalla.
+ * Escena de FluiBot con relación de aspecto FIJA (1:1), centrada: el robot, su fondo y sus accesorios se dibujan en
+ * proporción al contenedor, así que el encuadre es idéntico en cualquier pantalla. [modifier] fija el tamaño.
  */
 @Composable
-private fun FluiBotScene(state: FluiBotUiState, onCelebrate: () -> Unit) {
-    BoxWithConstraints(
-        Modifier.padding(horizontal = 16.dp).fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally)
-            .sizeIn(maxWidth = SceneMaxSize, maxHeight = SceneMaxSize).aspectRatio(1f)
-            .clip(RoundedCornerShape(24.dp))
-    ) {
+private fun FluiBotScene(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier.clip(RoundedCornerShape(24.dp))) {
         FluiBotCanvas(
             stage = state.bot.stage,
             equipped = state.equipped,
@@ -195,17 +245,28 @@ private fun WorkshopMessage(message: String?) {
     }
 }
 
+/** Título y ayuda de una sección del taller, con el mensaje de la última compra debajo. */
+@Composable
+private fun ShopHeader(title: String, hint: String, message: String?) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        AdaptiveText(title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium)
+        Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        WorkshopMessage(message)
+    }
+}
+
 /**
- * Los 12 accesorios en UNA columna de tarjetas a todo el ancho: el nombre y la descripción completos (sin "..."), el
- * precio fuera del dibujo y el botón en una sola línea. Se pueden combinar varios a la vez.
+ * Los 12 accesorios en un CARRUSEL horizontal: una tarjeta compacta a la vez (las vecinas se asoman), con el nombre y la
+ * descripción completos, el precio debajo del dibujo y el botón en una sola línea. FluiBot sigue a la vista arriba y
+ * los accesorios se combinan a la vez.
  */
 @Composable
 fun AccessoriesShop(state: FluiBotUiState, onBuy: (Accessory) -> Unit, onToggle: (Accessory) -> Unit) {
-    SectionCard(stringResource(R.string.fluibot_workshop_title)) {
-        Text(stringResource(R.string.fluibot_gems_balance, state.gems), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.fluibot_workshop_hint), style = MaterialTheme.typography.bodySmall)
-        WorkshopMessage(state.message)
-        state.accessories.forEach { item -> AccessoryCard(item, state.bot.stage, onBuy, onToggle) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ShopHeader(stringResource(R.string.fluibot_workshop_title), stringResource(R.string.fluibot_workshop_hint), state.message)
+        FluiletCarousel(state.accessories, itemKey = { it.accessory.id }) { item, _ ->
+            AccessoryCard(item, state.bot.stage, onBuy, onToggle)
+        }
     }
 }
 
@@ -260,7 +321,12 @@ object ShopCatalog {
     }
 
     /** Por debajo de este ancho de tarjeta, el dibujo va arriba y los textos debajo (a todo el ancho). */
-    val StackedBelow: Dp = 280.dp
+    val StackedBelow: Dp = 220.dp
+
+    /** Ancho del dibujo: 36 % de la tarjeta, sin pasar de [ShopPreviewMax]. */
+    fun previewWidth(cardWidth: Dp): Dp = minOf(ShopPreviewMax, cardWidth * 0.36f)
+
+    val ShopPreviewMax: Dp = 104.dp
 }
 
 @Composable
@@ -272,9 +338,9 @@ private fun PriceTag.label(): String = when (this) {
 }
 
 /**
- * Tarjeta de la tienda (accesorios y escenarios) con altura 100 % dinámica: dibujo cuadrado con el precio DEBAJO (fuera
- * del recuadro), el nombre y la descripción completos al lado, y el botón a todo el ancho abajo. En tarjetas angostas
- * el dibujo pasa arriba y los textos se centran debajo.
+ * Tarjeta horizontal y compacta del carrusel de la tienda (accesorios y escenarios), con altura 100 % dinámica: a la
+ * izquierda el dibujo limpio con el precio DEBAJO (jamás encima); a la derecha el nombre y la descripción completos y el
+ * botón en una sola línea. Si la tarjeta es muy angosta (letra enorme), todo se apila centrado.
  */
 @Composable
 private fun ShopItemCard(
@@ -287,47 +353,47 @@ private fun ShopItemCard(
 ) {
     val priceText = price.label()
     Card(
-        // TalkBack lee la tarjeta de corrido (nombre, precio y descripción); el botón conserva su propio foco.
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        // Las tarjetas del carrusel van sobre el fondo de la pantalla: un tono de superficie las separa de él.
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         border = if (highlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val previewModifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(14.dp))
-                val previewWidth = minOf(ShopPreviewSize, maxWidth * 0.36f)
-                if (maxWidth >= ShopCatalog.StackedBelow) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Column(
-                            Modifier.width(previewWidth),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            preview(previewModifier)
-                            PricePill(priceText, price)
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(12.dp)) {
+            val previewModifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(14.dp))
+            val previewWidth = ShopCatalog.previewWidth(maxWidth)
+            if (maxWidth >= ShopCatalog.StackedBelow) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(
+                        Modifier.width(previewWidth),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        preview(previewModifier)
+                        PricePill(priceText, price)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // TalkBack lee nombre y descripción de corrido; el botón conserva su propio foco.
+                        Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             ShopTitle(title, TextAlign.Start)
                             ShopDescription(description, TextAlign.Start)
                         }
-                    }
-                } else {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.widthIn(max = ShopPreviewSize)) { preview(previewModifier) }
-                        PricePill(priceText, price)
-                        ShopTitle(title, TextAlign.Center)
-                        ShopDescription(description, TextAlign.Center)
+                        Spacer(Modifier.size(2.dp))
+                        action()
                     }
                 }
+            } else {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.widthIn(max = ShopCatalog.ShopPreviewMax)) { preview(previewModifier) }
+                    PricePill(priceText, price)
+                    ShopTitle(title, TextAlign.Center)
+                    ShopDescription(description, TextAlign.Center)
+                    action()
+                }
             }
-            action()
         }
     }
 }
-
-/** Tamaño del dibujo de cada artículo de la tienda. */
-private val ShopPreviewSize = 112.dp
 
 @Composable
 private fun ShopTitle(text: String, align: TextAlign) {
@@ -376,13 +442,16 @@ private fun ShopButton(text: String, enabled: Boolean = true, outlined: Boolean 
     else Button(onClick = onClick, enabled = enabled, modifier = modifier, contentPadding = padding, shape = shape, content = content)
 }
 
-/** Los 5 escenarios en la misma tarjeta de la tienda: se desbloquean con gemas y solo uno está puesto a la vez. */
+/** Los 5 escenarios en el mismo carrusel de la tienda: se desbloquean con gemas y solo uno está puesto a la vez. */
 @Composable
 fun ScenariosSection(state: FluiBotUiState, onBuy: (Scenario) -> Unit, onEquip: (Scenario) -> Unit) {
-    SectionCard(stringResource(R.string.scenarios_title)) {
-        Text(stringResource(R.string.fluibot_gems_balance, state.gems), style = MaterialTheme.typography.headlineSmall)
-        WorkshopMessage(state.message)
-        state.scenarios.forEach { item -> ScenarioCard(item, onBuy, onEquip) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ShopHeader(stringResource(R.string.scenarios_title), stringResource(R.string.scenarios_hint), state.message)
+        // Arranca en el escenario puesto para que el niño vea primero el que tiene FluiBot.
+        val equipped = state.scenarios.indexOfFirst { it.equipped }.coerceAtLeast(0)
+        FluiletCarousel(state.scenarios, initialPage = equipped, itemKey = { it.scenario.id }) { item, _ ->
+            ScenarioCard(item, onBuy, onEquip)
+        }
     }
 }
 
@@ -408,52 +477,103 @@ private fun ScenarioCard(item: ScenarioUi, onBuy: (Scenario) -> Unit, onEquip: (
     }
 }
 
-/** Las 4 etapas evolutivas: cuáles alcanzó FluiBot y cuánto XP requiere la siguiente. */
+/** Avance de FluiBot por etapas, sin Android (probado con pruebas unitarias). */
+object EvolutionTrack {
+    /** Cuánto lleva de una etapa: 1 si ya la superó, el avance dentro de la actual o el camino hacia una bloqueada. */
+    fun stageFraction(stage: FluiBotStage, currentXp: Int): Float {
+        val xp = currentXp.coerceAtLeast(0)
+        return when {
+            xp >= stage.upperXp -> 1f
+            xp >= stage.minXp -> ((xp - stage.minXp).toFloat() / (stage.upperXp - stage.minXp)).coerceIn(0f, 1f)
+            stage.minXp <= 0 -> 0f
+            else -> (xp.toFloat() / stage.minXp).coerceIn(0f, 1f)
+        }
+    }
+
+    /** Avance total del camino de evolución (0 XP = 0; tope de la última etapa = 1). */
+    fun overallFraction(currentXp: Int): Float =
+        (currentXp.coerceAtLeast(0).toFloat() / FluiBotStage.entries.last().upperXp).coerceIn(0f, 1f)
+}
+
+/**
+ * Evolución de FluiBot: barra de progreso del camino completo y un CARRUSEL por etapas ("Etapa 2 de 4") que arranca en
+ * la etapa actual. Cada tarjeta muestra a FluiBot en esa etapa, su estado y su propia barra de avance.
+ */
 @Composable
 fun EvolutionSection(state: FluiBotUiState) {
-    SectionCard(stringResource(R.string.evolution_title)) {
-        val current = state.bot.stage
-        FluiBotStage.entries.forEach { stage ->
-            val reached = state.bot.currentXp >= stage.minXp
-            val isCurrent = stage == current
-            Card(
-                modifier = Modifier.fillMaxWidth().alpha(if (reached) 1f else 0.6f).semantics(mergeDescendants = true) {
-                    contentDescription = "Etapa ${stage.number}: ${stage.displayName}. " +
-                        if (reached) "Alcanzada." else "Requiere ${stage.minXp} XP."
-                },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                border = BorderStroke(if (isCurrent) 3.dp else 1.dp, if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                // FluiBot arriba y los textos a todo el ancho debajo: nada queda apretado junto al dibujo.
-                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        FluiBotCanvas(stage = stage, equipped = emptySet(), animated = isCurrent, interactive = false, modifier = Modifier.size(76.dp))
-                        Spacer(Modifier.weight(1f))
-                        if (reached) Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        else Icon(Icons.Filled.Lock, contentDescription = null)
-                    }
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        AdaptiveText(stringResource(R.string.fluibot_stage_label, stage.number, stage.displayName), style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            when {
-                                isCurrent -> stringResource(R.string.evolution_current)
-                                reached -> stringResource(R.string.evolution_reached)
-                                else -> stringResource(R.string.evolution_requires, stage.minXp)
-                            },
-                            style = MaterialTheme.typography.labelLarge,
-                            color = if (reached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
-                        )
-                        if (isCurrent) {
-                            val next = stage.next
-                            Text(
-                                if (next != null) stringResource(R.string.evolution_missing, (next.minXp - state.bot.currentXp).coerceAtLeast(0), next.displayName)
-                                else stringResource(R.string.evolution_max),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
+    val current = state.bot.stage
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            AdaptiveText(stringResource(R.string.evolution_title), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium)
+            AdaptiveText(
+                stringResource(R.string.evolution_path, current.number, FluiBotStage.entries.size),
+                Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SpringProgressBar(
+                fraction = EvolutionTrack.overallFraction(state.bot.currentXp),
+                height = 12.dp,
+                brush = Brush.horizontalGradient(listOf(XpCyan, MaterialTheme.colorScheme.primary)),
+                modifier = Modifier.semantics { contentDescription = "Camino de evolución: etapa ${current.number} de ${FluiBotStage.entries.size}" }
+            )
+        }
+        FluiletCarousel(
+            FluiBotStage.entries,
+            initialPage = current.ordinal,
+            itemKey = { it.number },
+            counter = { page, count -> stringResource(R.string.evolution_counter, page + 1, count) }
+        ) { stage, _ -> StageCard(stage, state) }
+    }
+}
+
+@Composable
+private fun StageCard(stage: FluiBotStage, state: FluiBotUiState) {
+    val reached = state.bot.currentXp >= stage.minXp
+    val isCurrent = stage == state.bot.stage
+    val status = when {
+        isCurrent -> stringResource(R.string.evolution_current)
+        reached -> stringResource(R.string.evolution_reached)
+        else -> stringResource(R.string.evolution_requires, stage.minXp)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+            contentDescription = "Etapa ${stage.number}: ${stage.displayName}. $status."
+        },
+        shape = RoundedCornerShape(20.dp),
+        // Las tarjetas del carrusel van sobre el fondo de la pantalla: un tono de superficie las separa de él.
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(if (isCurrent) 3.dp else 1.dp, if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FluiBotCanvas(
+                    stage = stage, equipped = emptySet(), animated = isCurrent, interactive = false,
+                    modifier = Modifier.size(88.dp).clip(RoundedCornerShape(16.dp)).alpha(if (reached) 1f else 0.55f)
+                )
+                if (reached) Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                else Icon(Icons.Filled.Lock, contentDescription = null)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                AdaptiveText(stringResource(R.string.fluibot_stage_label, stage.number, stage.displayName), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall)
+                AdaptiveText(
+                    status,
+                    Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (reached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                )
+                SpringProgressBar(EvolutionTrack.stageFraction(stage, state.bot.currentXp), height = 8.dp)
+                val next = stage.next
+                Text(
+                    when {
+                        isCurrent && next != null -> stringResource(R.string.evolution_missing, (next.minXp - state.bot.currentXp).coerceAtLeast(0), next.displayName)
+                        isCurrent -> stringResource(R.string.evolution_max)
+                        reached -> stringResource(R.string.evolution_range, stage.minXp, stage.upperXp)
+                        else -> stringResource(R.string.evolution_missing, (stage.minXp - state.bot.currentXp).coerceAtLeast(0), stage.displayName)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -507,24 +627,79 @@ private fun missionProgressText(m: com.fluilet.app.domain.gamification.DailyMiss
 
 // --- Álbum -----------------------------------------------------------------------------------------
 
-/**
- * Álbum de cartas coleccionables (6 categorías), una carta grande por fila para que ningún título ni dato se parta,
- * seguido de las 5 insignias.
- */
+/** Filtro rápido del álbum. */
+enum class AlbumFilter {
+    ALL, UNLOCKED, LOCKED;
+
+    fun apply(cards: List<CollectibleCard>): List<CollectibleCard> = when (this) {
+        ALL -> cards
+        UNLOCKED -> cards.filter { it.unlocked }
+        LOCKED -> cards.filterNot { it.unlocked }
+    }
+}
+
+/** Álbum (cartas en carrusel) y, debajo, los logros en su propio carrusel: la vista del Laboratorio de Recompensas. */
 @Composable
 fun AlbumSection(cards: List<CollectibleCard>, badges: List<EducationalBadge>) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(stringResource(R.string.album_title), style = MaterialTheme.typography.titleLarge)
-            Text(
-                stringResource(R.string.album_cards_count, cards.count { it.unlocked }, cards.size),
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        AlbumCarousel(cards)
+        BadgeGallery(badges)
+    }
+}
+
+/**
+ * Álbum de cartas coleccionables: contador y barra de progreso arriba, filtro rápido ("Todas", "Desbloqueadas", "Por
+ * descubrir") y las cartas en un CARRUSEL horizontal con su ilustración, título y dato curioso completos.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AlbumCarousel(cards: List<CollectibleCard>) {
+    var filter by rememberSaveable { mutableStateOf(AlbumFilter.ALL) }
+    val unlocked = cards.count { it.unlocked }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            AdaptiveText(stringResource(R.string.album_title), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge)
+            AdaptiveText(
+                stringResource(R.string.album_cards_count, unlocked, cards.size),
+                Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            SpringProgressBar(if (cards.isEmpty()) 0f else unlocked.toFloat() / cards.size, height = 10.dp)
         }
-        cards.forEach { CollectibleCardTile(it) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            AlbumFilter.entries.forEach { option ->
+                val count = option.apply(cards).size
+                SelectableChip(
+                    selected = filter == option,
+                    onClick = { filter = option },
+                    label = {
+                        AdaptiveText(
+                            when (option) {
+                                AlbumFilter.ALL -> stringResource(R.string.album_filter_all, count)
+                                AlbumFilter.UNLOCKED -> stringResource(R.string.album_filter_unlocked, count)
+                                AlbumFilter.LOCKED -> stringResource(R.string.album_filter_locked, count)
+                            },
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                )
+            }
+        }
+        AnimatedContent(filter, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "albumFilter") { current ->
+            val list = current.apply(cards)
+            if (list.isEmpty()) {
+                Text(
+                    stringResource(if (current == AlbumFilter.UNLOCKED) R.string.album_empty_unlocked else R.string.album_empty_locked),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                )
+            } else {
+                FluiletCarousel(list, itemKey = { it.categoryCode }) { card, _ -> CollectibleCardTile(card) }
+            }
+        }
     }
-    BadgeGallery(badges)
 }
 
 /** Acabado del marco según la rareza: degradado metálico, borde, insignia y estrellas. */

@@ -83,6 +83,11 @@ import com.fluilet.app.domain.model.MasterGrant
 import com.fluilet.app.presentation.brand.FluiletBrand
 import com.fluilet.app.presentation.brand.FluiletIsotypeLogo
 import com.fluilet.app.presentation.common.ErrorMessage
+import com.fluilet.app.presentation.common.CollapsibleCard
+import com.fluilet.app.presentation.common.SelectableChip
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.fluilet.app.presentation.common.FitText
 import com.fluilet.app.presentation.common.AdaptiveSingleLineText
 import com.fluilet.app.presentation.common.AdaptiveText
@@ -102,6 +107,7 @@ fun MasterAdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var deleteProfile by remember { mutableStateOf<AdminProfile?>(null) }
     var deleteTutor by remember { mutableStateOf<AdminUser?>(null) }
+    var accountFilter by rememberSaveable { mutableStateOf(AdminAccountFilter.ALL) }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -140,29 +146,49 @@ fun MasterAdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
                         Text(stringResource(R.string.admin_no_children), style = MaterialTheme.typography.bodyMedium)
                     }
                     state.overview.profiles.forEach { p ->
-                        ProfileAdminCard(
-                            profile = p,
-                            owner = state.overview.ownerOf(p),
-                            enabled = !state.isBusy,
-                            onGrant = { grant, msg -> viewModel.grant(p.profileId, grant, msg) },
-                            onDelete = { deleteProfile = p }
-                        )
+                        key(p.profileId) {
+                            ProfileAdminCard(
+                                profile = p,
+                                owner = state.overview.ownerOf(p),
+                                enabled = !state.isBusy,
+                                onGrant = { grant, msg -> viewModel.grant(p.profileId, grant, msg) },
+                                onDelete = { deleteProfile = p }
+                            )
+                        }
                     }
                 }
                 AdminTab.TUTORS -> {
                     if (state.overview.tutors.isEmpty() && !state.isLoading) {
                         Text(stringResource(R.string.admin_no_tutors), style = MaterialTheme.typography.bodyMedium)
                     }
+                    // Filtros rápidos con contador: el maestro llega a una cuenta sin recorrer una lista gigante.
+                    val accounts = state.overview.tutors
+                    val counts = AdminAccountFilter.counts(accounts)
+                    if (accounts.isNotEmpty()) {
+                        ChoiceRow(AdminAccountFilter.entries) { option ->
+                            SelectableChip(
+                                selected = accountFilter == option,
+                                onClick = { accountFilter = option },
+                                label = { AdaptiveText("${option.label} (${counts[option] ?: 0})", style = MaterialTheme.typography.labelLarge) }
+                            )
+                        }
+                    }
                     // Toda cuenta registrada (tutor, adulto independiente o niño, con o sin perfiles) con su tipo y su correo.
-                    state.overview.tutors.forEach { u ->
-                        AccountAdminCard(
-                            user = u,
-                            profiles = state.overview.profilesOf(u.userId),
-                            enabled = !state.isBusy,
-                            onResetPin = { viewModel.resetPin(u.userId) },
-                            onManageProfiles = { viewModel.selectTab(AdminTab.CHILDREN) },
-                            onDelete = { deleteTutor = u }
-                        )
+                    val shown = accounts.filter(accountFilter::matches)
+                    if (accounts.isNotEmpty() && shown.isEmpty()) {
+                        Text(stringResource(R.string.admin_filter_empty), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    shown.forEach { u ->
+                        key(u.userId) {
+                            AccountAdminCard(
+                                user = u,
+                                profiles = state.overview.profilesOf(u.userId),
+                                enabled = !state.isBusy,
+                                onResetPin = { viewModel.resetPin(u.userId) },
+                                onManageProfiles = { viewModel.selectTab(AdminTab.CHILDREN) },
+                                onDelete = { deleteTutor = u }
+                            )
+                        }
                     }
                 }
             }
@@ -336,119 +362,112 @@ private fun <T> ChoiceRow(options: List<T>, content: @Composable (T) -> Unit) {
 @Composable
 private fun ProfileAdminCard(profile: AdminProfile, owner: AdminUser?, enabled: Boolean, onGrant: (MasterGrant, String) -> Unit, onDelete: () -> Unit) {
     var exactGems by remember(profile.profileId) { mutableStateOf("") }
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.background),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                AdminAvatar(Icons.Filled.ChildCare)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    AdaptiveText(profile.name, style = MaterialTheme.typography.titleLarge)
-                    // El correo completo de la cuenta dueña, con su tipo (tutor o la propia cuenta del adulto).
-                    AdaptiveText(
-                        owner?.let { stringResource(R.string.admin_owner_line, it.accountType.label, profile.tutorEmail) }
-                            ?: stringResource(R.string.admin_tutor_line, profile.tutorEmail),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+    // Tarjeta plegada: nombre, cuenta dueña y lo esencial; al abrirla aparecen todas las herramientas del maestro.
+    CollapsibleCard(
+        title = profile.name,
+        subtitle = owner?.let { stringResource(R.string.admin_owner_line, it.accountType.label, profile.tutorEmail) }
+            ?: stringResource(R.string.admin_tutor_line, profile.tutorEmail),
+        containerColor = MaterialTheme.colorScheme.background,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        leading = { AdminAvatar(Icons.Filled.ChildCare) },
+        header = {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 InfoPill(stringResource(R.string.admin_level_chip, profile.currentLevel), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-                InfoPill(stringResource(R.string.admin_age_chip, profile.ageGroup))
-                InfoPill(stringResource(R.string.admin_stage_pill, profile.evolutionStage, profile.evolutionTitle))
-                InfoPill("${profile.totalXp} XP")
                 InfoPill("💎 ${profile.totalGems}", FluiletBrand.Mint.copy(alpha = 0.22f))
-                InfoPill("🔥 ${profile.streakDays}")
-                InfoPill(stringResource(R.string.admin_lessons_pill, profile.completedLessons))
                 if (!profile.isActive) InfoPill(stringResource(R.string.admin_inactive), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
             }
+        },
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 18.dp)
+    ) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            InfoPill(stringResource(R.string.admin_age_chip, profile.ageGroup))
+            InfoPill(stringResource(R.string.admin_stage_pill, profile.evolutionStage, profile.evolutionTitle))
+            InfoPill("${profile.totalXp} XP")
+            InfoPill("🔥 ${profile.streakDays}")
+            InfoPill(stringResource(R.string.admin_lessons_pill, profile.completedLessons))
+        }
 
-            AdminSection(stringResource(R.string.admin_gems_section)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MasterGrant.QUICK_GEMS.forEach { amount ->
-                        OutlinedButton(
-                            onClick = { onGrant(MasterGrant.gems(amount), "+$amount 💎 otorgadas a ${profile.name}.") },
-                            enabled = enabled,
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                            contentPadding = PaddingValues(horizontal = 4.dp),
-                            shape = RoundedCornerShape(12.dp)
-                        ) { FitText("+$amount 💎", Modifier.fillMaxWidth()) }
-                    }
-                }
-                OutlinedTextField(
-                    value = exactGems,
-                    onValueChange = { exactGems = it.filter(Char::isDigit).take(9) },
-                    label = { Text(stringResource(R.string.admin_exact_gems)) },
-                    leadingIcon = { Icon(Icons.Filled.Diamond, contentDescription = null) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Button(
-                    onClick = { exactGems.toIntOrNull()?.let { onGrant(MasterGrant.exactGems(it), "Saldo de ${profile.name} fijado en $it 💎."); exactGems = "" } },
-                    enabled = enabled && exactGems.toIntOrNull() != null,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) { ButtonLabel(stringResource(R.string.admin_set_gems)) }
-            }
-
-            AdminSection(stringResource(R.string.admin_stage_section)) {
-                ChoiceRow((1..4).toList()) { stage ->
-                    ChoiceChip(profile.evolutionStage == stage, stringResource(R.string.admin_stage_chip, stage), enabled) {
-                        onGrant(MasterGrant.stage(stage), "${profile.name} ahora está en la etapa $stage.")
-                    }
-                }
-                OutlinedButton(
-                    onClick = { onGrant(MasterGrant.xp(), "+${MasterGrant.QUICK_XP} XP para ${profile.name}.") },
-                    enabled = enabled,
-                    modifier = Modifier.heightIn(min = 44.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) { ButtonLabel(stringResource(R.string.admin_add_xp)) }
-            }
-
-            AdminSection(stringResource(R.string.admin_level_section)) {
-                ChoiceRow((1..5).toList()) { level ->
-                    ChoiceChip(profile.currentLevel == level, stringResource(R.string.admin_level_chip, level), enabled) {
-                        onGrant(MasterGrant.level(level), "Nivel $level para ${profile.name}.")
-                    }
+        AdminSection(stringResource(R.string.admin_gems_section)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MasterGrant.QUICK_GEMS.forEach { amount ->
+                    OutlinedButton(
+                        onClick = { onGrant(MasterGrant.gems(amount), "+$amount 💎 otorgadas a ${profile.name}.") },
+                        enabled = enabled,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { FitText("+$amount 💎", Modifier.fillMaxWidth()) }
                 }
             }
+            OutlinedTextField(
+                value = exactGems,
+                onValueChange = { exactGems = it.filter(Char::isDigit).take(9) },
+                label = { Text(stringResource(R.string.admin_exact_gems)) },
+                leadingIcon = { Icon(Icons.Filled.Diamond, contentDescription = null) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
+                onClick = { exactGems.toIntOrNull()?.let { onGrant(MasterGrant.exactGems(it), "Saldo de ${profile.name} fijado en $it 💎."); exactGems = "" } },
+                enabled = enabled && exactGems.toIntOrNull() != null,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) { ButtonLabel(stringResource(R.string.admin_set_gems)) }
+        }
 
-            AdminSection(stringResource(R.string.admin_age_section)) {
-                ChoiceRow(MasterGrant.AGE_GROUPS) { group ->
-                    ChoiceChip(profile.ageGroup == group, stringResource(R.string.admin_age_chip, group), enabled) {
-                        onGrant(MasterGrant.ageGroup(group), "Edad didáctica $group para ${profile.name}.")
-                    }
+        AdminSection(stringResource(R.string.admin_stage_section)) {
+            ChoiceRow((1..4).toList()) { stage ->
+                ChoiceChip(profile.evolutionStage == stage, stringResource(R.string.admin_stage_chip, stage), enabled) {
+                    onGrant(MasterGrant.stage(stage), "${profile.name} ahora está en la etapa $stage.")
                 }
             }
+            OutlinedButton(
+                onClick = { onGrant(MasterGrant.xp(), "+${MasterGrant.QUICK_XP} XP para ${profile.name}.") },
+                enabled = enabled,
+                modifier = Modifier.heightIn(min = 44.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) { ButtonLabel(stringResource(R.string.admin_add_xp)) }
+        }
 
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = { onGrant(MasterGrant.unlockAll(), "Recompensas desbloqueadas para ${profile.name}.") },
-                    enabled = enabled,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Filled.Redeem, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    ButtonLabel(stringResource(R.string.admin_unlock_all))
+        AdminSection(stringResource(R.string.admin_level_section)) {
+            ChoiceRow((1..5).toList()) { level ->
+                ChoiceChip(profile.currentLevel == level, stringResource(R.string.admin_level_chip, level), enabled) {
+                    onGrant(MasterGrant.level(level), "Nivel $level para ${profile.name}.")
                 }
-                OutlinedButton(
-                    onClick = onDelete,
-                    enabled = enabled,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Icon(Icons.Filled.DeleteOutline, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    ButtonLabel(stringResource(R.string.admin_delete_child))
+            }
+        }
+
+        AdminSection(stringResource(R.string.admin_age_section)) {
+            ChoiceRow(MasterGrant.AGE_GROUPS) { group ->
+                ChoiceChip(profile.ageGroup == group, stringResource(R.string.admin_age_chip, group), enabled) {
+                    onGrant(MasterGrant.ageGroup(group), "Edad didáctica $group para ${profile.name}.")
                 }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = { onGrant(MasterGrant.unlockAll(), "Recompensas desbloqueadas para ${profile.name}.") },
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Filled.Redeem, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                ButtonLabel(stringResource(R.string.admin_unlock_all))
+            }
+            OutlinedButton(
+                onClick = onDelete,
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Icon(Icons.Filled.DeleteOutline, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                ButtonLabel(stringResource(R.string.admin_delete_child))
             }
         }
     }
@@ -470,74 +489,71 @@ private fun AccountAdminCard(
     onDelete: () -> Unit
 ) {
     val type = user.accountType
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.background),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                AdminAvatar(
-                    when (type) {
-                        AccountType.TUTOR -> Icons.Filled.SupervisorAccount
-                        AccountType.CHILD -> Icons.Filled.ChildCare
-                        else -> Icons.Filled.Person
-                    }
-                )
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    InfoPill(type.label, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-                    AdaptiveText(user.email, style = MaterialTheme.typography.titleMedium)
+    CollapsibleCard(
+        title = user.email,
+        containerColor = MaterialTheme.colorScheme.background,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        leading = {
+            AdminAvatar(
+                when (type) {
+                    AccountType.TUTOR -> Icons.Filled.SupervisorAccount
+                    AccountType.CHILD -> Icons.Filled.ChildCare
+                    else -> Icons.Filled.Person
                 }
-            }
+            )
+        },
+        header = {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                InfoPill(type.label, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
                 InfoPill(pluralStringResource(R.plurals.admin_profiles_count, profiles.size, profiles.size))
                 if (user.isActive) InfoPill(stringResource(R.string.admin_active), FluiletBrand.Mint.copy(alpha = 0.22f))
                 else InfoPill(stringResource(R.string.admin_inactive), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
             }
-            AdminSection(stringResource(R.string.admin_reading_profiles_title)) {
-                if (profiles.isEmpty()) {
-                    Text(stringResource(R.string.admin_no_reading_profile), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    profiles.forEach { p ->
-                        AdaptiveText(
-                            "📖 " + stringResource(R.string.admin_profile_line, p.name, p.currentLevel, p.totalGems),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = onManageProfiles,
-                        enabled = enabled,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(Icons.Filled.Diamond, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        ButtonLabel(stringResource(R.string.admin_manage_profiles))
-                    }
+        },
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 18.dp)
+    ) {
+        AdminSection(stringResource(R.string.admin_reading_profiles_title)) {
+            if (profiles.isEmpty()) {
+                Text(stringResource(R.string.admin_no_reading_profile), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                profiles.forEach { p ->
+                    AdaptiveText(
+                        "📖 " + stringResource(R.string.admin_profile_line, p.name, p.currentLevel, p.totalGems),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                OutlinedButton(
+                    onClick = onManageProfiles,
+                    enabled = enabled,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Filled.Diamond, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    ButtonLabel(stringResource(R.string.admin_manage_profiles))
                 }
             }
-            FilledTonalButton(
-                onClick = onResetPin,
-                enabled = enabled,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Filled.Key, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                ButtonLabel(stringResource(R.string.admin_reset_pin))
-            }
-            OutlinedButton(
-                onClick = onDelete,
-                enabled = enabled && user.canBeDeleted,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-            ) {
-                Icon(Icons.Filled.PersonRemove, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                ButtonLabel(stringResource(R.string.admin_delete_tutor))
-            }
+        }
+        FilledTonalButton(
+            onClick = onResetPin,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(Icons.Filled.Key, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            ButtonLabel(stringResource(R.string.admin_reset_pin))
+        }
+        OutlinedButton(
+            onClick = onDelete,
+            enabled = enabled && user.canBeDeleted,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+        ) {
+            Icon(Icons.Filled.PersonRemove, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            ButtonLabel(stringResource(R.string.admin_delete_tutor))
         }
     }
 }

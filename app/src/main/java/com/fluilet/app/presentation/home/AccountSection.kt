@@ -42,7 +42,7 @@ import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.MinTouchHeight
 import com.fluilet.app.presentation.common.PrivacyNoticeDialog
 import com.fluilet.app.presentation.common.SecondaryButton
-import com.fluilet.app.presentation.common.SectionCard
+import com.fluilet.app.presentation.common.CollapsibleCard
 
 /** Reglas de la confirmación de baja (sin Android, probadas con pruebas unitarias). */
 object AccountDeletion {
@@ -54,14 +54,19 @@ object AccountDeletion {
 }
 
 /**
- * 🛡️ Cuenta y privacidad (tutor y adulto independiente): el correo de la cuenta, el "Aviso de Privacidad y Uso de
- * Datos" y "Eliminar mi cuenta y datos" con una confirmación escrita, como pide la política de datos de Google Play.
+ * 🛡️ Cuenta, privacidad y eliminación de datos (tutor y adulto independiente): tarjeta desplegable, cerrada por defecto
+ * para que Inicio quede corto. Al abrirla muestra el correo de la cuenta, el "Aviso de Privacidad y Uso de Datos" y
+ * "Eliminar mi cuenta y datos" con una confirmación escrita, como pide la política de datos de Google Play.
  */
 @Composable
 internal fun AccountPrivacyCard(state: HomeUiState, onDeleteAccount: () -> Unit, onDismissError: () -> Unit) {
     var showPrivacy by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    SectionCard(stringResource(R.string.account_title)) {
+    CollapsibleCard(
+        title = stringResource(R.string.account_title),
+        subtitle = stringResource(R.string.account_subtitle),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
         if (state.email.isNotBlank()) {
             AdaptiveText(stringResource(R.string.account_email, state.email), style = MaterialTheme.typography.titleSmall)
         }

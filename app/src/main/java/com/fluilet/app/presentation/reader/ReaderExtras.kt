@@ -1,7 +1,5 @@
 package com.fluilet.app.presentation.reader
 
-import com.fluilet.app.presentation.common.DialogTitle
-import com.fluilet.app.presentation.common.DialogTextButton
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.animateFloatAsState
@@ -75,7 +73,17 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.material3.AlertDialog
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
+import com.fluilet.app.domain.text.VocabularyEntry
+import com.fluilet.app.presentation.common.AdaptiveSingleLineText
+import com.fluilet.app.presentation.common.AdaptiveText
+import com.fluilet.app.presentation.common.ChipCarousel
 import com.fluilet.app.domain.model.ReadingSettings
 import androidx.compose.runtime.getValue
 
@@ -414,45 +422,74 @@ private const val MAX_CHIP_WORDS = 6
  * "Palabras clave de esta lectura": título pequeño y TODOS los chips completos en un FlowRow que baja de renglón (nunca
  * se cortan en el borde derecho). La definición se abre en una ventanita, sin quitarle altura al texto.
  */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * "Palabras clave de esta lectura" en UNA sola fila que se desliza por páginas (ninguna palabra se corta en el borde y no
+ * le roba altura al texto). Al tocar una palabra, su tarjeta de definición se despliega suavemente justo debajo, con
+ * "Escuchar palabra"; al tocarla de nuevo (o "Cerrar") se pliega.
+ */
 @Composable
 internal fun GlossaryBar(state: ReaderUiState, vm: ReaderViewModel, modifier: Modifier = Modifier) {
     if (state.vocabulary.isEmpty()) return
+    val selected = state.selectedWord
+    // La última palabra abierta se conserva mientras la tarjeta se pliega (sin parpadeo a vacío).
+    val lastShown = remember { arrayOfNulls<VocabularyEntry>(1) }
+    if (selected != null) lastShown[0] = selected
+    // La definición nunca pasa de ~1/5 de la pantalla: el bloque de lectura conserva el protagonismo.
+    val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+    val maxDefinition = (windowHeight * 0.2f).coerceIn(DefinitionMinHeight, DefinitionMaxHeight)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(R.string.glossary_title), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
-            FlowRow(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                state.vocabulary.forEach { entry ->
-                    ToolChip(selected = entry.word == state.selectedWord?.word, onClick = { vm.selectWord(entry.word) }, label = entry.word)
+            ChipCarousel(
+                items = state.vocabulary,
+                label = { it.word },
+                isSelected = { it.word == selected?.word },
+                onClick = { vm.selectWord(it.word) },
+                title = stringResource(R.string.glossary_title),
+                minHeight = 40.dp
+            )
+        }
+        AnimatedVisibility(selected != null, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+            lastShown[0]?.let { entry ->
+                WordDefinitionCard(entry.word, entry.definition, entry.example, maxDefinition, onSpeak = { vm.speakWord(entry.word) }, onClose = vm::clearWord)
+            }
+        }
+    }
+}
+
+/** Tarjeta pedagógica de una palabra clave: palabra, definición, ejemplo y "Escuchar palabra" (se desplaza si es larga). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WordDefinitionCard(word: String, definition: String, example: String, maxHeight: Dp, onSpeak: () -> Unit, onClose: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AdaptiveText(word, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(definition, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            if (example.isNotBlank()) {
+                Text(stringResource(R.string.glossary_example, example), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSpeak, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 44.dp)) {
+                    AdaptiveSingleLineText(stringResource(R.string.glossary_listen), style = MaterialTheme.typography.labelLarge)
+                }
+                OutlinedButton(onClick = onClose, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 44.dp)) {
+                    AdaptiveSingleLineText(stringResource(R.string.glossary_close), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
     }
-    state.selectedWord?.let { WordDialog(it.word, it.definition, it.example, onSpeak = { vm.speakWord(it.word) }, onClose = vm::clearWord) }
 }
 
-/** Definición de una palabra clave en una ventanita, con "Escuchar palabra". */
-@Composable
-private fun WordDialog(word: String, definition: String, example: String, onSpeak: () -> Unit, onClose: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = { DialogTitle(word) },
-        text = {
-            Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(definition, style = MaterialTheme.typography.bodyLarge)
-                if (example.isNotBlank()) Text(stringResource(R.string.glossary_example, example), style = MaterialTheme.typography.bodyMedium)
-            }
-        },
-        confirmButton = {
-            Button(onClick = onSpeak, shape = RoundedCornerShape(14.dp)) { Text(stringResource(R.string.glossary_listen), style = MaterialTheme.typography.labelLarge) }
-        },
-        dismissButton = { DialogTextButton(stringResource(R.string.glossary_close), onClose) }
-    )
-}
+/** Límites de la tarjeta de definición: el texto de lectura conserva el protagonismo. */
+private val DefinitionMinHeight = 112.dp
+private val DefinitionMaxHeight = 200.dp
 
 /**
  * Estilo del texto de lectura: OpenDyslexic del tamaño elegido (14–28 pt) con el interlineado del perfil, que se

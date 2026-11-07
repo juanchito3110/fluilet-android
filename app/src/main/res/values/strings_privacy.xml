@@ -12,12 +12,13 @@
     <string name="privacy_protect_title">Cómo los protegemos</string>
     <string name="privacy_protect_body">Cada cuenta solo puede ver sus propios perfiles y lecturas. En el teléfono, la sesión, el PIN parental y los premios se guardan cifrados, y el texto que lees no se guarda en el dispositivo.</string>
     <string name="privacy_rights_title">Tus decisiones</string>
-    <string name="privacy_rights_body">Puedes editar o eliminar los perfiles de lectura cuando quieras. También puedes eliminar tu cuenta desde Inicio, en \"Cuenta y privacidad\", con el botón \"Eliminar mi cuenta y datos\".</string>
+    <string name="privacy_rights_body">Puedes editar o eliminar los perfiles de lectura cuando quieras. También puedes eliminar tu cuenta desde Inicio, en \"Cuenta, privacidad y eliminación de datos\", con el botón \"Eliminar mi cuenta y datos\".</string>
     <string name="privacy_close">Entendido</string>
     <string name="privacy_register_note">Al crear tu cuenta aceptas el Aviso de Privacidad y Uso de Datos de Fluilet.</string>
 
-    <!-- Cuenta y privacidad (Inicio del tutor y del adulto independiente). -->
-    <string name="account_title">🛡️ Cuenta y privacidad</string>
+    <!-- Cuenta, privacidad y eliminación de datos (Inicio del tutor y del adulto independiente). -->
+    <string name="account_title">🛡️ Cuenta, privacidad y eliminación de datos</string>
+    <string name="account_subtitle">Toca para ver el aviso de privacidad o eliminar tu cuenta.</string>
     <string name="account_email">Cuenta: %1$s</string>
     <string name="account_body">Consulta cómo cuida Fluilet tus datos o elimina tu cuenta cuando quieras.</string>
     <string name="account_delete">Eliminar mi cuenta y datos</string>
