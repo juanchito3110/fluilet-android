@@ -63,4 +63,32 @@ class LayoutAuditTest {
         assertTrue("Login y Registro muestran el aviso", "PrivacyNoticeLink()" in source("auth/AuthScreens.kt"))
         assertTrue("Inicio muestra Cuenta y privacidad", "AccountPrivacyCard(" in source("home/HomeSections.kt"))
     }
+
+    /** El aviso y la confirmación dicen exactamente lo que hace el servidor (fluilet-backend 14accd0). */
+    @Test fun privacyTextsMatchThePermanentServerDeletionAndPublicPages() {
+        val res = listOf("src/main/res/values/strings_privacy.xml", "app/src/main/res/values/strings_privacy.xml").map(::File).first { it.isFile }
+        val xml = res.readText()
+        fun string(name: String) = Regex("<string name=\"$name\"[^>]*>(.*?)</string>", RegexOption.DOT_MATCHES_ALL).find(xml)!!.groupValues[1]
+
+        assertEquals("http://67.205.150.186/privacidad", string("privacy_policy_url"))
+        assertEquals("http://67.205.150.186/eliminar-cuenta", string("privacy_delete_url"))
+        listOf("privacy_retention_body", "account_delete_body").forEach { name ->
+            val text = string(name)
+            assertTrue("$name: borrado permanente e inmediato", "permanente e inmediata" in text)
+            assertTrue("$name: del servidor y del teléfono", "del servidor y de este teléfono" in text)
+            assertTrue("$name: perfiles lectores e historial", "perfiles lectores" in text && "historial" in text)
+        }
+        assertTrue("el tutor sabe que se borran las cuentas de niño", "cuentas de niño" in string("account_delete_body_tutor"))
+        // Nada de la baja lógica anterior ("se dará de baja", "dejarán de estar disponibles").
+        listOf("dará de baja", "desactiv", "dejarán de estar disponibles").forEach { old ->
+            assertTrue("sin \"$old\" en el aviso", old !in xml)
+        }
+        // Proveedores técnicos declarados igual que en la política pública.
+        assertTrue("DigitalOcean" in string("privacy_share_body") && "Brevo" in string("privacy_share_body") && "Wikipedia" in string("privacy_share_body"))
+
+        val notice = source("common/PrivacyNotice.kt")
+        assertTrue("el aviso incluye la conservación", "R.string.privacy_retention_title" in notice)
+        assertTrue("el aviso enlaza las páginas públicas", "PrivacyPublicLinks()" in notice && "LinkAnnotation.Url" in notice)
+        assertTrue("la tarjeta de cuenta enlaza las páginas públicas", "PrivacyPublicLinks()" in source("home/AccountSection.kt"))
+    }
 }

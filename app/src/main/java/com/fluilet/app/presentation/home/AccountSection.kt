@@ -41,6 +41,7 @@ import com.fluilet.app.presentation.common.DialogTitle
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.MinTouchHeight
 import com.fluilet.app.presentation.common.PrivacyNoticeDialog
+import com.fluilet.app.presentation.common.PrivacyPublicLinks
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.CollapsibleCard
 
@@ -72,6 +73,8 @@ internal fun AccountPrivacyCard(state: HomeUiState, onDeleteAccount: () -> Unit,
         }
         Text(stringResource(R.string.account_body), style = MaterialTheme.typography.bodyMedium)
         SecondaryButton(stringResource(R.string.privacy_title), { showPrivacy = true }, icon = Icons.Filled.PrivacyTip)
+        // Las mismas páginas públicas que se registran en Google Play, por si se quiere leer o compartir desde el navegador.
+        PrivacyPublicLinks()
         OutlinedButton(
             onClick = { onDismissError(); confirmDelete = true },
             enabled = !state.deletingAccount,
