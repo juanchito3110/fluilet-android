@@ -134,7 +134,7 @@ fun MintLine(modifier: Modifier = Modifier, progress: Float = 1f, thickness: Dp 
     }
 }
 
-/** Logo completo: isotipo + "Fluilet" + "Tu ritmo, tus palabras" + línea menta. */
+/** Logo completo (centrado): isotipo + "Fluilet" + "Tu ritmo, tus palabras" + línea menta. */
 @Composable
 fun FluiletFullLogo(
     modifier: Modifier = Modifier,
@@ -142,10 +142,11 @@ fun FluiletFullLogo(
     nameSize: TextUnit = 40.sp,
     sloganSize: TextUnit = 14.sp
 ) {
+    // Isotipo y nombre centrados como un solo bloque, sea cual sea el ancho de la pantalla.
     Row(
         modifier.semantics(mergeDescendants = true) { contentDescription = "${FluiletBrand.NAME}. ${FluiletBrand.SLOGAN}" },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally)
     ) {
         FluiletIsotypeLogo(Modifier.size(isotypeSize))
         Column(Modifier.width(IntrinsicSize.Max), verticalArrangement = Arrangement.spacedBy(2.dp)) {

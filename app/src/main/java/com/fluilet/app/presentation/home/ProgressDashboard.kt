@@ -8,8 +8,9 @@ import androidx.compose.foundation.BorderStroke
 import com.fluilet.app.domain.gamification.PedagogicalSummary
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,6 +44,8 @@ import com.fluilet.app.domain.model.EducationalProgress
 import com.fluilet.app.domain.model.LessonCategory
 import com.fluilet.app.domain.model.LessonProgress
 import com.fluilet.app.domain.model.NlpLevel
+import com.fluilet.app.presentation.common.AdaptiveSingleLineText
+import com.fluilet.app.presentation.common.AdaptiveText
 import com.fluilet.app.presentation.common.SectionCard
 import com.fluilet.app.presentation.common.formatPercent
 import com.fluilet.app.presentation.common.formatReadingTime
@@ -68,7 +71,7 @@ fun ProgressDashboard(progress: EducationalProgress, note: String?, modifier: Mo
         PedagogicalCard(progress.pedagogicalSummary)
 
         SectionCard(stringResource(R.string.progress_completion_title)) {
-            DonutChartCanvas(progress.completedLessons, progress.incompleteLessons, progress.completionRatePercent)
+            DonutChartCanvas(progress.completedLessons, progress.incompleteLessons)
         }
         SectionCard(stringResource(R.string.progress_evolution_chart_title)) {
             EvolutionLineChartCanvas(progress.lessons.takeLast(MAX_CHART_LESSONS))
@@ -144,10 +147,15 @@ private fun SummaryTile(emoji: String, label: String, value: String, modifier: M
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Todo apilado y centrado: el número grande arriba y la etiqueta completa debajo (nunca a su lado).
+        Column(
+            Modifier.fillMaxWidth().padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(emoji, style = MaterialTheme.typography.headlineSmall)
-            Text(value, style = MaterialTheme.typography.titleLarge)
-            Text(label, style = MaterialTheme.typography.labelMedium)
+            AdaptiveSingleLineText(value, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge)
+            AdaptiveText(label, Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
             fraction?.let { SpringProgressBar(it, height = 8.dp) }
         }
     }
@@ -165,6 +173,7 @@ private fun LevelCard(progress: EducationalProgress) {
 
 // --- Detalle por lección -----------------------------------------------------------------------
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LessonRow(lesson: LessonProgress) {
     Card(
@@ -177,7 +186,7 @@ internal fun LessonRow(lesson: LessonProgress) {
                 stringResource(R.string.progress_lesson_header, lesson.lessonNumber, LessonCategory.displayNameFor(lesson.category), lesson.level),
                 style = MaterialTheme.typography.titleSmall
             )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 if (lesson.completed) Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                 Text(
                     if (lesson.completed) stringResource(R.string.progress_completed)
@@ -210,12 +219,8 @@ internal fun BadgeGallery(badges: List<EducationalBadge>) {
     SectionCard(stringResource(R.string.progress_badges_title)) {
         val unlocked = badges.count { it.unlocked }
         Text(stringResource(R.string.progress_badges_count, unlocked, badges.size), style = MaterialTheme.typography.bodyMedium)
-        badges.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { BadgeTile(it, Modifier.weight(1f)) }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
+        // Una insignia por fila a todo el ancho: "Explorador curioso" o "Hábito en marcha" nunca se parten.
+        badges.forEach { BadgeTile(it, Modifier.fillMaxWidth()) }
     }
 }
 
@@ -240,11 +245,13 @@ private fun BadgeTile(badge: EducationalBadge, modifier: Modifier = Modifier) {
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = container, contentColor = content)
     ) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(if (badge.unlocked) badgeIcon(badge.code) else Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(32.dp))
-            Text(badge.title, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
-            Text(badge.description, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
-            Text(state, style = MaterialTheme.typography.labelSmall)
+        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Icon(if (badge.unlocked) badgeIcon(badge.code) else Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(36.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                AdaptiveText(badge.title, style = MaterialTheme.typography.titleSmall)
+                Text(badge.description, style = MaterialTheme.typography.bodySmall)
+                Text(state, style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }

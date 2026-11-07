@@ -68,11 +68,16 @@ object ShortLesson {
         return keep(text) { words, sentences, _ -> sentences >= 1 && words >= target }
     }
 
-    /** La pregunta sigue teniendo su respuesta (y su fragmento, si lo cita) dentro de [text]. */
+    /**
+     * La pregunta sigue teniendo su respuesta (y su fragmento, si lo cita) dentro de [text]. Las respuestas redactadas
+     * del backend `adfba34` ("En el año 1883", "Un puente hecho de raíces") cuentan si sus cifras están completas y al
+     * menos 2 de cada 3 de sus palabras clave aparecen en la lectura.
+     */
     fun grounded(question: ComprehensionQuestion, text: String): Boolean {
         val haystack = " ${plain(text)} "
         val answer = plain(question.options[question.correctOptionIndex].trim().removePrefix("Dice "))
-        if (answer.isEmpty() || " $answer " !in haystack) return false
+        if (answer.isEmpty()) return false
+        if (" $answer " !in haystack) return phrasedAnswerGrounded(answer, haystack)
         // "¿qué completa esta idea: «Los equipos tienen ___ jugadores»?": el fragmento completo debe seguir ahí.
         val quoted = Regex("«([^»]*___[^»]*)»").find(question.question)?.groupValues?.get(1) ?: return true
         return " ${plain(quoted.replace("___", " $answer "))} " in haystack
@@ -185,6 +190,22 @@ object ShortLesson {
     }
 
     /** Minúsculas, solo letras y dígitos separados por un espacio (para buscar palabras y frases completas). */
+    /** Respuesta de 3 o más palabras: todas sus cifras y al menos 2 de cada 3 palabras clave (raíz de 5 letras). */
+    private fun phrasedAnswerGrounded(answer: String, haystack: String): Boolean {
+        val tokens = answer.split(' ')
+        if (tokens.size < 3) return false
+        val numbers = tokens.filter { token -> token.any(Char::isDigit) }
+        if (numbers.any { " $it " !in haystack }) return false
+        val keys = tokens.filter { it.length >= 4 && it.none(Char::isDigit) && it !in FRAMING_WORDS }
+        if (keys.isEmpty()) return numbers.isNotEmpty()
+        val found = keys.count { key -> " ${key.take(STEM)}" in haystack }
+        return found * 3 >= keys.size * 2
+    }
+
+    /** Palabras de redacción de las opciones que no aportan contenido ("Porque...", "Cuando...", "Para..."). */
+    private val FRAMING_WORDS = setOf("porque", "cuando", "para", "total", "nombre", "hecho", "hecha", "llamado", "llamada", "según", "lectura")
+    private const val STEM = 5
+
     private fun plain(text: String): String =
         text.lowercase().map { if (it.isLetterOrDigit()) it else ' ' }.joinToString("").split(' ').filter { it.isNotEmpty() }.joinToString(" ")
 }

@@ -54,11 +54,14 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.fluilet.app.domain.text.ShortLesson
 
-/** Pestañas del Laboratorio de Recompensas (siempre dentro del Modo Enfoque). */
+/**
+ * Pestañas del Laboratorio de Recompensas (siempre dentro del Modo Enfoque): una palabra corta bajo su emoji para que
+ * ninguna se parta en tres pestañas iguales ("Personalizar a FluiBot" se cortaba a media palabra).
+ */
 enum class LabTab(val emoji: String, val label: String) {
-    PREMIO("🎁", "Tu Premio"),
-    FLUIBOT("🤖", "Personalizar a FluiBot"),
-    ALBUM("🃏", "Mi Álbum");
+    PREMIO("🎁", "Premio"),
+    FLUIBOT("🤖", "FluiBot"),
+    ALBUM("🃏", "Álbum");
 
     companion object {
         val DEFAULT = PREMIO
@@ -464,6 +467,12 @@ class ReaderViewModel @Inject constructor(
     // --- Preferencias de lectura -----------------------------------------------------------
 
     fun onFontSize(v: Float) = mutate { updateSettings.fontSize(it, v) }
+
+    /** A-: letra un paso más pequeña (mínimo 14); el interlineado se escala con ella. */
+    fun fontSmaller() = onFontSize(ReadingSettings.smallerFont(local.value.settings.fontSizeSp))
+
+    /** A+: letra un paso más grande (máximo 28). */
+    fun fontLarger() = onFontSize(ReadingSettings.largerFont(local.value.settings.fontSizeSp))
     fun onLineSpacing(v: Float) = mutate { updateSettings.lineSpacing(it, v) }
     fun onLetterSpacing(v: Float) = mutate { updateSettings.letterSpacing(it, v) }
     fun onPalette(p: AccessiblePalette) = mutate { updateSettings.palette(it, p) }

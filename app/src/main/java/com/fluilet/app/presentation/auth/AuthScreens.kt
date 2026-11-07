@@ -78,7 +78,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fluilet.app.R
 import com.fluilet.app.domain.model.UserRole
+import com.fluilet.app.presentation.common.AdaptiveSingleLineText
+import com.fluilet.app.presentation.common.AdaptiveText
 import com.fluilet.app.presentation.common.ErrorMessage
+import androidx.compose.ui.unit.sp
 import com.fluilet.app.presentation.common.PrimaryButton
 
 @Composable
@@ -206,11 +209,14 @@ private fun AuthForms(
     Text(
         stringResource(R.string.auth_login_subtitle),
         style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
     )
+    // Dos pestañas de 50 % cada una; su texto va en una sola línea, centrado y ajustado (16 sp, nunca partido).
     TabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
-        Tab(selected = tab == AuthTab.LOGIN, onClick = { onTab(AuthTab.LOGIN) }, text = { Text(stringResource(R.string.auth_tab_login), style = MaterialTheme.typography.titleSmall) })
-        Tab(selected = tab == AuthTab.REGISTER, onClick = { onTab(AuthTab.REGISTER) }, text = { Text(stringResource(R.string.auth_tab_register), style = MaterialTheme.typography.titleSmall) })
+        AuthTabItem(tab == AuthTab.LOGIN, { onTab(AuthTab.LOGIN) }, stringResource(R.string.auth_tab_login))
+        AuthTabItem(tab == AuthTab.REGISTER, { onTab(AuthTab.REGISTER) }, stringResource(R.string.auth_tab_register))
     }
     AnimatedContent(
         targetState = tab,
@@ -226,6 +232,19 @@ private fun AuthForms(
             AuthTab.LOGIN -> LoginForm(loginViewModel, onForgotPassword)
             AuthTab.REGISTER -> RegisterForm(registerViewModel)
         }
+    }
+}
+
+/** Pestaña de acceso con su texto en una sola línea, centrado y ajustado entre 12 y 16 sp. */
+@Composable
+private fun AuthTabItem(selected: Boolean, onClick: () -> Unit, label: String) {
+    Tab(selected = selected, onClick = onClick, modifier = Modifier.heightIn(min = 52.dp)) {
+        AdaptiveSingleLineText(
+            label,
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 14.dp),
+            style = MaterialTheme.typography.titleSmall.copy(fontSize = 16.sp),
+            minSize = 12.sp
+        )
     }
 }
 
@@ -330,7 +349,7 @@ private fun LoginForm(viewModel: LoginViewModel, onForgotPassword: () -> Unit) {
             enabled = !state.isLoading,
             modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp)
         ) {
-            Text(stringResource(R.string.auth_forgot_password), style = MaterialTheme.typography.labelLarge)
+            AdaptiveText(stringResource(R.string.auth_forgot_password), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
         }
     }
 }
@@ -339,7 +358,12 @@ private fun LoginForm(viewModel: LoginViewModel, onForgotPassword: () -> Unit) {
 private fun RegisterForm(viewModel: RegisterViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(stringResource(R.string.auth_register_subtitle), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            stringResource(R.string.auth_register_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
         OutlinedTextField(
             value = state.fullName,
             onValueChange = viewModel::onName,
@@ -366,7 +390,12 @@ private fun RegisterForm(viewModel: RegisterViewModel) {
             supportingText = state.passwordHint ?: stringResource(R.string.auth_password_rules)
         )
 
-        Text(stringResource(R.string.auth_role_label), style = MaterialTheme.typography.titleSmall)
+        Text(
+            stringResource(R.string.auth_role_label),
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             RoleChip(UserRole.TUTOR, R.string.auth_role_tutor, state.role, viewModel::onRole)
             RoleChip(UserRole.ADULTO_INDEPENDIENTE, R.string.auth_role_adult, state.role, viewModel::onRole)
@@ -394,7 +423,7 @@ private fun RoleChip(role: UserRole, label: Int, selected: UserRole, onSelect: (
     SelectableChip(
         selected = role == selected,
         onClick = { onSelect(role) },
-        label = { Text(stringResource(label), style = MaterialTheme.typography.bodyMedium) },
+        label = { AdaptiveText(stringResource(label), Modifier.padding(vertical = 6.dp), style = MaterialTheme.typography.bodyMedium) },
         modifier = Modifier.fillMaxWidth()
     )
 }

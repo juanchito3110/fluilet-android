@@ -16,10 +16,11 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Respaldo local de "🎓 Cargar Datos Demo": el mismo escenario que siembra `POST /profiles/{id}/seed-demo`
- * (7 días consecutivos de práctica, 900 XP y gemas de sobra) más tres lecturas completas —Real Madrid,
- * Biología Marina y Agujeros Negros— con su texto original, adaptación (medida con el motor local),
- * dato curioso, glosario y mini-reto. La comprensión es SIMULADA, como la del servidor: no es una medición.
+ * Banco local de respaldo: el escenario de práctica de las cuentas de demostración (7 días, 900 XP y gemas) y tres
+ * lecturas completas —Real Madrid, Biología Marina y Agujeros Negros— más un cuento original para "Bosque Encantado",
+ * con texto original, adaptación (medida con el motor local), dato curioso, glosario y un mini-reto como el del
+ * backend `adfba34`: 3 preguntas sobre datos concretos de la lectura, 4 opciones del mismo tipo y una explicación que
+ * cita la lectura. La comprensión del historial es SIMULADA, como la del servidor: no es una medición.
  */
 object DemoData {
 
@@ -139,8 +140,24 @@ object DemoData {
                 VocabularyEntry("afición", "Las personas que animan y apoyan a su equipo.", "La afición cantó durante todo el partido.")
             ),
             questions = listOf(
-                ComprehensionQuestion("q1", "¿En qué ciudad tiene su sede el Real Madrid?", listOf("Barcelona", "Madrid", "Sevilla"), 1, "Mira la primera oración.", "El club tiene su sede en Madrid, España."),
-                ComprehensionQuestion("q2", "¿De qué color viste tradicionalmente el club?", listOf("Rojo", "Azul", "Blanco"), 2, "Piensa en el apodo «los blancos».", "El club viste de blanco y por eso lo llaman «los blancos».")
+                ComprehensionQuestion(
+                    "q1", "¿En qué año se fundó el Real Madrid según la lectura?",
+                    listOf("En el año 1902", "En el año 1912", "En el año 1892", "En el año 1952"), 0,
+                    "Busca el año en la primera parte de la lectura.",
+                    "La lectura dice que el club nació en el año 1902 y que desde entonces ganó muchos títulos."
+                ),
+                ComprehensionQuestion(
+                    "q2", "¿Cómo se llama el estadio del Real Madrid según la lectura?",
+                    listOf("Camp Nou", "Mestalla", "Santiago Bernabéu", "San Mamés"), 2,
+                    "Busca la oración que habla del estadio.",
+                    "La lectura explica que su estadio se llama Santiago Bernabéu y está en el centro de Madrid."
+                ),
+                ComprehensionQuestion(
+                    "q3", "¿Cuántos espectadores caben en su estadio según la lectura?",
+                    listOf("Más de ocho mil", "Más de ochenta mil", "Más de veinte mil", "Más de cuarenta mil"), 1,
+                    "Fíjate en la cantidad que aparece junto al estadio.",
+                    "Según la lectura, en el Santiago Bernabéu caben más de ochenta mil personas."
+                )
             ),
             simple = listOf(
                 "El Real Madrid es un club de fútbol. Su casa está en Madrid, en España. Nació en el año 1902. " +
@@ -163,8 +180,24 @@ object DemoData {
                 VocabularyEntry("especie", "Un tipo de ser vivo con características iguales.", "La ballena azul es una especie en peligro.")
             ),
             questions = listOf(
-                ComprehensionQuestion("q1", "¿Qué estudia la biología marina?", listOf("Los seres vivos del mar", "Las rocas de la montaña", "Las nubes del cielo"), 0, "Piensa en la primera oración.", "La biología marina estudia los organismos que viven en los mares y océanos."),
-                ComprehensionQuestion("q2", "¿Qué animal es el más grande que ha existido?", listOf("El tiburón blanco", "La ballena azul", "El delfín"), 1, "Busca el animal de mayor tamaño.", "Las ballenas azules son los animales más grandes que han existido en la Tierra.")
+                ComprehensionQuestion(
+                    "q1", "¿Qué estudia la biología marina según la lectura?",
+                    listOf("Los seres vivos del mar", "Las rocas de las montañas", "Los planetas del espacio", "Las plantas del desierto"), 0,
+                    "Piensa en la primera oración.",
+                    "La lectura dice que la biología marina estudia los seres vivos del mar y cómo viven juntos."
+                ),
+                ComprehensionQuestion(
+                    "q2", "¿Qué parte del planeta cubren los océanos según la lectura?",
+                    listOf("Menos de la mitad", "Solo una cuarta parte", "Casi una décima parte", "Más de dos tercios"), 3,
+                    "Busca la oración que habla de los océanos.",
+                    "Según la lectura, los océanos cubren más de dos tercios de la superficie del planeta."
+                ),
+                ComprehensionQuestion(
+                    "q3", "¿Cuál es el animal más grande que ha existido según la lectura?",
+                    listOf("El tiburón ballena", "La ballena azul", "El elefante africano", "El calamar gigante"), 1,
+                    "Busca el animal de mayor tamaño.",
+                    "La lectura explica que las ballenas azules son los animales más grandes que han vivido en la Tierra."
+                )
             ),
             simple = listOf(
                 "La biología marina es una ciencia. Estudia los seres vivos del mar. También mira cómo viven juntos " +
@@ -188,8 +221,24 @@ object DemoData {
                 VocabularyEntry("galaxia", "Un grupo enorme de estrellas, planetas y polvo que viajan juntos.", "Nuestra galaxia se llama Vía Láctea.")
             ),
             questions = listOf(
-                ComprehensionQuestion("q1", "¿Qué no puede escapar de un agujero negro?", listOf("El sonido", "La luz", "El agua"), 1, "Lee la primera oración con calma.", "Ni siquiera la luz puede escapar de un agujero negro."),
-                ComprehensionQuestion("q2", "¿Cómo se forma normalmente un agujero negro?", listOf("Cuando una estrella muy grande colapsa", "Cuando la Luna se enfría", "Cuando llueve en el espacio"), 0, "Busca qué le pasa a la estrella masiva.", "Se forma cuando una estrella muy masiva agota su combustible y colapsa.")
+                ComprehensionQuestion(
+                    "q1", "¿Cómo se llama el borde invisible de un agujero negro según la lectura?",
+                    listOf("Cinturón de asteroides", "Horizonte de sucesos", "Capa de ozono", "Línea del ecuador"), 1,
+                    "Lee la primera parte con calma.",
+                    "La lectura dice que el agujero negro tiene un borde que no se ve llamado horizonte de sucesos."
+                ),
+                ComprehensionQuestion(
+                    "q2", "¿Cómo se forma casi siempre un agujero negro según la lectura?",
+                    listOf("Cuando chocan dos lunas pequeñas", "Cuando un cometa se derrite", "Cuando una estrella muy grande colapsa", "Cuando un planeta pierde su agua"), 2,
+                    "Busca qué le pasa a la estrella.",
+                    "Según la lectura, una estrella muy grande gasta su combustible y se hunde por su propio peso."
+                ),
+                ComprehensionQuestion(
+                    "q3", "¿Cómo se llama el agujero negro del centro de la Vía Láctea según la lectura?",
+                    listOf("Sagitario A*", "Andrómeda B", "Orión C", "Centauro D"), 0,
+                    "Mira la última oración de la lectura.",
+                    "La lectura cuenta que en el centro de la Vía Láctea hay un agujero negro gigante llamado Sagitario A*."
+                )
             ),
             simple = listOf(
                 "Un agujero negro es una zona del espacio. Allí la gravedad es muy fuerte. Nada puede salir de él, " +
@@ -203,15 +252,68 @@ object DemoData {
         )
     )
 
+    /**
+     * Cuentos originales del banco local (ficción identificada como tal, como en el catálogo `topic_library` del
+     * backend `adfba34`): "Bosque Encantado" es una historia infantil coherente, nunca la reseña de una novela.
+     */
+    private val stories = listOf(
+        Entry(
+            title = "El Bosque Encantado y el puente de raíces", topic = "Bosque Encantado", category = "cuentos_aventuras", level = 1,
+            original = "En este cuento original de ficción, la exploradora Inés descubre un puente de raíces dentro de un bosque encantado. " +
+                "Un pequeño zorro llamado Bruno permanece junto al arroyo porque la corriente le impide cruzar hacia su madriguera. " +
+                "Inés solicita ayuda a la guardiana del bosque y entre ambas colocan una tabla sobre el puente para facilitar el paso del zorro. " +
+                "Después de alcanzar la otra orilla, Bruno agradece la colaboración y los tres regresan por el sendero señalado con piedras blancas. " +
+                "La aventura muestra que pedir ayuda y trabajar en equipo permite resolver dificultades sin ponerse en peligro.",
+            funFact = "Los zorros viven en madrigueras: túneles bajo la tierra donde descansan y cuidan a sus crías.",
+            vocabulary = listOf(
+                VocabularyEntry("arroyo", "Un río pequeño de agua que corre.", "El agua del arroyo estaba fría."),
+                VocabularyEntry("madriguera", "La casa de algunos animales, hecha como un túnel bajo la tierra.", "El conejo entró en su madriguera."),
+                VocabularyEntry("guardiana", "La persona que cuida y protege un lugar.", "La guardiana cuida los árboles del bosque."),
+                VocabularyEntry("sendero", "Un camino estrecho para ir a pie.", "Caminamos por el sendero del parque.")
+            ),
+            questions = listOf(
+                ComprehensionQuestion(
+                    "q1", "¿Qué descubre Inés dentro del bosque encantado según la lectura?",
+                    listOf("Un puente hecho de raíces", "Un puente hecho de hielo", "Un puente hecho de cristal", "Un puente hecho de metal"), 0,
+                    "Lee la primera oración del cuento.",
+                    "El cuento dice que Inés explora un bosque encantado y allí descubre un puente de raíces."
+                ),
+                ComprehensionQuestion(
+                    "q2", "¿Por qué Bruno no puede cruzar el arroyo según la lectura?",
+                    listOf("Porque el camino está lleno de nieve", "Porque la corriente del arroyo es fuerte", "Porque el puente está demasiado caliente", "Porque el bosque se ha quedado seco"), 1,
+                    "Busca la oración que habla del zorro Bruno.",
+                    "La lectura explica que la corriente del arroyo le impide cruzar: el agua corre con fuerza."
+                ),
+                ComprehensionQuestion(
+                    "q3", "¿Qué colocan Inés y la guardiana para ayudar a Bruno según la lectura?",
+                    listOf("Una cuerda entre las dos orillas", "Una piedra al borde del arroyo", "Una rama junto a la madriguera", "Una tabla sobre el puente"), 3,
+                    "Mira qué hacen Inés y la guardiana juntas.",
+                    "Según el cuento, Inés y la guardiana ponen una tabla sobre el puente para que Bruno pueda pasar."
+                )
+            ),
+            simple = listOf(
+                "Este cuento es inventado. Inés explora un bosque encantado. Allí descubre un puente de raíces.",
+                "El zorro Bruno está junto al arroyo. No puede cruzar porque el agua corre con fuerza. Su madriguera está al otro lado.",
+                "Inés pide ayuda a la guardiana del bosque. Las dos ponen una tabla sobre el puente. Así Bruno puede pasar.",
+                "Bruno llega a la otra orilla y da las gracias. Los tres vuelven por el sendero de piedras blancas.",
+                "La aventura enseña a pedir ayuda. El trabajo en equipo sirve para resolver problemas sin riesgos."
+            )
+        )
+    )
+
     /** Las tres lecturas demo del respaldo local (el servidor entrega seis). */
     fun lessons(): List<AdaptationResult> = entries.map { e -> lesson(e, NlpLevel.fromValue(e.level)) }
 
     /**
-     * Lección por tema SIN conexión: la lectura del banco local de esa categoría, adaptada en el dispositivo al nivel
-     * pedido (con sus 5 variantes). `null` si el banco local no tiene esa categoría.
+     * Lección por tema SIN conexión: la lectura del banco local de esa categoría (la del tema pedido si existe),
+     * adaptada en el dispositivo al nivel pedido (con sus 5 variantes). `null` si el banco local no tiene esa categoría.
      */
-    fun offlineLesson(category: String, level: NlpLevel): AdaptationResult? =
-        entries.firstOrNull { it.category == category }?.let { lesson(it, level) }
+    fun offlineLesson(category: String, level: NlpLevel, topic: String? = null): AdaptationResult? {
+        val bank = (entries + stories).filter { it.category == category }
+        val wanted = topic?.trim()?.takeIf { it.isNotEmpty() }
+        val entry = bank.firstOrNull { wanted != null && it.topic.equals(wanted, ignoreCase = true) } ?: bank.firstOrNull()
+        return entry?.let { lesson(it, level) }
+    }
 
     private fun lesson(e: Entry, level: NlpLevel): AdaptationResult =
         TextAdapter.adapt(e.title, e.original, level, glossary = e.vocabulary, aligned = e.simple).copy(

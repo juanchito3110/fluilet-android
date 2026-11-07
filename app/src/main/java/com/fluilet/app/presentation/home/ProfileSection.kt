@@ -56,6 +56,8 @@ import com.fluilet.app.domain.gamification.FluiBotStage
 import com.fluilet.app.domain.model.ChildProfile
 import com.fluilet.app.presentation.fluibot.FluiBotCanvas
 import com.fluilet.app.domain.model.NlpLevel
+import com.fluilet.app.presentation.common.AdaptiveSingleLineText
+import com.fluilet.app.presentation.common.AdaptiveText
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.FullScreenLoading
 import com.fluilet.app.presentation.common.PrimaryButton
@@ -106,7 +108,12 @@ internal fun Header(state: HomeUiState, onLogout: () -> Unit, onShowIntro: () ->
             FluiletIsotypeLogo(Modifier.size(42.dp))
             Column(Modifier.weight(1f)) {
                 Text(FluiletBrand.NAME, color = FluiletBrand.Purple, fontWeight = FontWeight.Bold, fontFamily = FontFamily.SansSerif, fontSize = 24.sp, maxLines = 1)
-                Text(FluiletBrand.SLOGAN, color = FluiletBrand.SloganPurple, fontFamily = FontFamily.SansSerif, fontSize = 13.sp, maxLines = 1)
+                AdaptiveSingleLineText(
+                    FluiletBrand.SLOGAN,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.SansSerif, fontSize = 13.sp, fontWeight = FontWeight.Normal),
+                    color = FluiletBrand.SloganPurple,
+                    textAlign = TextAlign.Start
+                )
             }
             FilledTonalIconButton(onClick = onShowIntro, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = stringResource(R.string.home_intro_action))
@@ -116,7 +123,7 @@ internal fun Header(state: HomeUiState, onLogout: () -> Unit, onShowIntro: () ->
             }
         }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
+            AdaptiveText(
                 if (state.userName.isBlank()) stringResource(R.string.home_hello_plain) else stringResource(R.string.home_hello, state.userName),
                 style = MaterialTheme.typography.headlineSmall
             )
@@ -174,7 +181,7 @@ fun NlpLevelSlider(level: NlpLevel, onCommit: (NlpLevel) -> Unit, pending: NlpLe
     val position = dragging ?: settled.value
     val shown = NlpLevel.fromValue(Math.round(position))
     Column {
-        Text(stringResource(R.string.nlp_level_title, shown.label), style = MaterialTheme.typography.titleSmall)
+        AdaptiveText(stringResource(R.string.nlp_level_title, shown.label), style = MaterialTheme.typography.titleSmall)
         Slider(
             value = position,
             onValueChange = { dragging = it },
@@ -263,7 +270,7 @@ private fun ChildCard(child: ChildProfile, summary: ChildSummary?, selected: Boo
                     )
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(child.name, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                    AdaptiveText(child.name, style = MaterialTheme.typography.titleMedium)
                     Text(
                         child.ageGroup?.let { stringResource(R.string.child_card_age_group, child.ageYears(), it) }
                             ?: stringResource(R.string.child_card_age, child.ageYears()),
@@ -302,7 +309,7 @@ private fun NewChildCard(onClick: () -> Unit) {
             Box(Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
-            Text(stringResource(R.string.home_new_child), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+            AdaptiveText(stringResource(R.string.home_new_child), Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
         }
     }
 }

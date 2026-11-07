@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,8 +75,9 @@ fun SecondaryButton(
     }
 }
 
+/** Ícono y etiqueta centrados; la etiqueta se ajusta (hasta 2 renglones) sin partir palabras. */
 @Composable
-private fun ButtonContent(text: String, loading: Boolean, icon: ImageVector?) {
+private fun RowScope.ButtonContent(text: String, loading: Boolean, icon: ImageVector?) {
     if (loading) {
         CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
     } else {
@@ -83,7 +85,7 @@ private fun ButtonContent(text: String, loading: Boolean, icon: ImageVector?) {
             Icon(icon, contentDescription = null)
             Spacer(Modifier.width(8.dp))
         }
-        Text(text, style = MaterialTheme.typography.labelLarge)
+        ButtonLabel(text)
     }
 }
 
@@ -97,7 +99,7 @@ fun ErrorMessage(message: String?, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
     }
 }
 
@@ -113,7 +115,7 @@ fun SectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            AdaptiveText(title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, maxLines = 3)
             content()
         }
     }

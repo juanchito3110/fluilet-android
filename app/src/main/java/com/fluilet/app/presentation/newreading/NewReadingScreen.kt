@@ -55,7 +55,14 @@ import com.fluilet.app.domain.model.LessonCategory
 import com.fluilet.app.domain.model.LessonRequest
 import com.fluilet.app.domain.model.TopicSuggestions
 import com.fluilet.app.domain.text.Szigriszt
+import com.fluilet.app.presentation.common.AdaptiveText
 import com.fluilet.app.presentation.common.ErrorMessage
+import com.fluilet.app.presentation.theme.SafeLineHeight
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.TextOverflow
 import com.fluilet.app.presentation.common.PrimaryButton
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.SectionCard
@@ -98,12 +105,14 @@ fun NewReadingContent(
         if (result == null) {
             InputSection(state, viewModel, onPick = { picker.launch(arrayOf("text/plain", "application/pdf")) })
             ErrorMessage(state.errorMessage)
+            // Botón completo, centrado y con aire abajo: nunca queda cortado por el borde de la tarjeta.
             PrimaryButton(
                 text = stringResource(if (state.mode == InputMode.GENERATE) R.string.newreading_generate else R.string.newreading_adapt),
                 onClick = viewModel::adapt,
                 enabled = state.canAdapt,
                 loading = state.isAdapting,
-                icon = Icons.Filled.AutoFixHigh
+                icon = Icons.Filled.AutoFixHigh,
+                modifier = Modifier.heightIn(min = 54.dp).padding(top = 4.dp, bottom = 12.dp)
             )
         } else {
             ResultSection(result)
@@ -142,21 +151,25 @@ private fun PinSetupHost(show: Boolean, onDone: () -> Unit, onDismiss: () -> Uni
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InputSection(state: NewReadingUiState, vm: NewReadingViewModel, onPick: () -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         SelectableChip(
             selected = state.mode == InputMode.PASTE,
             onClick = { vm.onMode(InputMode.PASTE) },
-            label = { Text(stringResource(R.string.newreading_mode_paste), style = MaterialTheme.typography.labelLarge) }
+            label = { AdaptiveText(stringResource(R.string.newreading_mode_paste), style = MaterialTheme.typography.labelLarge) }
         )
         SelectableChip(
             selected = state.mode == InputMode.FILE,
             onClick = { vm.onMode(InputMode.FILE) },
-            label = { Text(stringResource(R.string.newreading_mode_file), style = MaterialTheme.typography.labelLarge) }
+            label = { AdaptiveText(stringResource(R.string.newreading_mode_file), style = MaterialTheme.typography.labelLarge) }
         )
         SelectableChip(
             selected = state.mode == InputMode.GENERATE,
             onClick = { vm.onMode(InputMode.GENERATE) },
-            label = { Text(stringResource(R.string.newreading_mode_generate), style = MaterialTheme.typography.labelLarge) }
+            label = { AdaptiveText(stringResource(R.string.newreading_mode_generate), style = MaterialTheme.typography.labelLarge) }
         )
     }
 
@@ -189,37 +202,71 @@ private fun InputSection(state: NewReadingUiState, vm: NewReadingViewModel, onPi
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LessonGeneratorFields(state: NewReadingUiState, vm: NewReadingViewModel) {
-    Text(stringResource(R.string.newreading_category_title), style = MaterialTheme.typography.titleSmall)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Text(
+        stringResource(R.string.newreading_category_title),
+        style = MaterialTheme.typography.titleSmall,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         LessonCategory.entries.forEach { category ->
             SelectableChip(
                 selected = category == state.category,
                 onClick = { vm.onCategory(category) },
                 leadingIcon = { Icon(categoryIcon(category), contentDescription = null, modifier = Modifier.size(18.dp)) },
-                label = { Text(category.displayName, style = MaterialTheme.typography.labelLarge) }
+                label = { AdaptiveText(category.displayName, style = MaterialTheme.typography.labelLarge) }
             )
         }
     }
     state.category?.let { category ->
-        Text(stringResource(R.string.newreading_suggestions_title), style = MaterialTheme.typography.titleSmall)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(R.string.newreading_suggestions_title),
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        // Temas sugeridos centrados y con aire vertical: nunca tocan el título del campo de abajo.
+        FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             TopicSuggestions.forCategory(category).forEach { suggestion ->
                 SelectableChip(
                     selected = state.topic.equals(suggestion, ignoreCase = true),
                     onClick = { vm.onSuggestion(suggestion) },
-                    label = { Text(suggestion, style = MaterialTheme.typography.labelLarge) }
+                    label = { AdaptiveText(suggestion, style = MaterialTheme.typography.labelLarge) }
                 )
             }
         }
     }
-    OutlinedTextField(
-        value = state.topic,
-        onValueChange = vm::onTopic,
-        label = { Text(stringResource(R.string.newreading_topic_label)) },
-        supportingText = { Text("${state.topic.length}/${LessonRequest.MAX_TOPIC_LENGTH}") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
+    // La pregunta va como título propio ARRIBA del campo (ya no como etiqueta de 3 renglones dentro de él).
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Text(
+            stringResource(R.string.newreading_topic_label),
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = state.topic,
+            onValueChange = vm::onTopic,
+            placeholder = { Text(stringResource(R.string.newreading_topic_placeholder), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            supportingText = {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.newreading_topic_optional), modifier = Modifier.weight(1f))
+                    Text("${state.topic.length}/${LessonRequest.MAX_TOPIC_LENGTH}")
+                }
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
     NlpLevelSlider(state.level, vm::onLevel)
 }
 
@@ -250,26 +297,46 @@ private fun ResultSection(result: AdaptationResult) {
         MetricRow(R.string.newreading_m_blocks, result.chunks.size.toString())
     }
     SectionCard(stringResource(R.string.newreading_preview_title)) {
-        result.chunks.take(2).forEach { chunk ->
-            Text(
-                chunk.text,
-                modifier = Modifier.fillMaxWidth(),
-                style = TextStyle(
-                    fontFamily = OpenDyslexicFontFamily,
-                    fontSize = 18.sp,
-                    lineHeight = 30.sp,
-                    color = MaterialTheme.colorScheme.onSurface
+        // Sin alturas fijas y con aire arriba y abajo: ningún renglón queda rebanado.
+        Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            result.chunks.take(2).forEach { chunk ->
+                Text(
+                    chunk.text,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = TextStyle(
+                        fontFamily = OpenDyslexicFontFamily,
+                        fontSize = 18.sp,
+                        lineHeight = 30.sp,
+                        lineHeightStyle = SafeLineHeight,
+                        hyphens = Hyphens.None,
+                        lineBreak = LineBreak.Paragraph,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 )
-            )
+            }
         }
     }
 }
 
+/**
+ * Métrica en una fila de ancho completo: la etiqueta ocupa todo el espacio libre (15 sp, sin partir palabras:
+ * "Oraciones", "Bloques de lectura") y el número va a la derecha. Un valor largo baja a su propio renglón.
+ */
 @Composable
 private fun MetricRow(label: Int, value: String) {
-    // La etiqueta y el valor se reparten el ancho: con tipografía grande el valor baja de línea en vez de pegarse a la etiqueta.
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-        Text(stringResource(label), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.4f))
-        Text(value, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.End, modifier = Modifier.weight(0.6f))
+    val labelStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp)
+    if (value.length > SHORT_VALUE) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            AdaptiveText(stringResource(label), Modifier.fillMaxWidth(), style = labelStyle)
+            Text(value, style = MaterialTheme.typography.titleSmall, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
+        }
+    } else {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            AdaptiveText(stringResource(label), Modifier.weight(1f), style = labelStyle)
+            Text(value, style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false)
+        }
     }
 }
+
+/** Valores de hasta este largo caben a la derecha de su etiqueta ("333", "+12.4", "120 → 86"). */
+private const val SHORT_VALUE = 12

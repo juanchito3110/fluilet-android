@@ -180,7 +180,8 @@ class DemoModeTest {
             assertTrue("${l.title}: adaptado", l.chunks.isNotEmpty())
             assertTrue("${l.title}: dato curioso", !l.funFact.isNullOrBlank())
             assertTrue("${l.title}: glosario", l.keyVocabulary.size >= 3)
-            assertEquals("${l.title}: mini-reto", 2, l.questions.size)
+            assertEquals("${l.title}: mini-reto", 3, l.questions.size)
+            assertTrue("${l.title}: 4 opciones", l.questions.all { it.options.size == 4 })
             assertNotNull(l.category)
             assertTrue(l.questions.all { it.hint != null && it.explanation != null })
         }

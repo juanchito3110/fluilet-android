@@ -430,6 +430,30 @@ class ReaderViewModelTest {
         assertNull(repo.progress.last().second.comprehension)
     }
 
+    // --- Tamaño de letra: A- / A+ de 14 a 28 pt ------------------------------------------------
+
+    @Test fun fontButtonsShrinkAndGrowTheTextBetween14And28() = readerTest {
+        val vm = viewModel(childId = null)
+        val probe = observe(vm)
+        vm.start()
+        assertEquals("por defecto 18 pt", 18f, probe.state().settings.fontSizeSp, 0.0001f)
+
+        vm.fontSmaller()
+        assertEquals(16f, probe.state().settings.fontSizeSp, 0.0001f)
+        repeat(10) { vm.fontSmaller() }
+        assertEquals("nunca baja de 14", 14f, probe.state().settings.fontSizeSp, 0.0001f)
+
+        repeat(20) { vm.fontLarger() }
+        assertEquals("nunca sube de 28", 28f, probe.state().settings.fontSizeSp, 0.0001f)
+
+        // El deslizador del engrane también acepta toda la escala (antes se bloqueaba en 22).
+        vm.onFontSize(14f)
+        assertEquals(14f, probe.state().settings.fontSizeSp, 0.0001f)
+        val style = com.fluilet.app.presentation.reader.readingTextStyle(probe.state().settings, androidx.compose.ui.graphics.Color.Black)
+        assertEquals(14f, style.fontSize.value, 0.0001f)
+        assertEquals("el interlineado se escala con la letra", 14f * probe.state().settings.lineSpacing, style.lineHeight.value, 0.001f)
+    }
+
     // --- Velocidad de voz --------------------------------------------------------------------
 
     @Test fun defaultSpeedIsNormalAndIsReported() = readerTest {
@@ -784,7 +808,7 @@ class ReaderViewModelTest {
         val vm = viewModel(childId = "child-1", adaptation = richAdaptation())
         val probe = observe(vm)
         vm.start()
-        assertEquals(listOf("🎁 Tu Premio", "🤖 Personalizar a FluiBot", "🃏 Mi Álbum"), com.fluilet.app.presentation.reader.LabTab.entries.map { "${it.emoji} ${it.label}" })
+        assertEquals(listOf("🎁 Premio", "🤖 FluiBot", "🃏 Álbum"), com.fluilet.app.presentation.reader.LabTab.entries.map { "${it.emoji} ${it.label}" })
         assertEquals(com.fluilet.app.presentation.reader.LabTab.PREMIO, probe.state().labTab)
 
         vm.selectLabTab(com.fluilet.app.presentation.reader.LabTab.FLUIBOT)

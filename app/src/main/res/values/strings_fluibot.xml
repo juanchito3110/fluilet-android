@@ -1,13 +1,12 @@
 <resources>
     <string name="fluibot_stage_label">Etapa %1$d: %2$s</string>
-    <string name="fluibot_recharge">⚡ Recargar Energía</string>
+    <string name="fluibot_recharge">Recargar Energía</string>
     <string name="fluibot_workshop_title">Taller de FluiBot</string>
     <string name="fluibot_gems_balance">Tienes %1$d 💎</string>
     <string name="fluibot_workshop_hint">Compra con un toque y combina todos los accesorios que quieras. Se ven en FluiBot al instante.</string>
     <string name="fluibot_buy">Comprar · %1$d 💎</string>
     <string name="fluibot_not_enough">Aún no te alcanzan las gemas</string>
     <string name="fluibot_equip">Equipar</string>
-    <string name="fluibot_equipped_remove">Equipado · Quitar</string>
     <string name="album_title">Álbum de cartas coleccionables</string>
     <string name="album_cards_count">%1$d de %2$d cartas desbloqueadas</string>
     <string name="album_locked">Bloqueada</string>
@@ -15,7 +14,9 @@
     <string name="album_fun_fact_title">Dato curioso educativo</string>
     <string name="album_locked_hint">Completa una lección de esta categoría para desbloquear la carta.</string>
     <string name="fluibot_name">FluiBot</string>
-    <string name="fluibot_live_preview">Vista previa en vivo · tócalo</string>
+    <string name="fluibot_live_preview">Vista previa · tócalo</string>
+    <string name="fluibot_owned">✓ Tuyo</string>
+    <string name="fluibot_price">%1$d 💎</string>
     <string name="fluibot_buy_short">Comprar</string>
     <string name="fluibot_not_enough_short">Faltan 💎</string>
     <string name="fluibot_remove">Quitar</string>

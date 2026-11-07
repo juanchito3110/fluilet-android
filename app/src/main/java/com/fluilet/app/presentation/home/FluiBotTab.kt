@@ -3,9 +3,8 @@ package com.fluilet.app.presentation.home
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
+import com.fluilet.app.presentation.common.IconLabelTab
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -38,17 +37,14 @@ internal fun FluiBotTab(
     var selected by rememberSaveable { mutableIntStateOf(0) }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         FluiBotStageCard(bot, onCelebrate)
+        // Emoji arriba y palabra completa debajo: "Accesorios", "Escenarios" y "Evolución" nunca se cortan.
         TabRow(selectedTabIndex = selected, containerColor = MaterialTheme.colorScheme.background) {
             listOf(
-                stringResource(R.string.bot_tab_accessories, Accessory.entries.size),
-                stringResource(R.string.bot_tab_scenarios, Scenario.entries.size),
-                stringResource(R.string.bot_tab_evolution, com.fluilet.app.domain.gamification.FluiBotStage.entries.size)
-            ).forEachIndexed { index, label ->
-                Tab(
-                    selected = selected == index,
-                    onClick = { selected = index },
-                    text = { Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 2) }
-                )
+                "🛍️" to stringResource(R.string.bot_tab_accessories),
+                "🌌" to stringResource(R.string.bot_tab_scenarios),
+                "🚀" to stringResource(R.string.bot_tab_evolution)
+            ).forEachIndexed { index, (emoji, label) ->
+                IconLabelTab(selected = selected == index, onClick = { selected = index }, emoji = emoji, label = label)
             }
         }
         when (BotSubTab.entries[selected]) {

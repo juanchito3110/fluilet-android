@@ -20,14 +20,12 @@ import com.fluilet.app.domain.usecase.IsTutorPinConfiguredUseCase
 import com.fluilet.app.domain.usecase.LogoutUseCase
 import com.fluilet.app.domain.usecase.SetNlpLevelUseCase
 import com.fluilet.app.domain.usecase.ClaimDailyMissionUseCase
-import com.fluilet.app.domain.usecase.SeedDemoDataUseCase
 import com.fluilet.app.domain.usecase.FetchAdaptationUseCase
 import com.fluilet.app.domain.usecase.GetChildLibraryUseCase
 import com.fluilet.app.domain.usecase.GetModelAuditUseCase
 import com.fluilet.app.domain.model.LibraryItem
 import com.fluilet.app.domain.model.ModelAudit
 import com.fluilet.app.domain.demo.DemoChildren
-import com.fluilet.app.domain.demo.DemoData
 import com.fluilet.app.domain.gamification.FluiBotStage
 import com.fluilet.app.domain.usecase.DemoAccounts
 import kotlinx.coroutines.async
@@ -71,10 +69,8 @@ data class HomeUiState(
     val activeReading: ActiveReading? = null,
     val pinConfigured: Boolean = false,
     val errorMessage: String? = null,
-    /** Lecturas de "🎓 Cargar Datos Demo" del perfil seleccionado (solo en RAM). */
+    /** Lecturas completas que el servidor entrega con el avance del perfil (solo en RAM). */
     val demoLessons: List<AdaptationResult> = emptyList(),
-    val isDemoLoading: Boolean = false,
-    val demoNote: String? = null,
     /** Etapa de FluiBot y gemas por niño (id del perfil) para las tarjetas del selector. */
     val childSummaries: Map<String, ChildSummary> = emptyMap(),
     /** Los datos mostrados son el respaldo local de la demostración (el servidor no respondió). */
@@ -109,12 +105,6 @@ private data class HomeLocal(
     val selectedTab: HomeTab = HomeTab.DEFAULT,
     val pinConfigured: Boolean = false,
     val errorMessage: String? = null,
-    /** Perfil dueño de los datos demo cargados y su contenido (RAM): sobrevive a `refresh()` si el servidor no los tiene. */
-    val demoOwner: String? = null,
-    val demoProgress: EducationalProgress? = null,
-    val demoLessons: List<AdaptationResult> = emptyList(),
-    val isDemoLoading: Boolean = false,
-    val demoNote: String? = null,
     val childSummaries: Map<String, ChildSummary> = emptyMap(),
     /** Id del perfil al que pertenece `progress` (para refrescar su tarjeta sin parpadeos). */
     val progressOwner: String? = null,
@@ -139,7 +129,6 @@ class HomeViewModel @Inject constructor(
     private val isPinConfigured: IsTutorPinConfiguredUseCase,
     private val logoutUseCase: LogoutUseCase,
     private val readingHolder: ActiveReadingHolder,
-    private val seedDemo: SeedDemoDataUseCase,
     private val claimDailyMission: ClaimDailyMissionUseCase,
     private val getLibrary: GetChildLibraryUseCase,
     private val fetchAdaptation: FetchAdaptationUseCase,
@@ -162,9 +151,7 @@ class HomeViewModel @Inject constructor(
             activeReading = reading,
             pinConfigured = l.pinConfigured,
             errorMessage = l.errorMessage,
-            demoLessons = if (l.demoOwner != null && l.demoOwner == ownerOf(l, session)) l.demoLessons else emptyList(),
-            isDemoLoading = l.isDemoLoading,
-            demoNote = l.demoNote,
+            demoLessons = l.progress.demoLessons,
             childSummaries = withSelectedSummary(l),
             offlineDemo = l.offlineDemo,
             library = if (l.libraryOwner != null && l.libraryOwner == l.selectedChildId) l.library else emptyList(),
@@ -247,11 +234,7 @@ class HomeViewModel @Inject constructor(
         }
         getProgress(child?.id, baseline)
             .onSuccess { progress ->
-                local.update { l ->
-                    // Si el servidor aún no tiene los datos demo (respaldo local), se conservan mientras sean más completos.
-                    val demo = l.demoProgress?.takeIf { l.demoOwner == (child?.id ?: ADULT_DEMO_OWNER) && progress.lessons.size < it.lessons.size }
-                    l.copy(progress = demo ?: progress, progressNote = null, progressOwner = child?.id ?: ADULT_DEMO_OWNER)
-                }
+                local.update { l -> l.copy(progress = progress, progressNote = null, progressOwner = child?.id ?: ADULT_OWNER) }
             }
             .onFailure {
                 if (child != null && DemoChildren.isDemoId(child.id)) {
@@ -388,48 +371,9 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // --- Datos demo y misiones del servidor ---------------------------------------------------
-
-    /**
-     * "🎓 Cargar Datos Demo": aplica de inmediato el respaldo local (7 días, 620 💎 + 95 de misiones, 900 XP y tres
-     * lecturas) y, si es un tutor con perfil, pide al backend `POST /profiles/{id}/seed-demo` y lo reemplaza
-     * por el resultado real (seis lecturas retenidas). Sin conexión se queda con el respaldo local.
-     */
-    fun loadDemoData(today: java.time.LocalDate = java.time.LocalDate.now()) {
-        val current = uiState.value
-        if (current.isDemoLoading) return
-        val child = current.selectedChild
-        if (current.isTutor && child == null) {
-            local.update { it.copy(errorMessage = "Crea un perfil de niño para cargar los datos demo.") }
-            return
-        }
-        val owner = child?.id ?: ADULT_DEMO_OWNER
-        val fallback = DemoData.progress(today)
-        local.update {
-            it.copy(
-                progress = fallback, progressNote = null, errorMessage = null, progressOwner = owner,
-                demoOwner = owner, demoProgress = fallback, demoLessons = fallback.demoLessons,
-                demoNote = "Datos demo locales cargados.", isDemoLoading = child != null
-            )
-        }
-        if (child == null) return
-        viewModelScope.launch {
-            seedDemo(child.id)
-                .onSuccess { server ->
-                    local.update { l ->
-                        if (l.demoOwner != owner) l.copy(isDemoLoading = false)
-                        else l.copy(
-                            progress = server, demoProgress = server, progressOwner = owner,
-                            demoLessons = server.demoLessons.ifEmpty { l.demoLessons },
-                            demoNote = "Datos demo cargados desde el servidor.", isDemoLoading = false
-                        )
-                    }
-                }
-                .onFailure {
-                    local.update { it.copy(isDemoLoading = false, demoNote = "Datos demo locales (sin conexión con el servidor).") }
-                }
-        }
-    }
+    // --- Lecturas de ejemplo y misiones del servidor ------------------------------------------
+    // "Cargar Datos Demo" ya no existe en Inicio ni en el Panel del Tutor: un usuario nuevo no puede llenarse de gemas
+    // y XP por accidente. Las cuentas de demostración solo se restauran desde el Panel de Administración Maestro.
 
     /** Deja una lectura demo en RAM, con las preferencias del perfil, lista para el lector. */
     fun openDemoLesson(lesson: AdaptationResult) {
@@ -475,10 +419,8 @@ class HomeViewModel @Inject constructor(
 
     fun consumeError() = local.update { it.copy(errorMessage = null) }
 
-    private fun ownerOf(l: HomeLocal, session: SessionState): String? =
-        if ((session as? SessionState.LoggedIn)?.role?.canManageChildren == false) ADULT_DEMO_OWNER else l.selectedChildId
-
     private companion object {
-        const val ADULT_DEMO_OWNER = "adult"
+        /** Dueño del avance cuando el lector es el propio adulto independiente. */
+        const val ADULT_OWNER = "adult"
     }
 }

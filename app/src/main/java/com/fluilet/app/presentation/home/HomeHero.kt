@@ -2,6 +2,7 @@ package com.fluilet.app.presentation.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -23,7 +24,9 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import com.fluilet.app.presentation.common.AdaptiveText
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fluilet.app.R
 import com.fluilet.app.presentation.brand.FluiletBrand
@@ -40,6 +43,7 @@ import com.fluilet.app.presentation.fluibot.XpBar
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun HomeHeroCard(state: HomeUiState, bot: FluiBotUiState, onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
+    val botState = bot
     val name = if (state.isTutor) state.selectedChild?.name else state.userName.substringBefore(' ').takeIf { it.isNotBlank() }
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -56,30 +60,48 @@ internal fun HomeHeroCard(state: HomeUiState, bot: FluiBotUiState, onCelebrate: 
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FluiBotCanvas(
-                    stage = bot.bot.stage,
-                    equipped = bot.equipped,
-                    celebrationTick = bot.celebrationTick,
-                    onTap = onCelebrate,
-                    mood = FluiBotMood.HAPPY,
-                    modifier = Modifier.size(104.dp)
-                )
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        if (name == null) stringResource(R.string.home_hero_hello_plain) else stringResource(R.string.home_hero_hello, name),
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        stringResource(R.string.home_hero_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            val greeting = if (name == null) stringResource(R.string.home_hero_hello_plain) else stringResource(R.string.home_hero_hello, name)
+            val subtitle = stringResource(R.string.home_hero_subtitle)
+            // En pantallas angostas FluiBot va arriba y el saludo debajo, centrado y a todo el ancho: el texto nunca
+            // queda apretado en una columna estrecha junto al robot.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val robot: @Composable (Dp) -> Unit = { size ->
+                    FluiBotCanvas(
+                        stage = botState.bot.stage,
+                        equipped = botState.equipped,
+                        celebrationTick = botState.celebrationTick,
+                        onTap = onCelebrate,
+                        mood = FluiBotMood.HAPPY,
+                        modifier = Modifier.size(size)
                     )
                 }
+                if (maxWidth >= WIDE_HERO) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        robot(104.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            AdaptiveText(greeting, style = MaterialTheme.typography.titleLarge)
+                            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } else {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        robot(96.dp)
+                        AdaptiveText(greeting, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+                        Text(
+                            subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 val days = pluralStringResource(R.plurals.home_hero_streak, bot.streakDays, bot.streakDays)
                 StatChip("💎", bot.gems, "${bot.gems} gemas")
                 StatChip("🔥", bot.streakDays, "Racha de $days")
@@ -89,6 +111,9 @@ internal fun HomeHeroCard(state: HomeUiState, bot: FluiBotUiState, onCelebrate: 
         }
     }
 }
+
+/** Ancho desde el que FluiBot y el saludo caben lado a lado (el texto conserva al menos 160 dp). */
+private val WIDE_HERO = 300.dp
 
 @Composable
 private fun StatChip(emoji: String, value: Int, description: String) {

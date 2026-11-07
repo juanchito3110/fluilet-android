@@ -8,8 +8,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.fluilet.app.R
 
@@ -22,14 +22,28 @@ val OpenDyslexicFontFamily = FontFamily(
 )
 
 /**
+ * Renglones con aire completo arriba y abajo: OpenDyslexic tiene trazos altos y profundos, y el recorte por defecto
+ * (`Trim.Both`) los dejaba "rebanados" en tarjetas y áreas desplazables. Cada renglón mide al menos lo que la fuente
+ * necesita (`Mode.Minimum`).
+ */
+val SafeLineHeight = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None, LineHeightStyle.Mode.Minimum)
+
+/** Espaciado entre letras: 0 en textos y títulos; ligeramente compacto en etiquetas, botones y pestañas. */
+object LetterSpacing {
+    val TEXT: TextUnit = 0.sp
+    val LABEL: TextUnit = (-0.2).sp
+}
+
+/**
  * Ninguna palabra se parte con guion ni por sílabas ([Hyphens.None]); los títulos reparten sus renglones de forma
- * equilibrada ([LineBreak.Heading]) y los párrafos usan el corte de párrafo, pensado para lectura.
+ * equilibrada ([LineBreak.Heading]) y los párrafos usan el corte de párrafo, pensado para lectura. OpenDyslexic es
+ * ancha: sin espaciado extra entre letras para que las palabras no se ensanchen artificialmente.
  */
 private fun style(
     size: Int,
     line: Int,
     weight: FontWeight = FontWeight.Normal,
-    spacing: TextUnit = 0.02.em,
+    spacing: TextUnit = LetterSpacing.TEXT,
     lineBreak: LineBreak = LineBreak.Paragraph
 ) = TextStyle(
     fontFamily = OpenDyslexicFontFamily,
@@ -38,13 +52,14 @@ private fun style(
     lineHeight = line.sp,
     letterSpacing = spacing,
     lineBreak = lineBreak,
-    hyphens = Hyphens.None
+    hyphens = Hyphens.None,
+    lineHeightStyle = SafeLineHeight
 )
 
-private fun heading(size: Int, line: Int) = style(size, line, FontWeight.Bold, 0.01.em, LineBreak.Heading)
+private fun heading(size: Int, line: Int) = style(size, line, FontWeight.Bold, LetterSpacing.TEXT, LineBreak.Heading)
 
-/** Etiquetas (botones, insignias, pestañas): sin espaciado extra para que quepan completas. */
-private fun label(size: Int, line: Int) = style(size, line, FontWeight.Bold, 0.em, LineBreak.Heading)
+/** Etiquetas (botones, insignias, pestañas): compactas para que quepan completas. */
+private fun label(size: Int, line: Int) = style(size, line, FontWeight.Bold, LetterSpacing.LABEL, LineBreak.Heading)
 
 /** Toda la escala M3 usa OpenDyslexic con interlineado holgado; jerarquía clara entre títulos, texto y etiquetas. */
 fun fluiletTypography(): Typography = Typography(

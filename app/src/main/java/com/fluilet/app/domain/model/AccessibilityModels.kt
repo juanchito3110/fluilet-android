@@ -112,7 +112,10 @@ data class ReadingSettings(
     companion object {
         const val MIN_FONT_SIZE = 14f
         const val MAX_FONT_SIZE = 28f
-        const val DEFAULT_FONT_SIZE = 20f
+        /** 18 pt: cómodo en teléfonos compactos; se puede bajar hasta 14 o subir hasta 28 con A- / A+. */
+        const val DEFAULT_FONT_SIZE = 18f
+        /** Cuánto cambia la letra cada toque de A- o A+. */
+        const val FONT_STEP = 2f
         const val MIN_LINE_SPACING = 1.5f
         const val MAX_LINE_SPACING = 2.5f
         const val DEFAULT_LINE_SPACING = 1.8f
@@ -123,6 +126,12 @@ data class ReadingSettings(
         const val MAX_SPEECH_RATE = 1.5f
         /** Ritmo "Normal" (1.0x); coincide con `tts_speed_used` por defecto del backend. */
         const val DEFAULT_SPEECH_RATE = 1.0f
+
+        /** Letra un paso más pequeña (A-), nunca por debajo de [MIN_FONT_SIZE]. */
+        fun smallerFont(current: Float): Float = (current - FONT_STEP).coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
+
+        /** Letra un paso más grande (A+), nunca por encima de [MAX_FONT_SIZE]. */
+        fun largerFont(current: Float): Float = (current + FONT_STEP).coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
 
         /** Construye ajustando cada valor a su rango: nunca confiamos en el valor crudo de la UI. */
         fun coerced(

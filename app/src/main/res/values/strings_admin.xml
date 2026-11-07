@@ -10,6 +10,7 @@
     <string name="admin_no_tutors">Aún no hay cuentas registradas.</string>
     <string name="admin_inactive">Inactivo</string>
     <string name="admin_tutor_line">Cuenta responsable: %1$s</string>
+    <string name="admin_owner_line">%1$s: %2$s</string>
     <string name="admin_gems_section">Entregar gemas</string>
     <string name="admin_exact_gems">Cantidad exacta</string>
     <string name="admin_set_gems">Fijar saldo de gemas</string>
@@ -23,17 +24,24 @@
     <string name="admin_delete_child">Dar de baja al lector</string>
     <string name="admin_delete_child_title">¿Dar de baja a %1$s?</string>
     <string name="admin_delete_child_body">Se elimina el perfil con sus sesiones, ajustes y cuenta vinculada. No se puede deshacer.</string>
-    <string name="admin_children_count">%1$d perfiles lectores</string>
     <string name="admin_reset_pin">Restablecer PIN a 1234</string>
     <string name="admin_delete_tutor">Dar de baja la cuenta</string>
     <string name="admin_delete_tutor_title">¿Dar de baja a %1$s?</string>
-    <string name="admin_delete_tutor_body">Se elimina la cuenta y sus %1$d perfiles lectores en cascada. No se puede deshacer.</string>
+    <string name="admin_delete_tutor_body">Se elimina la cuenta junto con todos sus perfiles lectores (%1$d) en cascada. No se puede deshacer.</string>
     <string name="admin_delete_confirm">Dar de baja</string>
     <string name="admin_title">Panel de Administración</string>
     <string name="admin_subtitle">Gestión de cuentas y accesos</string>
     <string name="admin_age_section">Edad didáctica</string>
     <string name="admin_stage_pill">Etapa %1$d · %2$s</string>
     <string name="admin_lessons_pill">📚 %1$d lecciones</string>
-    <string name="admin_account_role">Cuenta de tutor</string>
     <string name="admin_active">Activo</string>
+    <string name="admin_reading_profiles_title">Perfil lector</string>
+    <string name="admin_no_reading_profile">Esta cuenta aún no tiene un perfil lector. Aparecerá aquí en cuanto empiece a leer.</string>
+    <string name="admin_profile_line">%1$s · Nivel %2$d · %3$d 💎</string>
+    <string name="admin_manage_profiles">Gestionar perfil lector y gemas</string>
+    <plurals name="admin_profiles_count">
+        <item quantity="one">%1$d perfil lector</item>
+        <item quantity="many">%1$d perfiles lectores</item>
+        <item quantity="other">%1$d perfiles lectores</item>
+    </plurals>
 </resources>

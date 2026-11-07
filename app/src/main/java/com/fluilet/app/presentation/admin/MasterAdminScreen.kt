@@ -86,6 +86,13 @@ import com.fluilet.app.presentation.brand.FluiletBrand
 import com.fluilet.app.presentation.brand.FluiletIsotypeLogo
 import com.fluilet.app.presentation.common.ErrorMessage
 import com.fluilet.app.presentation.common.FitText
+import com.fluilet.app.presentation.common.AdaptiveSingleLineText
+import com.fluilet.app.presentation.common.AdaptiveText
+import com.fluilet.app.presentation.common.ButtonLabel
+import com.fluilet.app.domain.model.AccountType
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.style.TextAlign
 
 /**
  * Panel de Administración de la cuenta maestra (`admin@fluilet.com`): encabezado institucional, indicadores globales y
@@ -137,6 +144,7 @@ fun MasterAdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
                     state.overview.profiles.forEach { p ->
                         ProfileAdminCard(
                             profile = p,
+                            owner = state.overview.ownerOf(p),
                             enabled = !state.isBusy,
                             onGrant = { grant, msg -> viewModel.grant(p.profileId, grant, msg) },
                             onDelete = { deleteProfile = p }
@@ -147,8 +155,16 @@ fun MasterAdminScreen(viewModel: AdminViewModel = hiltViewModel()) {
                     if (state.overview.tutors.isEmpty() && !state.isLoading) {
                         Text(stringResource(R.string.admin_no_tutors), style = MaterialTheme.typography.bodyMedium)
                     }
+                    // Toda cuenta registrada (tutor, adulto independiente o niño, con o sin perfiles) con su tipo y su correo.
                     state.overview.tutors.forEach { u ->
-                        TutorAdminCard(u, enabled = !state.isBusy, onResetPin = { viewModel.resetPin(u.userId) }, onDelete = { deleteTutor = u })
+                        AccountAdminCard(
+                            user = u,
+                            profiles = state.overview.profilesOf(u.userId),
+                            enabled = !state.isBusy,
+                            onResetPin = { viewModel.resetPin(u.userId) },
+                            onManageProfiles = { viewModel.selectTab(AdminTab.CHILDREN) },
+                            onDelete = { deleteTutor = u }
+                        )
                     }
                 }
             }
@@ -218,7 +234,7 @@ private fun AdminHeader(busy: Boolean, onRestore: () -> Unit, onLogout: () -> Un
         ) {
             Icon(Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.admin_restore), style = MaterialTheme.typography.labelLarge)
+            ButtonLabel(stringResource(R.string.admin_restore))
         }
     }
 }
@@ -246,10 +262,21 @@ private fun KpiTile(emoji: String, label: String, value: String, modifier: Modif
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // Número grande arriba y su etiqueta completa debajo, centrados (nunca uno al lado del otro).
+        Column(
+            Modifier.fillMaxWidth().padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(emoji, style = MaterialTheme.typography.titleLarge)
-            Text(value, style = MaterialTheme.typography.headlineMedium)
-            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AdaptiveSingleLineText(value, Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineMedium)
+            AdaptiveText(
+                label,
+                Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -266,7 +293,7 @@ private fun AdminAvatar(icon: ImageVector) {
 @Composable
 private fun InfoPill(text: String, background: Color = MaterialTheme.colorScheme.surfaceVariant, content: Color = MaterialTheme.colorScheme.onSurface) {
     Box(Modifier.clip(RoundedCornerShape(50)).background(background).padding(horizontal = 10.dp, vertical = 5.dp)) {
-        Text(text, style = MaterialTheme.typography.labelMedium, color = content, maxLines = 1, softWrap = false)
+        AdaptiveSingleLineText(text, style = MaterialTheme.typography.labelMedium, color = content)
     }
 }
 
@@ -308,7 +335,7 @@ private fun <T> ChoiceRow(options: List<T>, content: @Composable (T) -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ProfileAdminCard(profile: AdminProfile, enabled: Boolean, onGrant: (MasterGrant, String) -> Unit, onDelete: () -> Unit) {
+private fun ProfileAdminCard(profile: AdminProfile, owner: AdminUser?, enabled: Boolean, onGrant: (MasterGrant, String) -> Unit, onDelete: () -> Unit) {
     var exactGems by remember(profile.profileId) { mutableStateOf("") }
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -320,8 +347,15 @@ private fun ProfileAdminCard(profile: AdminProfile, enabled: Boolean, onGrant: (
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 AdminAvatar(Icons.Filled.ChildCare)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(profile.name, style = MaterialTheme.typography.titleLarge)
-                    Text(stringResource(R.string.admin_tutor_line, profile.tutorEmail), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AdaptiveText(profile.name, style = MaterialTheme.typography.titleLarge)
+                    // El correo completo de la cuenta dueña, con su tipo (tutor o la propia cuenta del adulto).
+                    AdaptiveText(
+                        owner?.let { stringResource(R.string.admin_owner_line, it.accountType.label, profile.tutorEmail) }
+                            ?: stringResource(R.string.admin_tutor_line, profile.tutorEmail),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3
+                    )
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -362,7 +396,7 @@ private fun ProfileAdminCard(profile: AdminProfile, enabled: Boolean, onGrant: (
                     enabled = enabled && exactGems.toIntOrNull() != null,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     shape = RoundedCornerShape(14.dp)
-                ) { Text(stringResource(R.string.admin_set_gems), style = MaterialTheme.typography.labelLarge) }
+                ) { ButtonLabel(stringResource(R.string.admin_set_gems)) }
             }
 
             AdminSection(stringResource(R.string.admin_stage_section)) {
@@ -376,7 +410,7 @@ private fun ProfileAdminCard(profile: AdminProfile, enabled: Boolean, onGrant: (
                     enabled = enabled,
                     modifier = Modifier.heightIn(min = 44.dp),
                     shape = RoundedCornerShape(12.dp)
-                ) { Text(stringResource(R.string.admin_add_xp), style = MaterialTheme.typography.labelLarge) }
+                ) { ButtonLabel(stringResource(R.string.admin_add_xp)) }
             }
 
             AdminSection(stringResource(R.string.admin_level_section)) {
@@ -404,7 +438,7 @@ private fun ProfileAdminCard(profile: AdminProfile, enabled: Boolean, onGrant: (
                 ) {
                     Icon(Icons.Filled.Redeem, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.admin_unlock_all), style = MaterialTheme.typography.labelLarge)
+                    ButtonLabel(stringResource(R.string.admin_unlock_all))
                 }
                 OutlinedButton(
                     onClick = onDelete,
@@ -415,16 +449,29 @@ private fun ProfileAdminCard(profile: AdminProfile, enabled: Boolean, onGrant: (
                 ) {
                     Icon(Icons.Filled.DeleteOutline, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.admin_delete_child), style = MaterialTheme.typography.labelLarge)
+                    ButtonLabel(stringResource(R.string.admin_delete_child))
                 }
             }
         }
     }
 }
 
+/**
+ * Una cuenta registrada: etiqueta clara de su tipo (tutor, adulto independiente o niño), su correo completo, sus
+ * perfiles lectores (también cuando tiene 0) y todas las acciones del maestro: restablecer PIN, gestionar el perfil y
+ * sus gemas, y dar de baja. Ningún texto se corta: el correo se ajusta y los botones bajan de línea sin partir palabras.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TutorAdminCard(user: AdminUser, enabled: Boolean, onResetPin: () -> Unit, onDelete: () -> Unit) {
+private fun AccountAdminCard(
+    user: AdminUser,
+    profiles: List<AdminProfile>,
+    enabled: Boolean,
+    onResetPin: () -> Unit,
+    onManageProfiles: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val type = user.accountType
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -433,16 +480,45 @@ private fun TutorAdminCard(user: AdminUser, enabled: Boolean, onResetPin: () -> 
     ) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                AdminAvatar(Icons.Filled.SupervisorAccount)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(stringResource(R.string.admin_account_role), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Text(user.email, style = MaterialTheme.typography.titleMedium)
+                AdminAvatar(
+                    when (type) {
+                        AccountType.TUTOR -> Icons.Filled.SupervisorAccount
+                        AccountType.CHILD -> Icons.Filled.ChildCare
+                        else -> Icons.Filled.Person
+                    }
+                )
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    InfoPill(type.label, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                    AdaptiveText(user.email, style = MaterialTheme.typography.titleMedium, maxLines = 2)
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                InfoPill(stringResource(R.string.admin_children_count, user.profilesCount))
+                InfoPill(pluralStringResource(R.plurals.admin_profiles_count, profiles.size, profiles.size))
                 if (user.isActive) InfoPill(stringResource(R.string.admin_active), FluiletBrand.Mint.copy(alpha = 0.22f))
                 else InfoPill(stringResource(R.string.admin_inactive), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+            }
+            AdminSection(stringResource(R.string.admin_reading_profiles_title)) {
+                if (profiles.isEmpty()) {
+                    Text(stringResource(R.string.admin_no_reading_profile), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    profiles.forEach { p ->
+                        AdaptiveText(
+                            "📖 " + stringResource(R.string.admin_profile_line, p.name, p.currentLevel, p.totalGems),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 3
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onManageProfiles,
+                        enabled = enabled,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Filled.Diamond, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        ButtonLabel(stringResource(R.string.admin_manage_profiles))
+                    }
+                }
             }
             FilledTonalButton(
                 onClick = onResetPin,
@@ -452,7 +528,7 @@ private fun TutorAdminCard(user: AdminUser, enabled: Boolean, onResetPin: () -> 
             ) {
                 Icon(Icons.Filled.Key, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.admin_reset_pin), style = MaterialTheme.typography.labelLarge)
+                ButtonLabel(stringResource(R.string.admin_reset_pin))
             }
             OutlinedButton(
                 onClick = onDelete,
@@ -463,7 +539,7 @@ private fun TutorAdminCard(user: AdminUser, enabled: Boolean, onResetPin: () -> 
             ) {
                 Icon(Icons.Filled.PersonRemove, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.admin_delete_tutor), style = MaterialTheme.typography.labelLarge)
+                ButtonLabel(stringResource(R.string.admin_delete_tutor))
             }
         }
     }

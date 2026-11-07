@@ -12,8 +12,34 @@ data class AdminUser(
 ) {
     val isTutor: Boolean get() = !isMasterAdmin && role.equals("TUTOR", ignoreCase = true)
 
+    /** Tipo de cuenta para la etiqueta del panel (tutor, adulto independiente, niño...). */
+    val accountType: AccountType get() = AccountType.of(role, isMasterAdmin)
+
     /** La cuenta maestra protegida nunca se puede dar de baja (el backend responde 400). */
     val canBeDeleted: Boolean get() = !isMasterAdmin
+}
+
+/** Tipo de cuenta tal como se muestra en el Panel de Administración, derivado del rol que envía el backend. */
+enum class AccountType(val label: String) {
+    TUTOR("Tutor"),
+    INDEPENDENT_ADULT("Adulto independiente"),
+    CHILD("Cuenta de niño"),
+    MASTER("Cuenta maestra"),
+    OTHER("Cuenta registrada");
+
+    companion object {
+        fun of(role: String, isMasterAdmin: Boolean = false): AccountType {
+            if (isMasterAdmin) return MASTER
+            val r = role.trim().uppercase()
+            return when {
+                r == "TUTOR" -> TUTOR
+                r.startsWith("ADULTO") || r.contains("INDEPENDIENTE") || r == "ADULT" -> INDEPENDENT_ADULT
+                r == "NINO" || r == "NIÑO" || r == "CHILD" -> CHILD
+                r.contains("MASTER") -> MASTER
+                else -> OTHER
+            }
+        }
+    }
 }
 
 /** Perfil lector infantil o independiente, con sus saldos reales incluidos. */
@@ -49,6 +75,12 @@ data class AdminOverview(
 ) {
     /** Nombre conservado para la pantalla existente; incluye todas las cuentas administrables. */
     val tutors: List<AdminUser> get() = users.filter { !it.isMasterAdmin }
+
+    /** Perfiles lectores que pertenecen a la cuenta [userId] (los de un tutor o el propio de un adulto independiente). */
+    fun profilesOf(userId: String): List<AdminProfile> = profiles.filter { it.tutorId == userId }
+
+    /** Cuenta dueña de un perfil lector, si el servidor la incluyó en la lista. */
+    fun ownerOf(profile: AdminProfile): AdminUser? = users.firstOrNull { it.userId == profile.tutorId }
 
     companion object {
         val EMPTY = AdminOverview(0, 0, 0, 0, 0.0, emptyList(), emptyList())

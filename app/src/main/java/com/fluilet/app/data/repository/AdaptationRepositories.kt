@@ -111,8 +111,8 @@ class LocalAdaptationRepository @Inject constructor() : AdaptationRepository {
     /** Sin servidor solo hay lecciones de las categorías del banco local de respaldo. */
     override suspend fun generate(request: LessonRequest, childId: String?): Result<AdaptationResult> =
         withContext(Dispatchers.Default) {
-            DemoData.offlineLesson(request.category.code, request.level)?.let { Result.success(it) }
-                ?: Result.failure(AppError.Unsupported("Sin conexión solo hay lecciones de Deportes, Animales y Naturaleza, y Ciencia y Espacio."))
+            DemoData.offlineLesson(request.category.code, request.level, request.cleanTopic)?.let { Result.success(it) }
+                ?: Result.failure(AppError.Unsupported("Sin conexión solo hay lecciones de Deportes, Animales y Naturaleza, Ciencia y Espacio, y Cuentos y Aventuras."))
         }
 
     private companion object {

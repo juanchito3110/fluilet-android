@@ -67,6 +67,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import java.util.Locale
 import com.fluilet.app.presentation.common.SelectableChip
 import com.fluilet.app.presentation.theme.OpenDyslexicFontFamily
+import com.fluilet.app.presentation.theme.SafeLineHeight
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.lazy.LazyRow
@@ -444,17 +447,20 @@ private fun WordDialog(word: String, definition: String, example: String, onSpea
     )
 }
 
-/** Estilo del texto de lectura: OpenDyslexic grande (nunca menor de [READER_MIN_FONT_SP]) con el interlineado del perfil. */
+/**
+ * Estilo del texto de lectura: OpenDyslexic del tamaño elegido (14–28 pt) con el interlineado del perfil, que se
+ * escala con la letra. Renglones con aire completo arriba y abajo y sin partir palabras.
+ */
 internal fun readingTextStyle(settings: ReadingSettings, color: Color): TextStyle {
-    val size = settings.fontSizeSp.coerceAtLeast(READER_MIN_FONT_SP)
+    val size = settings.fontSizeSp.coerceIn(ReadingSettings.MIN_FONT_SIZE, ReadingSettings.MAX_FONT_SIZE)
     return TextStyle(
         fontFamily = OpenDyslexicFontFamily,
         fontSize = size.sp,
         lineHeight = (size * settings.lineSpacing).sp,
         letterSpacing = settings.letterSpacingEm.em,
+        lineHeightStyle = SafeLineHeight,
+        hyphens = Hyphens.None,
+        lineBreak = LineBreak.Paragraph,
         color = color
     )
 }
-
-/** Tamaño mínimo de la letra de lectura: el párrafo es el protagonista de la pantalla. */
-internal const val READER_MIN_FONT_SP = 22f

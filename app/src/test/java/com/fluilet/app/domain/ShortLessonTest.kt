@@ -181,6 +181,15 @@ class ShortLessonTest {
         assertFalse("palabra suelta dentro de otra", ShortLesson.grounded(q("¿Qué palabra aparece?", "equipo", "río"), lesson))
     }
 
+    @Test fun phrasedAnswersOfTheNewQuizzesAreRecognizedInTheText() {
+        val lesson = "La novela se publicó como libro en 1883. Inés descubre un puente de raíces en el bosque."
+        fun q(question: String, vararg options: String) = ComprehensionQuestion("q", question, options.toList(), 0)
+        assertTrue("año redactado", ShortLesson.grounded(q("¿En qué año se publicó según la lectura?", "En el año 1883", "En el año 1873"), lesson))
+        assertFalse("año que no está", ShortLesson.grounded(q("¿En qué año se publicó según la lectura?", "En el año 1873", "En el año 1883"), lesson))
+        assertTrue("hecho redactado", ShortLesson.grounded(q("¿Qué descubre Inés según la lectura?", "Un puente hecho de raíces", "Un puente hecho de hielo"), lesson))
+        assertFalse("distractor", ShortLesson.grounded(q("¿Qué descubre Inés según la lectura?", "Un puente hecho de hielo", "Un puente hecho de raíces"), lesson))
+    }
+
     @Test fun theDetailFetchedLaterIsCutLikeTheLessonBeingRead() {
         val full = baseball(level = 1)
         val short = ShortLesson.shorten(full, AgeGroup.SIX_TO_EIGHT)

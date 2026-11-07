@@ -7,6 +7,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,7 +44,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fluilet.app.domain.model.LessonProgress
-import com.fluilet.app.presentation.common.formatExactPercent
+import com.fluilet.app.domain.progress.CompletionStats
+import com.fluilet.app.presentation.common.AdaptiveText
 import kotlin.math.max
 import kotlin.math.min
 
@@ -65,32 +68,33 @@ private fun DrawScope.centeredText(measurer: TextMeasurer, text: String, center:
 // --- Gráfica 1: anillo de cumplimiento ---------------------------------------------------------------
 
 /**
- * Anillo animado con extremos redondeados y el porcentaje exacto de cumplimiento en el centro.
- * La leyenda distingue Lecciones Completadas (100 %) de las que siguen En progreso.
+ * Anillo animado con extremos redondeados y el porcentaje de lecciones completadas en el centro. El anillo va centrado
+ * ARRIBA y las leyendas DEBAJO, cada una en una fila de ancho completo (etiqueta a la izquierda; valor y porcentaje a la
+ * derecha): ninguna etiqueta queda apretada junto a la gráfica.
  */
 @Composable
 fun DonutChartCanvas(
     completed: Int,
     inProgress: Int,
-    completionPercent: Double,
     modifier: Modifier = Modifier
 ) {
-    val anim = rememberChartProgress(Triple(completed, inProgress, completionPercent))
+    val stats = CompletionStats(completed, inProgress)
+    val anim = rememberChartProgress(stats)
     val track = MaterialTheme.colorScheme.outlineVariant
     val done = MaterialTheme.colorScheme.primary
     val pending = MaterialTheme.colorScheme.outline
     val measurer = rememberTextMeasurer()
     val textColor = MaterialTheme.colorScheme.onSurface
-    val label = formatExactPercent(completionPercent)
-    val total = completed + inProgress
+    val label = "${stats.completedPercent}%"
+    val total = stats.total
 
-    Row(
+    Column(
         modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Canvas(
-            Modifier.size(150.dp).semantics { contentDescription = "Cumplimiento de lecciones: $label, $completed completadas y $inProgress en progreso" }
+            Modifier.size(160.dp).semantics { contentDescription = "Lecciones completadas: $label, $completed completadas y $inProgress en progreso" }
         ) {
             val stroke = size.minDimension * 0.15f
             val inset = stroke / 2f
@@ -106,21 +110,20 @@ fun DonutChartCanvas(
             }
             centeredText(measurer, label, center, TextStyle(fontSize = (size.minDimension * 0.17f).toSp(), color = textColor))
         }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            LegendItem(done, "Lecciones Completadas (100%)", completed)
-            LegendItem(pending, "En progreso", inProgress)
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LegendRow(done, "Lecciones completadas", completed, stats.completedPercent)
+            LegendRow(pending, "En progreso", inProgress, stats.inProgressPercent)
         }
     }
 }
 
+/** Leyenda a todo el ancho: color y etiqueta completa a la izquierda; cantidad y porcentaje a la derecha. */
 @Composable
-private fun LegendItem(color: Color, label: String, count: Int) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)).background(color))
-        Column {
-            Text(label, style = MaterialTheme.typography.labelMedium)
-            Text("$count", style = MaterialTheme.typography.titleMedium)
-        }
+private fun LegendRow(color: Color, label: String, count: Int, percent: Int) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(16.dp).clip(RoundedCornerShape(4.dp)).background(color))
+        AdaptiveText(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Text("$count ($percent%)", style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false)
     }
 }
 
@@ -200,6 +203,7 @@ fun EvolutionLineChartCanvas(lessons: List<LessonProgress>, modifier: Modifier =
 // --- Gráfica 3: barras comparativas de accesibilidad textual -----------------------------------------------
 
 /** Barras pareadas por lección: legibilidad Szigriszt-Pazos del texto Original frente al Adaptado. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReadabilityBarChartCanvas(lessons: List<LessonProgress>, modifier: Modifier = Modifier) {
     val data = lessons.filter { it.originalScore != null || it.adaptedScore != null }
@@ -246,7 +250,7 @@ fun ReadabilityBarChartCanvas(lessons: List<LessonProgress>, modifier: Modifier 
                 centeredText(measurer, "L${lesson.lessonNumber}", Offset(cx, bottom + 12.dp.toPx()), labelStyle)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             ChartLegend(originalColor, "Texto original")
             ChartLegend(adaptedColor, "Texto adaptado")
         }

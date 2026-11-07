@@ -98,26 +98,27 @@ fun HomeScreen(
                 FullScreenLoading()
                 return@Box
             }
-            Column(
-                Modifier.safeDrawingPadding().verticalScroll(rememberScrollState())
-                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
-            ) {
-                if (state.selectedTab == HomeTab.INICIO) Header(state, onLogout = viewModel::logout, onShowIntro = onShowIntro)
-                ErrorMessage(state.errorMessage)
-                if (state.offlineDemo) Text(stringResource(R.string.child_offline_demo), style = MaterialTheme.typography.bodySmall)
-
-                // Cambio de apartado con un fundido y un leve deslizamiento.
-                AnimatedContent(
-                    targetState = state.selectedTab,
-                    transitionSpec = {
-                        val forward = targetState.ordinal > initialState.ordinal
-                        (fadeIn(tween(280)) + slideInHorizontally(tween(280)) { if (forward) it / 10 else -it / 10 })
-                            .togetherWith(fadeOut(tween(160)))
-                            .using(SizeTransform(clip = false))
-                    },
-                    label = "homeTab"
-                ) { tab ->
+            // Cambio de apartado con un fundido y un leve deslizamiento. Cada apartado tiene SU PROPIO desplazamiento y
+            // abre desde arriba: antes compartían uno y, al cambiar de pestaña, el encabezado aparecía cortado.
+            AnimatedContent(
+                targetState = state.selectedTab,
+                transitionSpec = {
+                    val forward = targetState.ordinal > initialState.ordinal
+                    (fadeIn(tween(280)) + slideInHorizontally(tween(280)) { if (forward) it / 10 else -it / 10 })
+                        .togetherWith(fadeOut(tween(160)))
+                        .using(SizeTransform(clip = false))
+                },
+                label = "homeTab"
+            ) { tab ->
+                Column(
+                    Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
+                        // Margen inferior generoso: ninguna tarjeta queda mordida por la barra de navegación.
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    if (tab == HomeTab.INICIO) Header(state, onLogout = viewModel::logout, onShowIntro = onShowIntro)
+                    ErrorMessage(state.errorMessage)
+                    if (state.offlineDemo) Text(stringResource(R.string.child_offline_demo), style = MaterialTheme.typography.bodySmall)
                     when (tab) {
                         HomeTab.INICIO -> InicioTab(
                             state = state,
@@ -128,7 +129,6 @@ fun HomeScreen(
                             onDeleteChild = { confirmDelete = it },
                             onNlpLevel = viewModel::requestNlpLevel,
                             onPin = { pinDialog = if (state.pinConfigured) PinDialog.CHANGE else PinDialog.SETUP },
-                            onLoadDemo = viewModel::loadDemoData,
                             onCelebrate = botViewModel::celebrate,
                             onStartReading = startReading,
                             currentEquipped = bot.equipped,
@@ -138,7 +138,6 @@ fun HomeScreen(
                             state = state,
                             onSelect = viewModel::select,
                             onStartReading = startReading,
-                            onLoadDemo = viewModel::loadDemoData,
                             onGoAdapt = { viewModel.selectTab(HomeTab.ADAPTAR) },
                             onOpenDemoLesson = { lesson ->
                                 viewModel.openDemoLesson(lesson)

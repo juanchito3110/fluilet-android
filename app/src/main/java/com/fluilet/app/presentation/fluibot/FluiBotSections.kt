@@ -54,7 +54,17 @@ import com.fluilet.app.domain.gamification.Scenario
 import com.fluilet.app.domain.gamification.CollectibleCard
 import com.fluilet.app.domain.model.EducationalBadge
 import com.fluilet.app.domain.model.LessonCategory
+import com.fluilet.app.presentation.common.AdaptiveSingleLineText
+import com.fluilet.app.presentation.common.AdaptiveText
 import com.fluilet.app.presentation.common.AnimatedCounter
+import com.fluilet.app.presentation.common.ButtonLabel
+import com.fluilet.app.presentation.brand.FluiletBrand
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.unit.sp
 import com.fluilet.app.presentation.common.CelebrationBurst
 import com.fluilet.app.presentation.common.SectionCard
 import com.fluilet.app.presentation.common.SpringProgressBar
@@ -67,24 +77,30 @@ import androidx.compose.ui.text.style.LineBreak
 import com.fluilet.app.presentation.common.CategoryArtwork
 
 private val XpCyan = Color(0xFF22D3EE)
+private val FluiletMint = FluiletBrand.Mint
 
 /** Barra de XP con física de resorte: `current_xp / next_stage_xp`. */
 @Composable
 fun XpBar(state: FluiBotUiState, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // "0 / 150 XP" completo y centrado ARRIBA de la barra, con aire propio: nunca queda cortado por un borde.
+    Column(
+        modifier.fillMaxWidth().padding(top = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        AdaptiveSingleLineText(state.bot.label, Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge)
         SpringProgressBar(
             fraction = state.bot.fraction,
             height = 14.dp,
             brush = Brush.horizontalGradient(listOf(XpCyan, MaterialTheme.colorScheme.primary)),
             modifier = Modifier.semantics { contentDescription = "Experiencia de FluiBot: ${state.bot.label}" }
         )
-        Text(state.bot.label, style = MaterialTheme.typography.labelMedium)
     }
 }
 
 /**
  * Cabecera de 🤖 Mi FluiBot y de la Tienda/Armario: vista previa en vivo del robot en su escenario (salta y celebra
- * al tocarlo, al comprar y al equipar), su nombre y etapa, gemas animadas, XP con resorte y "⚡ Recargar Energía".
+ * al tocarlo, al comprar y al equipar), su nombre y etapa, gemas animadas, XP con resorte y "Recargar Energía".
  */
 @Composable
 fun FluiBotStageCard(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
@@ -93,30 +109,20 @@ fun FluiBotStageCard(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: M
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))) {
-                FluiBotCanvas(
-                    stage = state.bot.stage,
-                    equipped = state.equipped,
-                    celebrationTick = state.celebrationTick,
-                    onTap = onCelebrate,
-                    scenario = state.scenario,
-                    modifier = Modifier.fillMaxSize()
-                )
-                Text(
-                    stringResource(R.string.fluibot_live_preview),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.White,
-                    modifier = Modifier.align(Alignment.TopStart).padding(12.dp)
-                        .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                )
-            }
-            Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            Modifier.fillMaxWidth().padding(top = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            FluiBotScene(state, onCelebrate)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.fluibot_name), style = MaterialTheme.typography.headlineSmall)
-                        Text(
+                        AdaptiveText(
                             stringResource(R.string.fluibot_stage_label, state.bot.stage.number, state.bot.stage.displayName),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -124,13 +130,48 @@ fun FluiBotStageCard(state: FluiBotUiState, onCelebrate: () -> Unit, modifier: M
                     GemPill(state.gems)
                 }
                 XpBar(state)
+                // Un solo rayo (el ícono) y el texto centrado en una línea.
                 Button(onClick = onCelebrate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RoundedCornerShape(16.dp)) {
                     Icon(Icons.Filled.Bolt, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.fluibot_recharge), style = MaterialTheme.typography.labelLarge)
+                    AdaptiveSingleLineText(stringResource(R.string.fluibot_recharge), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
+    }
+}
+
+/** Tamaño máximo de la escena: el mismo encuadre exacto de FluiBot en cualquier teléfono. */
+private val SceneMaxSize = 260.dp
+
+/**
+ * Escena de FluiBot con relación de aspecto FIJA (1:1) y tope de 260 dp, centrada: el robot, su fondo y sus
+ * accesorios se dibujan en proporción al contenedor, así que el encuadre es idéntico en cualquier pantalla.
+ */
+@Composable
+private fun FluiBotScene(state: FluiBotUiState, onCelebrate: () -> Unit) {
+    BoxWithConstraints(
+        Modifier.padding(horizontal = 16.dp).fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally)
+            .sizeIn(maxWidth = SceneMaxSize, maxHeight = SceneMaxSize).aspectRatio(1f)
+            .clip(RoundedCornerShape(24.dp))
+    ) {
+        FluiBotCanvas(
+            stage = state.bot.stage,
+            equipped = state.equipped,
+            celebrationTick = state.celebrationTick,
+            onTap = onCelebrate,
+            scenario = state.scenario,
+            modifier = Modifier.fillMaxSize()
+        )
+        AdaptiveSingleLineText(
+            stringResource(R.string.fluibot_live_preview),
+            Modifier.align(Alignment.TopCenter).padding(top = maxWidth * 0.04f)
+                .widthIn(max = maxWidth * 0.86f)
+                .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White
+        )
     }
 }
 
@@ -183,64 +224,67 @@ private fun AccessoryCard(item: AccessoryUi, stage: FluiBotStage, onBuy: (Access
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
         border = if (item.equipped) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(Modifier.fillMaxHeight().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            // Vista previa: FluiBot (en su etapa) con este accesorio puesto; el precio flota en una esquina.
-            Box {
-                FluiBotCanvas(
-                    stage = stage,
-                    equipped = setOf(a.id),
-                    animated = false,
-                    interactive = false,
-                    modifier = Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(12.dp))
-                        .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.background)))
-                )
-                Text(
-                    if (item.owned) "✓" else "${a.cost} 💎",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
-                        .clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary)
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                )
-            }
-            Text(a.displayName, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Column(
+            Modifier.fillMaxHeight().padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Vista previa limpia: FluiBot (en su etapa) con este accesorio puesto, sin nada encima que lo tape.
+            FluiBotCanvas(
+                stage = stage,
+                equipped = setOf(a.id),
+                animated = false,
+                interactive = false,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.15f).clip(RoundedCornerShape(12.dp))
+                    .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.background)))
+            )
+            // El precio va FUERA de la imagen, en su propia fila.
+            AdaptiveSingleLineText(
+                if (item.owned) stringResource(R.string.fluibot_owned) else stringResource(R.string.fluibot_price, a.cost),
+                Modifier.clip(RoundedCornerShape(50))
+                    .background(if (item.owned) FluiletMint.copy(alpha = 0.25f) else MaterialTheme.colorScheme.primary)
+                    .padding(horizontal = 12.dp, vertical = 3.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (item.owned) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onPrimary
+            )
+            AdaptiveText(
+                a.displayName,
+                Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp, lineHeight = 20.sp),
+                textAlign = TextAlign.Center
+            )
             Text(
                 a.description,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 17.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.weight(1f))
+            val buttonModifier = Modifier.fillMaxWidth().height(42.dp)
+            val buttonPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+            val buttonShape = RoundedCornerShape(12.dp)
             when {
-                !item.owned -> Button(
-                    onClick = { onBuy(a) },
-                    enabled = item.affordable,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text(
-                        if (item.affordable) stringResource(R.string.fluibot_buy_short) else stringResource(R.string.fluibot_not_enough_short),
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                !item.owned -> Button(onClick = { onBuy(a) }, enabled = item.affordable, modifier = buttonModifier, contentPadding = buttonPadding, shape = buttonShape) {
+                    ShopButtonText(if (item.affordable) stringResource(R.string.fluibot_buy_short) else stringResource(R.string.fluibot_not_enough_short))
                 }
-                item.equipped -> OutlinedButton(
-                    onClick = { onToggle(a) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.fluibot_remove), style = MaterialTheme.typography.labelLarge)
+                item.equipped -> OutlinedButton(onClick = { onToggle(a) }, modifier = buttonModifier, contentPadding = buttonPadding, shape = buttonShape) {
+                    ShopButtonText(stringResource(R.string.fluibot_remove))
                 }
-                else -> Button(
-                    onClick = { onToggle(a) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text(stringResource(R.string.fluibot_equip), style = MaterialTheme.typography.labelLarge) }
+                else -> Button(onClick = { onToggle(a) }, modifier = buttonModifier, contentPadding = buttonPadding, shape = buttonShape) {
+                    ShopButtonText(stringResource(R.string.fluibot_equip))
+                }
             }
         }
     }
+}
+
+/** "Comprar", "Equipar" o "Quitar" en una sola línea (13 sp, centrada), que se ajusta antes de partirse. */
+@Composable
+private fun ShopButtonText(text: String) {
+    AdaptiveSingleLineText(text, Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), minSize = 10.sp)
 }
 
 /** Los 5 escenarios: se desbloquean con gemas y solo uno está puesto a la vez. */
@@ -265,25 +309,22 @@ private fun ScenarioCard(item: ScenarioUi, onBuy: (Scenario) -> Unit, onEquip: (
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ScenarioPreview(sc, Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)))
             Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(sc.displayName, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                    Text(if (sc.isFree) stringResource(R.string.scenarios_free) else "${sc.cost} 💎", style = MaterialTheme.typography.titleSmall)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AdaptiveText(sc.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                    Text(if (sc.isFree) stringResource(R.string.scenarios_free) else "${sc.cost} 💎", style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false)
                 }
                 Text(sc.description, style = MaterialTheme.typography.bodySmall)
                 when {
                     item.equipped -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.scenarios_equipped), style = MaterialTheme.typography.labelLarge)
+                        ButtonLabel(stringResource(R.string.scenarios_equipped))
                     }
                     item.owned -> Button(onClick = { onEquip(sc) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
-                        Text(stringResource(R.string.scenarios_equip), style = MaterialTheme.typography.labelLarge)
+                        ButtonLabel(stringResource(R.string.scenarios_equip))
                     }
                     else -> Button(onClick = { onBuy(sc) }, enabled = item.affordable, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
-                        Text(
-                            if (item.affordable) stringResource(R.string.fluibot_buy, sc.cost) else stringResource(R.string.fluibot_not_enough),
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        ButtonLabel(if (item.affordable) stringResource(R.string.fluibot_buy, sc.cost) else stringResource(R.string.fluibot_not_enough))
                     }
                 }
             }
@@ -308,10 +349,16 @@ fun EvolutionSection(state: FluiBotUiState) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
                 border = BorderStroke(if (isCurrent) 3.dp else 1.dp, if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
             ) {
-                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FluiBotCanvas(stage = stage, equipped = emptySet(), animated = isCurrent, interactive = false, modifier = Modifier.size(84.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(stringResource(R.string.fluibot_stage_label, stage.number, stage.displayName), style = MaterialTheme.typography.titleSmall)
+                // FluiBot arriba y los textos a todo el ancho debajo: nada queda apretado junto al dibujo.
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        FluiBotCanvas(stage = stage, equipped = emptySet(), animated = isCurrent, interactive = false, modifier = Modifier.size(76.dp))
+                        Spacer(Modifier.weight(1f))
+                        if (reached) Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        else Icon(Icons.Filled.Lock, contentDescription = null)
+                    }
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        AdaptiveText(stringResource(R.string.fluibot_stage_label, stage.number, stage.displayName), style = MaterialTheme.typography.titleSmall)
                         Text(
                             when {
                                 isCurrent -> stringResource(R.string.evolution_current)
@@ -330,8 +377,6 @@ fun EvolutionSection(state: FluiBotUiState) {
                             )
                         }
                     }
-                    if (reached) Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    else Icon(Icons.Filled.Lock, contentDescription = null)
                 }
             }
         }
@@ -362,18 +407,18 @@ private fun MissionRow(item: MissionUi, onClaim: (String) -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(m.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                Text("+${m.rewardGems} 💎", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AdaptiveText(m.title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                Text("+${m.rewardGems} 💎", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, softWrap = false)
             }
             if (m.description.isNotBlank()) Text(m.description, style = MaterialTheme.typography.bodySmall)
             SpringProgressBar(m.fraction)
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(missionProgressText(m), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
                 when {
                     item.claimed -> Text(stringResource(R.string.missions_claimed), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     item.canClaim -> Button(onClick = { onClaim(m.id) }, shape = RoundedCornerShape(12.dp), modifier = Modifier.heightIn(min = 44.dp)) {
-                        Text(stringResource(R.string.missions_claim), style = MaterialTheme.typography.labelLarge)
+                        AdaptiveSingleLineText(stringResource(R.string.missions_claim), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }

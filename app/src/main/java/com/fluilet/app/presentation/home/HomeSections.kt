@@ -72,8 +72,11 @@ import com.fluilet.app.domain.model.LibraryItem
 import com.fluilet.app.domain.model.NlpLevel
 import com.fluilet.app.presentation.brand.FluiletBrand
 import com.fluilet.app.presentation.common.CategoryArtwork
+import com.fluilet.app.presentation.common.AdaptiveSingleLineText
+import com.fluilet.app.presentation.common.AdaptiveText
+import com.fluilet.app.presentation.common.ButtonLabel
 import com.fluilet.app.presentation.common.FitText
-import com.fluilet.app.presentation.common.PrimaryButton
+import androidx.compose.ui.text.style.TextAlign
 import com.fluilet.app.presentation.common.SecondaryButton
 import com.fluilet.app.presentation.common.SectionCard
 import com.fluilet.app.presentation.fluibot.AlbumSection
@@ -91,7 +94,7 @@ private const val MAX_HISTORY_ROWS = 10
 @Composable
 internal fun TabHeader(title: String, subtitle: String) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+        AdaptiveText(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
         Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -107,7 +110,7 @@ internal fun ReaderSwitcher(state: HomeUiState, onSelect: (String) -> Unit) {
                 FilterChip(
                     selected = child.id == state.selectedChildId,
                     onClick = { onSelect(child.id) },
-                    label = { Text(child.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false) },
+                    label = { AdaptiveSingleLineText(child.name, style = MaterialTheme.typography.labelLarge) },
                     modifier = Modifier.heightIn(min = 44.dp)
                 )
             }
@@ -142,10 +145,7 @@ internal fun ReadingReadyCard(state: HomeUiState, onStartReading: () -> Unit) {
             ) {
                 Icon(Icons.Filled.PlayArrow, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(if (state.isTutor) R.string.home_start_focus else R.string.home_start),
-                    style = MaterialTheme.typography.labelLarge
-                )
+                ButtonLabel(stringResource(if (state.isTutor) R.string.home_start_focus else R.string.home_start))
             }
         }
     }
@@ -163,7 +163,6 @@ internal fun InicioTab(
     onDeleteChild: (ChildProfile) -> Unit,
     onNlpLevel: (NlpLevel) -> Unit,
     onPin: () -> Unit,
-    onLoadDemo: () -> Unit,
     onCelebrate: () -> Unit,
     onStartReading: () -> Unit,
     currentEquipped: Set<String>,
@@ -176,17 +175,14 @@ internal fun InicioTab(
         }
         if (!state.isTutor || state.selectedChild != null) HomeHeroCard(state, bot, onCelebrate = onCelebrate)
         ReadingReadyCard(state, onStartReading)
-        if (state.isTutor) {
-            TutorPanelCard(state, onSelect, onNewChild, onEditChild, onDeleteChild, onNlpLevel, onPin, onLoadDemo)
-        } else {
-            DemoDataCard(state, onLoadDemo)
-        }
+        // Sin "Cargar Datos Demo": esa función solo existe en el Panel de Administración Maestro.
+        if (state.isTutor) TutorPanelCard(state, onSelect, onNewChild, onEditChild, onDeleteChild, onNlpLevel, onPin)
     }
 }
 
 /**
- * "Panel del tutor": herramientas que no se usan a diario (nivel de lectura del niño, editar o eliminar su perfil, PIN
- * parental y datos demo) plegadas en una sola tarjeta para que Inicio no se sature.
+ * "Panel del tutor": herramientas que no se usan a diario (nivel de lectura del niño, editar o eliminar su perfil y PIN
+ * parental) plegadas en una sola tarjeta para que Inicio no se sature.
  */
 @Composable
 private fun TutorPanelCard(
@@ -196,8 +192,7 @@ private fun TutorPanelCard(
     onEditChild: (String) -> Unit,
     onDeleteChild: (ChildProfile) -> Unit,
     onNlpLevel: (NlpLevel) -> Unit,
-    onPin: () -> Unit,
-    onLoadDemo: () -> Unit
+    onPin: () -> Unit
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     // Un cambio de nivel pendiente de confirmar mantiene el panel abierto.
@@ -222,8 +217,8 @@ private fun TutorPanelCard(
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Filled.AdminPanelSettings, contentDescription = null, tint = Color.White) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(stringResource(R.string.tutor_panel_title), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.tutor_panel_sub), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AdaptiveText(stringResource(R.string.tutor_panel_title), style = MaterialTheme.typography.titleMedium)
+                    AdaptiveText(stringResource(R.string.tutor_panel_sub), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3)
                 }
                 Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.rotate(arrow))
             }
@@ -241,7 +236,6 @@ private fun TutorPanelCard(
                             icon = Icons.Filled.Lock
                         )
                     }
-                    DemoDataCard(state, onLoadDemo)
                 }
             }
         }
@@ -256,7 +250,6 @@ internal fun LecturasTab(
     state: HomeUiState,
     onSelect: (String) -> Unit,
     onStartReading: () -> Unit,
-    onLoadDemo: () -> Unit,
     onGoAdapt: () -> Unit,
     onOpenDemoLesson: (AdaptationResult) -> Unit,
     onOpenLibraryLesson: (LibraryItem) -> Unit
@@ -280,18 +273,18 @@ internal fun LecturasTab(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.library_filter_category), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = category == null, onClick = { category = null }, label = { Text(stringResource(R.string.library_filter_all), style = MaterialTheme.typography.labelLarge) })
+                    FilterChip(selected = category == null, onClick = { category = null }, label = { AdaptiveText(stringResource(R.string.library_filter_all), style = MaterialTheme.typography.labelLarge) })
                     categories.forEach { code ->
                         FilterChip(
                             selected = category == code,
                             onClick = { category = if (category == code) null else code },
-                            label = { Text(LessonCategory.displayNameFor(code), style = MaterialTheme.typography.labelLarge) }
+                            label = { AdaptiveText(LessonCategory.displayNameFor(code), style = MaterialTheme.typography.labelLarge) }
                         )
                     }
                 }
                 Text(stringResource(R.string.library_filter_level), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = level == null, onClick = { level = null }, label = { Text(stringResource(R.string.library_filter_all_levels), style = MaterialTheme.typography.labelLarge) })
+                    FilterChip(selected = level == null, onClick = { level = null }, label = { AdaptiveText(stringResource(R.string.library_filter_all_levels), style = MaterialTheme.typography.labelLarge) })
                     (1..5).forEach { n ->
                         FilterChip(
                             selected = level == n,
@@ -313,10 +306,9 @@ internal fun LecturasTab(
                     onOpen = { entry.item?.let(onOpenLibraryLesson) ?: entry.lesson?.let(onOpenDemoLesson) }
                 )
             }
-            categories.isNotEmpty() -> EmptyShelf(stringResource(R.string.library_empty_filtered), null, null)
+            categories.isNotEmpty() -> EmptyShelf(stringResource(R.string.library_empty_filtered), null)
             else -> EmptyShelf(
                 if (readerName != null) stringResource(R.string.library_empty, readerName) else stringResource(R.string.library_empty_plain),
-                onLoadDemo.takeIf { !state.isDemoLoading },
                 onGoAdapt
             )
         }
@@ -370,7 +362,7 @@ private fun ShelfCard(entry: ShelfEntry, opening: Boolean, enabled: Boolean, onO
                 OutlinedButton(onClick = onOpen, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) {
                     Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(if (opening) R.string.library_opening else R.string.demo_lesson_open), style = MaterialTheme.typography.labelLarge)
+                    ButtonLabel(stringResource(if (opening) R.string.library_opening else R.string.demo_lesson_open))
                 }
             }
         }
@@ -380,17 +372,16 @@ private fun ShelfCard(entry: ShelfEntry, opening: Boolean, enabled: Boolean, onO
 @Composable
 internal fun Pill(text: String, background: Color, content: Color, modifier: Modifier = Modifier) {
     Box(modifier.clip(RoundedCornerShape(50)).background(background).padding(horizontal = 10.dp, vertical = 4.dp)) {
-        Text(text, style = MaterialTheme.typography.labelMedium, color = content, maxLines = 1, softWrap = false)
+        AdaptiveSingleLineText(text, style = MaterialTheme.typography.labelMedium, color = content)
     }
 }
 
 @Composable
-private fun EmptyShelf(message: String, onLoadDemo: (() -> Unit)?, onGoAdapt: (() -> Unit)?) {
+private fun EmptyShelf(message: String, onGoAdapt: (() -> Unit)?) {
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
-            Text(message, style = MaterialTheme.typography.bodyMedium)
-            onLoadDemo?.let { PrimaryButton(stringResource(R.string.demo_load), it) }
+            Text(message, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             onGoAdapt?.let { SecondaryButton(stringResource(R.string.library_go_adapt), it, icon = Icons.Filled.AutoFixHigh) }
         }
     }

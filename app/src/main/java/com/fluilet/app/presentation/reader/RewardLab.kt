@@ -47,8 +47,9 @@ import com.fluilet.app.presentation.fluibot.FluiBotStageCard
 import com.fluilet.app.presentation.fluibot.GemPill
 import com.fluilet.app.presentation.fluibot.MissionsCard
 import com.fluilet.app.presentation.fluibot.ScenariosSection
-import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import com.fluilet.app.presentation.common.AdaptiveText
+import com.fluilet.app.presentation.common.IconLabelTab
 
 /**
  * "Laboratorio y Rincón de Recompensas de [Nombre]": cofre, FluiBot, taller y álbum. Se muestra DENTRO
@@ -82,17 +83,15 @@ fun RewardLab(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
+            AdaptiveText(
                 stringResource(R.string.lab_title, state.readerName.ifBlank { "ti" }),
-                style = MaterialTheme.typography.headlineSmall
+                Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center
             )
             TabRow(selectedTabIndex = state.labTab.ordinal, containerColor = MaterialTheme.colorScheme.background) {
                 LabTab.entries.forEach { tab ->
-                    Tab(
-                        selected = tab == state.labTab,
-                        onClick = { onLabTab(tab) },
-                        text = { Text("${tab.emoji} ${tab.label}", style = MaterialTheme.typography.labelMedium, maxLines = 2) }
-                    )
+                    IconLabelTab(selected = tab == state.labTab, onClick = { onLabTab(tab) }, emoji = tab.emoji, label = tab.label)
                 }
             }
             when (state.labTab) {

@@ -11,7 +11,9 @@
     <string name="newreading_mode_generate">Generar lección</string>
     <string name="newreading_generate">Generar lección adaptada</string>
     <string name="newreading_category_title">¿Qué categoría te gusta?</string>
-    <string name="newreading_topic_label">¿Sobre qué tema te gustaría leer? (opcional, ej. Dinosaurios, Volcanes)</string>
+    <string name="newreading_topic_label">¿Sobre qué tema te gustaría leer?</string>
+    <string name="newreading_topic_placeholder">Ej. Dinosaurios, Volcanes, La NASA…</string>
+    <string name="newreading_topic_optional">Es opcional: si lo dejas vacío, elegimos una lectura de la categoría.</string>
     <string name="newreading_m_category">Categoría</string>
     <string name="newreading_m_level">Nivel</string>
     <string name="newreading_m_quiz">Mini-reto</string>

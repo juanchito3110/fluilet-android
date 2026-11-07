@@ -91,7 +91,7 @@ class RetrainedEngineDomainTest {
         assertEquals(2, lesson.targetLevel)
         assertEquals(5, lesson.levelPreviews.size)
         assertNotNull(lesson.originalText)
-        assertEquals(2, lesson.questions.size)
+        assertEquals(3, lesson.questions.size)
         assertNull("sin conexión no hay lecciones de categorías fuera del banco local", DemoData.offlineLesson("tecnologia", NlpLevel.NIVEL_2))
     }
 

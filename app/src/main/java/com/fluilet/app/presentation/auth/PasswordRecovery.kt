@@ -27,6 +27,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -60,6 +62,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.fluilet.app.presentation.common.ButtonLabel
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -202,13 +205,14 @@ private fun EmailStep(state: PasswordRecoveryUiState, viewModel: PasswordRecover
         TextButton(onClick = onExit, modifier = Modifier.align(Alignment.CenterHorizontally)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.recovery_back_to_login), style = MaterialTheme.typography.labelLarge)
+            ButtonLabel(stringResource(R.string.recovery_back_to_login))
         }
     }
 }
 
 // --- Paso 2 -------------------------------------------------------------------------------------------
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CodeStep(state: PasswordRecoveryUiState, viewModel: PasswordRecoveryViewModel) {
     val clipboard = LocalClipboard.current
@@ -225,7 +229,8 @@ private fun CodeStep(state: PasswordRecoveryUiState, viewModel: PasswordRecovery
             onDone = viewModel::verifyCode
         )
         ErrorMessage(state.errorMessage)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        // En pantallas angostas "Reenviar" baja a su propio renglón en vez de apretar ambos botones.
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, itemVerticalAlignment = Alignment.CenterVertically) {
             TextButton(
                 onClick = {
                     scope.launch {
@@ -238,7 +243,7 @@ private fun CodeStep(state: PasswordRecoveryUiState, viewModel: PasswordRecovery
             ) {
                 Icon(Icons.Filled.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.recovery_paste), style = MaterialTheme.typography.labelLarge)
+                ButtonLabel(stringResource(R.string.recovery_paste))
             }
             ResendButton(state.resendSeconds, state.canResend, viewModel::resendCode)
         }
@@ -402,7 +407,7 @@ private fun ResendButton(seconds: Int, enabled: Boolean, onResend: () -> Unit) {
         } else {
             Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.recovery_resend), style = MaterialTheme.typography.labelLarge)
+            ButtonLabel(stringResource(R.string.recovery_resend))
         }
     }
 }

@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.fluilet.app.presentation.common.ButtonLabel
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -40,6 +41,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.fluilet.app.R
 import com.fluilet.app.core.tts.TtsStatus
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.CheckCircle
@@ -219,13 +221,13 @@ internal fun VoiceHelpDialog(controller: VoiceHelpController, state: ReaderUiSta
                     ) {
                         Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.voice_help_raise), style = MaterialTheme.typography.labelLarge)
+                        ButtonLabel(stringResource(R.string.voice_help_raise))
                     }
                 }
-                val activate: @Composable () -> Unit = {
+                val activate: @Composable RowScope.() -> Unit = {
                     Icon(Icons.Filled.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.voice_help_activate), style = MaterialTheme.typography.labelLarge)
+                    ButtonLabel(stringResource(R.string.voice_help_activate))
                 }
                 if (lowVolume) {
                     OutlinedButton(onClick = controller::openVoiceEngine, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) { activate() }
@@ -288,7 +290,12 @@ private fun VoicePrepDialog(controller: VoiceHelpController, state: ReaderUiStat
                         VoiceTest.PASSED -> Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                         else -> Unit
                     }
-                    Text(status, style = MaterialTheme.typography.titleSmall, color = if (tts.voiceTest == VoiceTest.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        status,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (tts.voiceTest == VoiceTest.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
                 Button(
                     onClick = controller::testVoice,
@@ -298,7 +305,7 @@ private fun VoicePrepDialog(controller: VoiceHelpController, state: ReaderUiStat
                 ) {
                     Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.voice_prep_test), style = MaterialTheme.typography.labelLarge)
+                    ButtonLabel(stringResource(R.string.voice_prep_test))
                 }
                 OutlinedButton(
                     onClick = controller::downloadVoice,
@@ -307,7 +314,7 @@ private fun VoicePrepDialog(controller: VoiceHelpController, state: ReaderUiStat
                 ) {
                     Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.voice_prep_download), style = MaterialTheme.typography.labelLarge)
+                    ButtonLabel(stringResource(R.string.voice_prep_download))
                 }
             }
         },

@@ -16,7 +16,6 @@ import com.fluilet.app.domain.usecase.GetChildrenUseCase
 import com.fluilet.app.domain.usecase.GetEducationalProgressUseCase
 import com.fluilet.app.domain.usecase.IsTutorPinConfiguredUseCase
 import com.fluilet.app.domain.usecase.LogoutUseCase
-import com.fluilet.app.domain.usecase.SeedDemoDataUseCase
 import com.fluilet.app.domain.usecase.ClaimDailyMissionUseCase
 import com.fluilet.app.domain.usecase.SetNlpLevelUseCase
 import com.fluilet.app.domain.usecase.FetchAdaptationUseCase
@@ -89,7 +88,7 @@ class HomeViewModelTest {
             session, holder, auth,
             GetChildrenUseCase(children), SetNlpLevelUseCase(children), DeleteChildUseCase(children),
             GetEducationalProgressUseCase(sessions), IsTutorPinConfiguredUseCase(FakeTutorPin(pinConfigured)),
-            LogoutUseCase(auth), holder, SeedDemoDataUseCase(sessions), ClaimDailyMissionUseCase(sessions),
+            LogoutUseCase(auth), holder, ClaimDailyMissionUseCase(sessions),
             GetChildLibraryUseCase(adaptations), FetchAdaptationUseCase(adaptations), GetModelAuditUseCase(modelInfo)
         )
     }
@@ -244,102 +243,43 @@ class HomeViewModelTest {
         assertEquals(com.fluilet.app.presentation.home.HomeTab.CARTAS, state().selectedTab)
     }
 
-    // --- 🎓 Cargar Datos Demo y misiones del servidor -----------------------------------------
+    // --- Sin "Cargar Datos Demo" en Inicio ni en el Panel del Tutor; misiones del servidor ------------------
 
     private fun demoChildren() { children.children = listOf(sampleChild("child-1", "Mateo")) }
 
-    @Test fun demoButtonAppliesTheLocalDataAtOnceAndThenReplacesItWithTheServers() = runTest(dispatcher) {
-        demoChildren()
-        val server = DemoData.progress().copy(totalGems = 715, demoLessons = DemoData.lessons().take(2))
-        sessions.seedResult = Result.success(server)
-        val vm = viewModel(UserRole.TUTOR)
-        val state = observe(vm)
-        vm.refresh()
+    @Test fun homeNoLongerOffersToLoadDemoDataToChildrenOrTutors() = runTest(dispatcher) {
+        // Ni la función ni su estado existen en Inicio: solo el Panel de Administración Maestro restaura la demo.
+        val names = HomeViewModel::class.java.methods.map { it.name }
+        assertFalse(names.any { it.contains("loadDemo", ignoreCase = true) || it.contains("seedDemo", ignoreCase = true) })
+        val fields = HomeUiState::class.java.declaredFields.map { it.name }
+        assertFalse(fields.any { it == "isDemoLoading" || it == "demoNote" })
 
-        vm.loadDemoData()
-
-        assertEquals(listOf("child-1"), sessions.seedRequests)
-        assertEquals(715, state().progress.totalGems)
-        assertEquals(7, state().progress.lessons.size)
-        assertEquals(2, state().demoLessons.size)
-        assertEquals("Datos demo cargados desde el servidor.", state().demoNote)
-        assertFalse(state().isDemoLoading)
-    }
-
-    @Test fun withoutTheServerTheLocalDemoFillsEverythingAndSaysSo() = runTest(dispatcher) {
-        demoChildren()
-        val vm = viewModel(UserRole.TUTOR)
-        val state = observe(vm)
-        vm.refresh()
-
-        vm.loadDemoData() // el servidor falla (FakeReadingSessionRepository.seedResult por omisión)
-
-        assertEquals(DemoData.BASE_GEMS, state().progress.totalGems)
-        assertTrue(state().progress.totalGems >= 260)
-        assertEquals(900, state().progress.currentXp)
-        assertEquals(7, state().progress.streakDays)
-        assertEquals(listOf("Real Madrid", "Biología Marina", "Agujeros Negros"), state().demoLessons.map { it.title })
-        assertTrue(state().demoNote!!.contains("locales"))
-        assertFalse(state().isDemoLoading)
-    }
-
-    @Test fun refreshingKeepsTheLocalDemoWhileTheServerStillHasFewerLessons() = runTest(dispatcher) {
-        demoChildren()
-        val vm = viewModel(UserRole.TUTOR)
-        val state = observe(vm)
-        vm.refresh()
-        vm.loadDemoData()
-
+        // Un lector nuevo se queda con su avance real: nada lo sube a 585 gemas ni a 900 XP por accidente.
         sessions.educational = progress(completed = 0, total = 0)
-        vm.refresh()
-
-        assertEquals(7, state().progress.lessons.size)
-        // Cuando el servidor ya tiene la práctica real, manda el servidor.
-        sessions.educational = DemoData.progress().copy(totalGems = 999)
-        vm.refresh()
-        assertEquals(999, state().progress.totalGems)
-    }
-
-    @Test fun demoLessonsBelongToTheProfileTheyWereLoadedFor() = runTest(dispatcher) {
-        children.children = listOf(sampleChild("child-1", "Mateo"), sampleChild("child-2", "Lucía"))
-        val vm = viewModel(UserRole.TUTOR)
-        val state = observe(vm)
-        vm.refresh()
-        vm.loadDemoData()
-        assertEquals(3, state().demoLessons.size)
-
-        vm.select("child-2")
-        assertTrue(state().demoLessons.isEmpty())
-        vm.select("child-1")
-        assertEquals(3, state().demoLessons.size)
-    }
-
-    @Test fun aTutorWithoutProfilesIsAskedToCreateOneFirst() = runTest(dispatcher) {
-        val vm = viewModel(UserRole.TUTOR)
-        val state = observe(vm)
-        vm.refresh()
-        vm.loadDemoData()
-        assertTrue(state().errorMessage!!.contains("perfil"))
-        assertTrue(sessions.seedRequests.isEmpty())
-        assertTrue(state().demoLessons.isEmpty())
-    }
-
-    @Test fun anIndependentAdultGetsTheLocalDemoWithoutCallingTheTutorOnlyEndpoint() = runTest(dispatcher) {
         val vm = viewModel(UserRole.ADULTO_INDEPENDIENTE)
         val state = observe(vm)
         vm.refresh()
-        vm.loadDemoData()
         assertTrue(sessions.seedRequests.isEmpty())
-        assertEquals(7, state().progress.lessons.size)
-        assertEquals(3, state().demoLessons.size)
+        assertEquals(0, state().progress.lessons.size)
+        assertTrue(state().progress.currentXp < DemoData.XP)
+    }
+
+    @Test fun lessonsThatTheServerSendsWithTheProgressAppearInTheLibrary() = runTest(dispatcher) {
+        demoChildren()
+        sessions.educational = DemoData.progress()
+        val vm = viewModel(UserRole.TUTOR)
+        val state = observe(vm)
+        vm.refresh()
+        assertEquals(listOf("Real Madrid", "Biología Marina", "Agujeros Negros"), state().demoLessons.map { it.title })
+        assertTrue(sessions.seedRequests.isEmpty())
     }
 
     @Test fun openingADemoLessonLeavesItReadyWithTheProfilesSettings() = runTest(dispatcher) {
         demoChildren()
+        sessions.educational = DemoData.progress()
         val vm = viewModel(UserRole.TUTOR)
         val state = observe(vm)
         vm.refresh()
-        vm.loadDemoData()
 
         vm.openDemoLesson(state().demoLessons.first())
 
@@ -478,7 +418,9 @@ class HomeViewModelTest {
         vm.refresh()
         vm.select("c-mateo")
 
-        vm.loadDemoData() // 620 💎 / 900 XP para Mateo
+        // Mateo avanza (620 💎 / 900 XP en el servidor) y su tarjeta lo refleja al refrescar.
+        sessions.educationalByChild["c-mateo"] = DemoData.progress()
+        vm.refresh()
 
         assertEquals(DemoData.BASE_GEMS, state().childSummaries.getValue("c-mateo").gems)
         assertEquals(4, state().childSummaries.getValue("c-mateo").stage)
