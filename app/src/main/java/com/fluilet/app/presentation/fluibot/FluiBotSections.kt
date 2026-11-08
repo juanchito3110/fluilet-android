@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.fluilet.app.presentation.common.FluiletCarousel
+import com.fluilet.app.presentation.common.rememberTextWidths
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -121,12 +122,17 @@ object StageLayout {
     val CardSceneSmall: Dp = 200.dp
 
     /** En pantallas más bajas que esto la escena de la tarjeta usa 200 dp para que las pestañas sigan a la vista. */
-    val ShortScreen: Dp = 700.dp
+    val ShortScreen: Dp = 800.dp
     val ViewerSceneMax: Dp = 360.dp
     val ViewerSceneMin: Dp = 300.dp
 
-    /** Por debajo de este ancho, "Recargar Energía" y "Ver en grande" van uno sobre otro. */
-    val ButtonsStackBelow: Dp = 280.dp
+    /** Lo que ocupa un botón además de su texto: ícono (20), separación (6), relleno (2 × 10) y un margen de seguridad. */
+    val ButtonExtras: Dp = 48.dp
+    val ButtonGap: Dp = 8.dp
+
+    /** "Recargar Energía" y "Ver en grande" van lado a lado solo si sus textos caben enteros; si no, uno sobre otro. */
+    fun buttonsSideBySide(rechargeText: Dp, viewText: Dp, available: Dp): Boolean =
+        rechargeText + viewText + ButtonExtras * 2 + ButtonGap <= available
 }
 
 /**
@@ -151,7 +157,11 @@ fun FluiBotStageCard(
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth().padding(12.dp)) {
             val scene = StageLayout.cardSceneSize(maxWidth, windowHeight)
-            val stackButtons = maxWidth < StageLayout.ButtonsStackBelow
+            val buttonTexts = rememberTextWidths(
+                listOf(stringResource(R.string.fluibot_recharge), stringResource(R.string.fluibot_view_big)),
+                MaterialTheme.typography.labelLarge
+            )
+            val sideBySide = StageLayout.buttonsSideBySide(buttonTexts[0], buttonTexts[1], maxWidth)
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 FluiBotScene(state, onCelebrate, Modifier.size(scene))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -167,15 +177,16 @@ fun FluiBotStageCard(
                     GemPill(state.gems)
                 }
                 XpBar(state)
-                if (stackButtons) {
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RechargeButton(onCelebrate, Modifier.fillMaxWidth())
-                        ViewBigButton({ viewerOpen = true }, Modifier.fillMaxWidth())
+                if (sideBySide) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(StageLayout.ButtonGap)) {
+                        RechargeButton(onCelebrate, Modifier.weight(buttonTexts[0].value + StageLayout.ButtonExtras.value))
+                        ViewBigButton({ viewerOpen = true }, Modifier.weight(buttonTexts[1].value + StageLayout.ButtonExtras.value))
                     }
                 } else {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RechargeButton(onCelebrate, Modifier.weight(1.15f))
-                        ViewBigButton({ viewerOpen = true }, Modifier.weight(1f))
+                    // Con OpenDyslexic esto es lo normal en un teléfono: cada botón a todo el ancho y con su texto completo.
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        RechargeButton(onCelebrate, Modifier.fillMaxWidth())
+                        ViewBigButton({ viewerOpen = true }, Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -187,14 +198,14 @@ fun FluiBotStageCard(
 }
 
 /** Relleno de los botones de la tarjeta: deja ancho a "Recargar Energía" y "Ver en grande" en una línea. */
-private val StageButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+private val StageButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
 
 /** "⚡ Recargar Energía": un solo rayo (el ícono) y el texto centrado en una línea. */
 @Composable
 internal fun RechargeButton(onCelebrate: () -> Unit, modifier: Modifier = Modifier) {
     Button(
         onClick = onCelebrate,
-        modifier = modifier.heightIn(min = 48.dp),
+        modifier = modifier.heightIn(min = 44.dp),
         shape = RoundedCornerShape(16.dp),
         contentPadding = StageButtonPadding
     ) {
@@ -209,7 +220,7 @@ internal fun RechargeButton(onCelebrate: () -> Unit, modifier: Modifier = Modifi
 private fun ViewBigButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 48.dp),
+        modifier = modifier.heightIn(min = 44.dp),
         shape = RoundedCornerShape(16.dp),
         contentPadding = StageButtonPadding
     ) {
@@ -433,7 +444,7 @@ private fun PricePill(text: String, price: PriceTag) {
         text,
         Modifier.clip(RoundedCornerShape(50))
             .background(if (paid) MaterialTheme.colorScheme.primary else FluiletMint.copy(alpha = 0.25f))
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         style = MaterialTheme.typography.labelMedium,
         color = if (paid) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
     )

@@ -18,7 +18,7 @@
     <string name="fluibot_viewer_scenarios">Escenario: toca uno para cambiarlo</string>
     <string name="fluibot_viewer_empty">Compra accesorios y escenarios en el Taller para probarlos aquí.</string>
     <string name="fluibot_owned">✓ Tuyo</string>
-    <string name="fluibot_equipped">✓ Equipado</string>
+    <string name="fluibot_equipped">Equipado</string>
     <string name="fluibot_equipped_button">Equipado</string>
     <string name="fluibot_price">%1$d 💎</string>
     <string name="fluibot_buy_short">Comprar</string>

@@ -16,6 +16,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
+import com.fluilet.app.presentation.common.rememberTextWidths
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Canvas
@@ -364,17 +365,39 @@ object ReaderToolbar {
     /** Alto de la barra "🧠 Adaptado IA | 📄 Original | Ver juntos" dentro de la tarjeta de lectura. */
     val CompareBarHeight: Dp = 34.dp
 
-    /** Las flechas de la guía caben desde este ancho; más angosto, tocar el texto avanza la guía. */
-    fun showGuideArrows(width: Dp): Boolean = width >= 280.dp
+    /** Las etiquetas pueden encogerse de 13 a 12 sp antes de renunciar al emoji o a una flecha. */
+    private const val SHRINK = 12f / 13f
 
-    /** "📏 Guía" y "🔄 Comparar" llevan emoji solo si hay ancho; si no, las palabras solas (nunca cortadas). */
-    fun showEmoji(width: Dp, guideArrows: Boolean): Boolean = width >= if (guideArrows) 320.dp else 280.dp
+    /** Cómo se acomoda la barra de herramientas según el ancho y la medida real de sus etiquetas (a 13 sp). */
+    data class ToolbarFit(val emoji: Boolean, val arrows: Boolean)
 
-    /** Las pestañas del comparador llevan emoji desde este ancho de tarjeta. */
-    fun compareEmoji(width: Dp): Boolean = width >= 290.dp
+    private fun toolbarWidth(labels: Dp, arrows: Boolean): Dp =
+        labels * SHRINK + 24.dp + 80.dp + (if (arrows) 68.dp + 20.dp else 12.dp)
 
-    /** Por debajo de este ancho, "Ver juntos" queda solo con su ícono (y su descripción para TalkBack). */
-    fun compareButtonIconOnly(width: Dp): Boolean = width < 250.dp
+    /**
+     * Prefiere conservar las flechas de la guía sobre el emoji; si ni así caben, sin flechas (tocar el texto avanza la
+     * guía). Las palabras "Guía" y "Comparar" siempre se ven enteras.
+     */
+    fun toolbarFit(width: Dp, wantsArrows: Boolean, emojiLabels: Dp, plainLabels: Dp): ToolbarFit = when {
+        wantsArrows && toolbarWidth(emojiLabels, arrows = true) <= width -> ToolbarFit(emoji = true, arrows = true)
+        wantsArrows && toolbarWidth(plainLabels, arrows = true) <= width -> ToolbarFit(emoji = false, arrows = true)
+        toolbarWidth(emojiLabels, arrows = false) <= width -> ToolbarFit(emoji = true, arrows = false)
+        else -> ToolbarFit(emoji = false, arrows = false)
+    }
+
+    /** Cómo se acomoda la barra del comparador: pestañas con o sin emoji y "Ver juntos" con palabras o solo su ícono. */
+    data class CompareFit(val emoji: Boolean, val buttonText: Boolean)
+
+    private fun compareWidth(tabs: Dp, button: Dp?): Dp =
+        tabs * SHRINK + 16.dp + 6.dp + (if (button != null) button + 36.dp else 32.dp)
+
+    /** Primero se renuncia al emoji; "Ver juntos" solo pierde sus palabras si de verdad no caben. */
+    fun compareFit(width: Dp, emojiTabs: Dp, plainTabs: Dp, button: Dp): CompareFit = when {
+        compareWidth(emojiTabs, button) <= width -> CompareFit(emoji = true, buttonText = true)
+        compareWidth(plainTabs, button) <= width -> CompareFit(emoji = false, buttonText = true)
+        compareWidth(emojiTabs, null) <= width -> CompareFit(emoji = true, buttonText = false)
+        else -> CompareFit(emoji = false, buttonText = false)
+    }
 }
 
 /**
@@ -385,8 +408,21 @@ object ReaderToolbar {
 @Composable
 private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
     BoxWithConstraints(Modifier.fillMaxWidth().height(ReaderToolbar.Height)) {
-        val arrows = state.guideEnabled && !state.showOriginal && ReaderToolbar.showGuideArrows(maxWidth)
-        val emoji = ReaderToolbar.showEmoji(maxWidth, arrows)
+        val labelStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp)
+        val guideEmoji = stringResource(R.string.reader_guide_short)
+        val guidePlain = stringResource(R.string.reader_guide_plain)
+        val compareEmoji = stringResource(R.string.reader_compare_short)
+        val comparePlain = stringResource(R.string.reader_compare_plain)
+        val widths = rememberTextWidths(listOf(guideEmoji, compareEmoji, guidePlain, comparePlain), labelStyle)
+        val fit = ReaderToolbar.toolbarFit(
+            width = maxWidth,
+            wantsArrows = state.guideEnabled && !state.showOriginal,
+            emojiLabels = widths[0] + widths[1],
+            plainLabels = widths[2] + widths[3]
+        )
+        // Cada interruptor recibe un ancho proporcional a su etiqueta.
+        val guideWeight = (if (fit.emoji) widths[0] else widths[2]).value + 12f
+        val compareWeight = (if (fit.emoji) widths[1] else widths[3]).value + 12f
         val guideName = stringResource(R.string.reader_guide)
         val compareName = stringResource(R.string.reader_compare)
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -406,20 +442,20 @@ private fun GuideBar(state: ReaderUiState, vm: ReaderViewModel) {
                 onClick = vm::fontLarger
             )
             ToolbarToggle(
-                label = stringResource(if (emoji) R.string.reader_guide_short else R.string.reader_guide_plain),
+                label = if (fit.emoji) guideEmoji else guidePlain,
                 selected = state.guideEnabled,
                 description = "$guideName, ${if (state.guideEnabled) "activada" else "desactivada"}",
                 onClick = vm::toggleGuide,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(guideWeight)
             )
             ToolbarToggle(
-                label = stringResource(if (emoji) R.string.reader_compare_short else R.string.reader_compare_plain),
+                label = if (fit.emoji) compareEmoji else comparePlain,
                 selected = state.showOriginal,
                 description = "$compareName, ${if (state.showOriginal) "activado" else "desactivado"}",
                 onClick = vm::toggleOriginal,
-                modifier = Modifier.weight(1.45f)
+                modifier = Modifier.weight(compareWeight)
             )
-            if (arrows) {
+            if (fit.arrows) {
                 ToolbarIcon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.reader_guide_previous), vm::guidePrevious)
                 ToolbarIcon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.reader_guide_next), vm::guideNext)
             }

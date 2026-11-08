@@ -80,7 +80,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
@@ -91,6 +95,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.fluilet.app.presentation.common.CollapsibleCard
+import com.fluilet.app.presentation.common.rememberTextWidths
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.material3.OutlinedButton
@@ -165,27 +170,33 @@ internal fun ComparisonCard(state: ReaderUiState, onLevel: (Int) -> Unit, modifi
 @Composable
 private fun CompareBar(tab: CompareTab, onTab: (CompareTab) -> Unit, onTogether: () -> Unit, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier.fillMaxWidth().height(ReaderToolbar.CompareBarHeight)) {
-        val emoji = ReaderToolbar.compareEmoji(maxWidth)
-        val iconOnly = ReaderToolbar.compareButtonIconOnly(maxWidth)
         val shape = RoundedCornerShape(10.dp)
         val labelStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp)
+        val adaptedEmoji = stringResource(R.string.compare_tab_adapted)
+        val originalEmoji = stringResource(R.string.compare_tab_original)
+        val adaptedPlain = stringResource(R.string.compare_tab_adapted_plain)
+        val originalPlain = stringResource(R.string.compare_tab_original_plain)
+        val together = stringResource(R.string.compare_view_together)
+        val widths = rememberTextWidths(listOf(adaptedEmoji, originalEmoji, adaptedPlain, originalPlain, together), labelStyle)
+        val fit = ReaderToolbar.compareFit(maxWidth, widths[0] + widths[1], widths[2] + widths[3], widths[4])
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 Modifier.weight(1f).fillMaxHeight().clip(shape).border(1.dp, MaterialTheme.colorScheme.outline, shape).selectableGroup()
             ) {
+                // Cada pestaña recibe un ancho proporcional a su etiqueta: "Adaptado IA" necesita más que "Original".
                 listOf(
-                    CompareTab.ADAPTED to (if (emoji) R.string.compare_tab_adapted else R.string.compare_tab_adapted_plain),
-                    CompareTab.ORIGINAL to (if (emoji) R.string.compare_tab_original else R.string.compare_tab_original_plain)
-                ).forEach { (option, label) ->
+                    Triple(CompareTab.ADAPTED, if (fit.emoji) adaptedEmoji else adaptedPlain, if (fit.emoji) widths[0] else widths[2]),
+                    Triple(CompareTab.ORIGINAL, if (fit.emoji) originalEmoji else originalPlain, if (fit.emoji) widths[1] else widths[3])
+                ).forEach { (option, label, labelWidth) ->
                     val selected = option == tab
                     Box(
-                        Modifier.weight(1f).fillMaxHeight()
+                        Modifier.weight(labelWidth.value + 8f).fillMaxHeight()
                             .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
                             .selectable(selected = selected, role = Role.Tab, onClick = { onTab(option) }),
                         contentAlignment = Alignment.Center
                     ) {
                         AdaptiveSingleLineText(
-                            stringResource(label),
+                            label,
                             Modifier.padding(horizontal = 4.dp),
                             style = labelStyle,
                             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
@@ -193,7 +204,6 @@ private fun CompareBar(tab: CompareTab, onTab: (CompareTab) -> Unit, onTogether:
                     }
                 }
             }
-            val together = stringResource(R.string.compare_view_together)
             Row(
                 Modifier.fillMaxHeight().clip(shape).background(MaterialTheme.colorScheme.secondaryContainer)
                     .clickable(role = Role.Button, onClick = onTogether)
@@ -203,7 +213,7 @@ private fun CompareBar(tab: CompareTab, onTab: (CompareTab) -> Unit, onTogether:
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(Icons.Filled.OpenInFull, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                if (!iconOnly) {
+                if (fit.buttonText) {
                     Text(together, style = labelStyle, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1, softWrap = false)
                 }
             }
@@ -531,11 +541,7 @@ private const val MAX_CHIPS = 16
 private const val MAX_CHIP_WORDS = 6
 
 /**
- * "Palabras clave de esta lectura": título pequeño y TODOS los chips completos en un FlowRow que baja de renglón (nunca
- * se cortan en el borde derecho). La definición se abre en una ventanita, sin quitarle altura al texto.
- */
-/**
- * "Palabras clave de esta lectura" en UNA sola fila que se desliza por páginas (ninguna palabra se corta en el borde y no
+ * "Palabras clave" en UNA sola fila que se desliza por páginas (ninguna palabra se corta en el borde y no
  * le roba altura al texto). Al tocar una palabra, su tarjeta de definición se despliega suavemente justo debajo, con
  * "Escuchar palabra"; al tocarla de nuevo (o "Cerrar") se pliega.
  */
@@ -546,9 +552,9 @@ internal fun GlossaryBar(state: ReaderUiState, vm: ReaderViewModel, modifier: Mo
     // La última palabra abierta se conserva mientras la tarjeta se pliega (sin parpadeo a vacío).
     val lastShown = remember { arrayOfNulls<VocabularyEntry>(1) }
     if (selected != null) lastShown[0] = selected
-    // La definición nunca pasa de ~1/5 de la pantalla: el bloque de lectura conserva el protagonismo.
+    // El texto de la definición nunca pasa de ~1/6 de la pantalla: el bloque de lectura conserva el protagonismo.
     val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
-    val maxDefinition = (windowHeight * 0.2f).coerceIn(DefinitionMinHeight, DefinitionMaxHeight)
+    val maxDefinition = (windowHeight * 0.16f).coerceIn(DefinitionMinHeight, DefinitionMaxHeight)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // Encabezado "🔍 Palabras clave" y ◀ ● ▶ en una sola línea compacta; chips de 38 dp.
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 30.dp) {
@@ -574,36 +580,40 @@ internal fun GlossaryBar(state: ReaderUiState, vm: ReaderViewModel, modifier: Mo
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WordDefinitionCard(word: String, definition: String, example: String, maxHeight: Dp, onSpeak: () -> Unit, onClose: () -> Unit) {
+    val content = MaterialTheme.colorScheme.onPrimaryContainer
     Card(
         modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
     ) {
-        Column(
-            Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()).padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AdaptiveText(word, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(definition, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            if (example.isNotBlank()) {
-                Text(stringResource(R.string.glossary_example, example), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onSpeak, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 44.dp)) {
-                    AdaptiveSingleLineText(stringResource(R.string.glossary_listen), style = MaterialTheme.typography.labelLarge)
+        Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 10.dp)) {
+            // Escuchar y Cerrar siempre a la vista, junto a la palabra: nunca quedan escondidos bajo el texto.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                AdaptiveText(word, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = content)
+                FilledIconButton(onClick = onSpeak, modifier = Modifier.size(44.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = stringResource(R.string.glossary_listen))
                 }
-                OutlinedButton(onClick = onClose, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 44.dp)) {
-                    AdaptiveSingleLineText(stringResource(R.string.glossary_close), style = MaterialTheme.typography.labelLarge)
+                IconButton(onClick = onClose, modifier = Modifier.size(44.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.glossary_close), tint = content)
+                }
+            }
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()).padding(end = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(definition, style = MaterialTheme.typography.bodyMedium, color = content)
+                if (example.isNotBlank()) {
+                    Text(stringResource(R.string.glossary_example, example), style = MaterialTheme.typography.bodySmall, color = content)
                 }
             }
         }
     }
 }
 
-/** Límites de la tarjeta de definición: el texto de lectura conserva el protagonismo. */
-private val DefinitionMinHeight = 112.dp
-private val DefinitionMaxHeight = 200.dp
+/** Límites del texto de la definición: el bloque de lectura conserva el protagonismo. */
+private val DefinitionMinHeight = 80.dp
+private val DefinitionMaxHeight = 150.dp
 
 /**
  * Estilo del texto de lectura: OpenDyslexic del tamaño elegido (14–28 pt) con el interlineado del perfil, que se

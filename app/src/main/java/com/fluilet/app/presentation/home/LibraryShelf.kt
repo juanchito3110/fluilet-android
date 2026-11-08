@@ -8,12 +8,18 @@ import com.fluilet.app.domain.model.LibraryItem
  * Filtros rápidos de la biblioteca: por banda de nivel ("Inicial", "Intermedio", "Avanzado") o solo las lecturas
  * guardadas en el servidor. Una lectura sin nivel solo aparece en "Todas" y, si está guardada, en "Guardadas".
  */
-enum class LibraryQuickFilter(val label: String, val levels: IntRange? = null, val savedOnly: Boolean = false) {
+enum class LibraryQuickFilter(val title: String, val detail: String? = null, val levels: IntRange? = null, val savedOnly: Boolean = false) {
     ALL("Todas"),
-    INICIAL("Inicial (Niv. 1–2)", 1..2),
-    INTERMEDIO("Intermedio (Niv. 3)", 3..3),
-    AVANZADO("Avanzado (Niv. 4–5)", 4..5),
+    INICIAL("Inicial", "Niv. 1–2", 1..2),
+    INTERMEDIO("Intermedio", "Niv. 3", 3..3),
+    AVANZADO("Avanzado", "Niv. 4–5", 4..5),
     GUARDADAS("Guardadas", savedOnly = true);
+
+    /** Nombre completo, como "Inicial (Niv. 1–2)". */
+    val label: String get() = if (detail != null) "$title ($detail)" else title
+
+    /** Segundo renglón del chip: la banda de nivel y cuántas lecturas deja ver. */
+    fun detailLine(count: Int): String = if (detail != null) "$detail · $count" else "$count"
 
     fun matches(entry: ShelfEntry): Boolean = when {
         savedOnly -> entry.item != null

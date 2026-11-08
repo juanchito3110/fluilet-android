@@ -24,7 +24,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,12 +34,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -69,6 +69,10 @@ object ChipPaging {
 
     /** Página donde está el chip [index] (0 si no aparece). */
     fun pageOf(index: Int, pages: List<IntRange>): Int = pages.indexOfFirst { index in it }.coerceAtLeast(0)
+
+    /** La etiqueta de una tira en línea solo se muestra si, a su lado, caben todos los chips sin paginar. */
+    fun labelFits(widths: List<Float>, available: Float, gap: Float, labelWidth: Float): Boolean =
+        pages(widths, available - labelWidth, gap).size <= 1
 
     /**
      * Tira en línea: si todos los chips caben no hay flecha; si no, se reserva el ancho de la flecha ([navWidth]) y se
@@ -132,7 +136,15 @@ fun <T> ChipCarousel(
                         title != null -> AdaptiveText(title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         else -> Spacer(Modifier.weight(1f))
                     }
-                    if (pages.size > 1) MiniPagerNav(state, arrowSize = if (compactHeader) CompactArrow else 36.dp)
+                    if (pages.size > 1) {
+                        if (compactHeader) {
+                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactArrow) {
+                                MiniPagerNav(state, arrowSize = CompactArrow)
+                            }
+                        } else {
+                            MiniPagerNav(state)
+                        }
+                    }
                 }
             }
             val row: @Composable (IntRange) -> Unit = { range ->
@@ -165,24 +177,19 @@ fun <T> ChipCarousel(
 
 /** Ancho que mide cada chip (texto + relleno + ícono), con la misma letra con que se dibuja. */
 @Composable
-private fun rememberChipWidths(labels: List<String>, style: TextStyle, hasIcon: Boolean): List<Dp> {
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    return remember(labels, style, density, hasIcon) {
-        labels.map { text ->
-            val textWidth = with(density) { measurer.measure(text, style, maxLines = 1, softWrap = false).size.width.toDp() }
-            textWidth + ChipPadding * 2 + (if (hasIcon) ChipIconSize + ChipIconGap else 0.dp) + ChipSlack
-        }
+private fun rememberChipWidths(labels: List<String>, style: TextStyle, hasIcon: Boolean, padding: Dp = ChipPadding): List<Dp> =
+    rememberTextWidths(labels, style).map { text ->
+        text + padding * 2 + (if (hasIcon) ChipIconSize + ChipIconGap else 0.dp) + ChipSlack
     }
-}
 
 /** Ancho que ocupa la flecha de una tira en línea (botón con su área táctil de 48 dp). */
 private val InlineNavWidth = 48.dp
 
 /**
- * Tira de chips en UNA sola fila compacta, con su etiqueta a la izquierda ("Lector activo"). Si todos caben se ven a la
- * vez; si no, se desliza por páginas (cada una con chips enteros) y una flecha al final pasa a la siguiente o vuelve al
- * principio. Ocupa el alto de un solo chip.
+ * Tira de chips en UNA sola fila compacta. Si todos caben se ven a la vez; si no, se desliza por páginas (cada una con
+ * chips enteros) y una flecha al final pasa a la siguiente o vuelve al principio. Ocupa el alto de un solo chip. La
+ * etiqueta ("Lector activo") va a la izquierda solo si queda espacio para todos los chips: si no, cede su lugar y
+ * TalkBack la sigue anunciando en cada chip.
  */
 @Composable
 fun <T> InlineChipStrip(
@@ -192,19 +199,22 @@ fun <T> InlineChipStrip(
     onClick: (T) -> Unit,
     modifier: Modifier = Modifier,
     leadingLabel: String? = null,
-    style: TextStyle = MaterialTheme.typography.labelLarge,
+    style: TextStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
     minHeight: Dp = 44.dp,
-    gap: Dp = 8.dp
+    gap: Dp = 6.dp
 ) {
     if (items.isEmpty()) return
-    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        leadingLabel?.let {
-            AdaptiveText(it, Modifier.widthIn(max = InlineLabelMaxWidth), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        BoxWithConstraints(Modifier.weight(1f)) {
-            val available = maxWidth
-            val labels = items.map(label)
-            val widths = rememberChipWidths(labels, style, hasIcon = false)
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val labels = items.map(label)
+        val widths = rememberChipWidths(labels, style, hasIcon = false, padding = InlineChipPadding)
+        val labelStyle = MaterialTheme.typography.labelMedium
+        val labelWidth = rememberTextWidths(listOfNotNull(leadingLabel), labelStyle).firstOrNull()
+        val showLabel = labelWidth != null && ChipPaging.labelFits(widths.map { it.value }, maxWidth.value, gap.value, labelWidth.value + InlineLabelGap.value)
+        val available = if (showLabel && labelWidth != null) maxWidth - labelWidth - InlineLabelGap else maxWidth
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(InlineLabelGap)) {
+            if (showLabel && leadingLabel != null) {
+                Text(leadingLabel, style = labelStyle, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
+            }
             val pages = remember(widths, available, gap) {
                 ChipPaging.inlinePages(widths.map { it.value }, available.value, gap.value, InlineNavWidth.value)
             }
@@ -218,7 +228,11 @@ fun <T> InlineChipStrip(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
                     range.forEach { index ->
                         val item = items[index]
-                        CarouselChip(labels[index], isSelected(item), null, widths[index] <= available, style, minHeight, available) { onClick(item) }
+                        CarouselChip(
+                            labels[index], isSelected(item), null, widths[index] <= available, style, minHeight, available,
+                            padding = InlineChipPadding,
+                            description = leadingLabel?.let { "$it: ${labels[index]}" }
+                        ) { onClick(item) }
                     }
                 }
             }
@@ -243,11 +257,12 @@ fun <T> InlineChipStrip(
     }
 }
 
-/** Ancho máximo de la etiqueta de una tira en línea: "Lector activo" baja a dos renglones cortos si hace falta. */
-private val InlineLabelMaxWidth = 72.dp
+/** Relleno de los chips en línea, más compacto para que quepan más nombres en la fila. */
+private val InlineChipPadding = 10.dp
+private val InlineLabelGap = 8.dp
 
-/** Flechas del encabezado compacto (palabras clave del lector): 30 dp, sin alargar la fila. */
-private val CompactArrow = 30.dp
+/** Flechas del encabezado compacto: sin alargar la fila. */
+private val CompactArrow = 32.dp
 
 /** ◀ · puntos · ▶ compacto para las tiras de chips. */
 @Composable
@@ -276,6 +291,8 @@ private fun CarouselChip(
     style: TextStyle,
     minHeight: Dp,
     maxWidth: Dp,
+    padding: Dp = ChipPadding,
+    description: String? = null,
     onClick: () -> Unit
 ) {
     val primary = MaterialTheme.colorScheme.primary
@@ -288,9 +305,10 @@ private fun CarouselChip(
         contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) primary else MaterialTheme.colorScheme.outline),
         modifier = Modifier.heightIn(min = minHeight).widthIn(max = maxWidth)
+            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
     ) {
         Row(
-            Modifier.padding(horizontal = ChipPadding),
+            Modifier.padding(horizontal = padding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(ChipIconGap)
         ) {

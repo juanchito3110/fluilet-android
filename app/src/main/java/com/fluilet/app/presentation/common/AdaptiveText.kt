@@ -13,6 +13,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -82,6 +86,19 @@ data class WordSafeAutoSize(val min: TextUnit, val max: TextUnit) : TextAutoSize
 
     private companion object {
         const val STEP = 0.5f
+    }
+}
+
+/**
+ * Ancho real de cada texto con la letra con que se dibuja. OpenDyslexic es muy ancha (unos 0,8 em por letra): las
+ * decisiones de acomodo (¿caben lado a lado?, ¿hay espacio para el emoji?) se toman con esta medida, nunca estimando.
+ */
+@Composable
+fun rememberTextWidths(labels: List<String>, style: TextStyle): List<Dp> {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return remember(labels, style, density) {
+        labels.map { text -> with(density) { measurer.measure(text, style, maxLines = 1, softWrap = false).size.width.toDp() } }
     }
 }
 

@@ -18,6 +18,7 @@ import com.fluilet.app.presentation.home.LibraryQuickFilter
 import com.fluilet.app.presentation.home.LibraryShelf
 import com.fluilet.app.testutil.sampleAdaptation
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -58,12 +59,20 @@ class CarouselAndFiltersTest {
     // --- FluiBot grande y visor a pantalla completa ----------------------------------------------------
 
     @Test fun mainCardSceneIsBigButLeavesRoomForTheTabs() {
-        // Tarjeta de un teléfono de 360 dp (296 dp útiles): 216 dp; en pantallas bajas, 200 dp.
-        assertEquals(216f, StageLayout.cardSceneSize(296.dp, windowHeight = 780.dp).value, 0.01f)
-        assertEquals(200f, StageLayout.cardSceneSize(296.dp, windowHeight = 640.dp).value, 0.01f)
+        // Teléfono alto (como 1080x2400): 216 dp; en pantallas más bajas, 200 dp para que las pestañas sigan a la vista.
+        assertEquals(216f, StageLayout.cardSceneSize(296.dp, windowHeight = 891.dp).value, 0.01f)
+        assertEquals(200f, StageLayout.cardSceneSize(296.dp, windowHeight = 780.dp).value, 0.01f)
         // Tarjeta angosta: nunca más del 80 % de su ancho.
         assertEquals(176f, StageLayout.cardSceneSize(220.dp, windowHeight = 800.dp).value, 0.01f)
         assertTrue(StageLayout.CardSceneMax.value in 200f..220f)
+    }
+
+    @Test fun stageButtonsOnlyShareARowWhenBothLabelsFitWhole() {
+        // Medidas reales con OpenDyslexic a 15 sp: "Recargar Energía" ~205 dp y "Ver en grande" ~165 dp.
+        assertFalse(StageLayout.buttonsSideBySide(205.dp, 165.dp, available = 347.dp))
+        assertFalse(StageLayout.buttonsSideBySide(205.dp, 165.dp, available = 296.dp))
+        // Tableta: caben los dos con sus textos completos.
+        assertTrue(StageLayout.buttonsSideBySide(205.dp, 165.dp, available = 600.dp))
     }
 
     @Test fun viewerShowsAGiantFluiBotThatStillFitsTheScreen() {
@@ -100,6 +109,14 @@ class CarouselAndFiltersTest {
         assertEquals(listOf(0, 1, 2, 3, 4), pages.flatMap { it.toList() })
         assertEquals(1, ChipPaging.pageOf(4, pages))
         assertEquals(0, ChipPaging.pageOf(99, pages))
+    }
+
+    @Test fun inlineLabelOnlyShowsWhenEveryChipStillFits() {
+        val names = listOf(73f, 78f, 73f, 114f)
+        // Sin la etiqueta caben los 4 en la fila de un teléfono de 411 dp; con la etiqueta, no: la etiqueta cede su lugar.
+        assertEquals(listOf(0..3), ChipPaging.inlinePages(names, available = 371f, gap = 6f, navWidth = 48f))
+        assertFalse(ChipPaging.labelFits(names, available = 371f, gap = 6f, labelWidth = 110f))
+        assertTrue(ChipPaging.labelFits(names, available = 600f, gap = 6f, labelWidth = 110f))
     }
 
     @Test fun aChipWiderThanTheRowGoesAloneAndEmptyListsHaveNoPages() {
@@ -148,6 +165,9 @@ class CarouselAndFiltersTest {
     @Test fun quickFiltersGroupLevelsAndSavedReadings() {
         val all = LibraryShelf.entries(library, demo, LibraryFilter())
         assertEquals(listOf("Todas", "Inicial (Niv. 1–2)", "Intermedio (Niv. 3)", "Avanzado (Niv. 4–5)", "Guardadas"), LibraryQuickFilter.entries.map { it.label })
+        // El chip va en dos renglones: nombre arriba; banda y cantidad abajo.
+        assertEquals("Niv. 1–2 · 4", LibraryQuickFilter.INICIAL.detailLine(4))
+        assertEquals("6", LibraryQuickFilter.ALL.detailLine(6))
         val counts = LibraryShelf.quickCounts(all)
         assertEquals(5, counts[LibraryQuickFilter.ALL])
         assertEquals(2, counts[LibraryQuickFilter.INICIAL])

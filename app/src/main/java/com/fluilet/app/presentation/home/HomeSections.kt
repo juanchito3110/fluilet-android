@@ -65,7 +65,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fluilet.app.R
 import com.fluilet.app.domain.model.AdaptationResult
@@ -280,13 +282,18 @@ internal fun LecturasTab(
         ReadingReadyCard(state, onStartReading)
 
         if (categories.isNotEmpty()) {
-            // Filtros rápidos: bajan de renglón (nunca se cortan) y cada uno dice cuántas lecturas deja ver.
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Filtros rápidos de dos renglones (nombre arriba; banda y cantidad abajo): caben varios por fila y ninguno se corta.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 LibraryQuickFilter.entries.forEach { option ->
                     SelectableChip(
                         selected = quick == option,
                         onClick = { quick = option },
-                        label = { AdaptiveText("${option.label} · ${counts[option] ?: 0}", style = MaterialTheme.typography.labelLarge) }
+                        label = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(option.title, style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), maxLines = 1, softWrap = false)
+                                Text(option.detailLine(counts[option] ?: 0), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal), maxLines = 1, softWrap = false)
+                            }
+                        }
                     )
                 }
             }
@@ -297,7 +304,10 @@ internal fun LecturasTab(
                 label = { code -> code?.let(LessonCategory::displayNameFor) ?: allLabel },
                 isSelected = { it == category },
                 onClick = { category = it },
-                title = stringResource(R.string.library_filter_category)
+                title = stringResource(R.string.library_filter_category),
+                style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                minHeight = 40.dp,
+                compactHeader = true
             )
         }
 
@@ -403,11 +413,12 @@ private fun ShelfCard(entry: ShelfEntry, opening: Boolean, enabled: Boolean, onO
                             stringResource(if (entry.item != null) R.string.library_server_badge else R.string.library_demo_badge),
                             MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.onBackground
                         )
-                        entry.gain?.takeIf { it > 0 }?.let {
-                            Pill(stringResource(R.string.library_gain, String.format(Locale.US, "%.1f", it)), FluiletBrand.Mint.copy(alpha = 0.2f), MaterialTheme.colorScheme.onBackground)
-                        }
                     }
                 }
+            }
+            // A todo el ancho de la tarjeta, debajo del arte: "+15.5 pts de facilidad" se lee completo en cualquier teléfono.
+            entry.gain?.takeIf { it > 0 }?.let {
+                Pill(stringResource(R.string.library_gain, String.format(Locale.US, "%.1f", it)), FluiletBrand.Mint.copy(alpha = 0.2f), MaterialTheme.colorScheme.onBackground)
             }
             if (entry.originalScore != null && entry.adaptedScore != null && entry.originalScore > 0) {
                 Text(

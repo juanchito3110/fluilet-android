@@ -25,24 +25,44 @@ class ReaderLayoutTest {
         assertEquals(34f, ReaderToolbar.CompareBarHeight.value, 0f)
     }
 
-    @Test fun toolbarLabelsDropTheEmojiBeforeTheyCouldBeCut() {
-        // Teléfono de 360 dp (328 dp útiles): con o sin flechas de la guía, "📏 Guía" y "🔄 Comparar" caben con emoji.
-        assertTrue(ReaderToolbar.showEmoji(328.dp, guideArrows = true))
-        assertTrue(ReaderToolbar.showEmoji(328.dp, guideArrows = false))
-        // Teléfono de 320 dp (288 dp útiles): con flechas, solo las palabras.
-        assertFalse(ReaderToolbar.showEmoji(288.dp, guideArrows = true))
-        assertTrue(ReaderToolbar.showEmoji(288.dp, guideArrows = false))
+    /** Anchos reales (a 13 sp, medidos con OpenDyslexic): "📏 Guía" + "🔄 Comparar" y "Guía" + "Comparar". */
+    private val emojiLabels = 150.dp
+    private val plainLabels = 112.dp
+
+    @Test fun toolbarDropsTheEmojiBeforeAnyLabelCouldBeCut() {
+        // Con espacio: emoji y flechas de la guía.
+        assertEquals(ReaderToolbar.ToolbarFit(emoji = true, arrows = true), ReaderToolbar.toolbarFit(379.dp, true, emojiLabels, plainLabels))
+        // Más angosto: se conservan las flechas y se renuncia al emoji.
+        assertEquals(ReaderToolbar.ToolbarFit(emoji = false, arrows = true), ReaderToolbar.toolbarFit(328.dp, true, emojiLabels, plainLabels))
         // Muy angosto: sin flechas (tocar el texto avanza la guía).
-        assertTrue(ReaderToolbar.showGuideArrows(288.dp))
-        assertFalse(ReaderToolbar.showGuideArrows(260.dp))
+        assertEquals(ReaderToolbar.ToolbarFit(emoji = true, arrows = false), ReaderToolbar.toolbarFit(280.dp, true, emojiLabels, plainLabels))
+        assertEquals(ReaderToolbar.ToolbarFit(emoji = false, arrows = false), ReaderToolbar.toolbarFit(230.dp, true, emojiLabels, plainLabels))
+        // Sin guía activa nunca hay flechas.
+        assertFalse(ReaderToolbar.toolbarFit(500.dp, false, emojiLabels, plainLabels).arrows)
     }
 
-    @Test fun compareBarKeepsBothTabsAndTheViewTogetherButtonOnOneLine() {
-        assertTrue(ReaderToolbar.compareEmoji(300.dp))
-        assertFalse(ReaderToolbar.compareEmoji(270.dp))
-        assertFalse(ReaderToolbar.compareButtonIconOnly(260.dp))
-        assertTrue(ReaderToolbar.compareButtonIconOnly(240.dp))
+    @Test fun compareBarGivesUpTheEmojiBeforeTheViewTogetherWords() {
+        val emojiTabs = 215.dp
+        val plainTabs = 170.dp
+        val button = 90.dp
+        assertEquals(ReaderToolbar.CompareFit(emoji = true, buttonText = true), ReaderToolbar.compareFit(360.dp, emojiTabs, plainTabs, button))
+        assertEquals(ReaderToolbar.CompareFit(emoji = false, buttonText = true), ReaderToolbar.compareFit(310.dp, emojiTabs, plainTabs, button))
+        assertEquals(ReaderToolbar.CompareFit(emoji = true, buttonText = false), ReaderToolbar.compareFit(260.dp, emojiTabs, plainTabs, button))
+        assertEquals(ReaderToolbar.CompareFit(emoji = false, buttonText = false), ReaderToolbar.compareFit(220.dp, emojiTabs, plainTabs, button))
         assertEquals(listOf("ADAPTED", "ORIGINAL"), CompareTab.entries.map { it.name })
+    }
+
+    @Test fun toolbarAndCompareBarDecideWithTheRealTextWidth() {
+        val screen = code("reader/ReaderScreen.kt").substringAfter("private fun GuideBar").substringBefore("private val ToolbarShape")
+        assertTrue("la barra mide sus etiquetas", "rememberTextWidths(" in screen && "ReaderToolbar.toolbarFit(" in screen)
+        val bar = code("reader/ReaderExtras.kt").substringAfter("private fun CompareBar").substringBefore("private fun AdaptedComparisonText")
+        assertTrue("el comparador mide sus etiquetas", "rememberTextWidths(" in bar && "ReaderToolbar.compareFit(" in bar)
+    }
+
+    @Test fun listenAndCloseAreAlwaysVisibleInTheDefinitionCard() {
+        val card = code("reader/ReaderExtras.kt").substringAfter("private fun WordDefinitionCard").substringBefore("/** Límites del texto de la definición")
+        assertTrue("Escuchar y Cerrar van antes del área que se desplaza",
+            card.indexOf("onClick = onSpeak") in 0 until card.indexOf("verticalScroll") && card.indexOf("onClick = onClose") in 0 until card.indexOf("verticalScroll"))
     }
 
     // --- Auditoría del código del lector ----------------------------------------------------------------
